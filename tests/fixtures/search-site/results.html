@@ -1,0 +1,73 @@
+<!doctype html>
+<!--
+  A minimal stand-in for the real Null Search results page. The real site
+  lives in a different repo (node-grid-search); this fixture implements just
+  enough of the same contract — window.nodegridDrive.search()/.view()/
+  .download(), the #driveStatus message line, and .result.drive cards — to
+  let tests/ui-drive.test.js drive the actual NODE_GRID app end to end
+  without depending on the website repo being checked out alongside it.
+-->
+<html>
+<head><meta charset="utf-8"><title>results (test fixture)</title></head>
+<body>
+  <div id="driveStatus"></div>
+  <div id="vault-results"></div>
+  <script>
+    (function () {
+      var statusEl = document.getElementById('driveStatus');
+      var resultsEl = document.getElementById('vault-results');
+      var params = new URLSearchParams(location.search);
+      var q = params.get('q') || '';
+
+      function show(text) { statusEl.textContent = text || ''; }
+
+      function render(items) {
+        resultsEl.innerHTML = (items || []).map(function (it) {
+          return '<div class="result drive" data-drive-path="' + it.path + '">' +
+            '<span class="r-url">' + it.path + '</span>' +
+            '<button data-drive-download="' + it.path + '">DOWNLOAD</button>' +
+            '</div>';
+        }).join('');
+      }
+
+      var ACTION_MESSAGES = {
+        scope: 'this token can only search. View and download need an Everything-scope token.',
+        'not-allowed': 'only files from a search result can be opened.',
+        token: 'token rejected.',
+        unreachable: "can't reach your Null Drive right now.",
+        error: 'that failed.'
+      };
+
+      var bridge = window.nodegridDrive;
+      if (bridge && q) {
+        bridge.search(q).then(function (r) {
+          if (r && r.ok) { render(r.items); show(''); }
+          else {
+            render([]);
+            show('Drive: ' + (r && r.state === 'encrypted'
+              ? "connected, but this account is end-to-end encrypted, so Drive can't search it"
+              : (r && r.state) || 'search failed'));
+          }
+        });
+      }
+
+      resultsEl.addEventListener('click', function (e) {
+        if (!bridge) return;
+        var dl = e.target.closest('[data-drive-download]');
+        if (dl) {
+          bridge.download(dl.getAttribute('data-drive-download')).then(function (r) {
+            show(r && r.ok ? 'Drive: saved ' + r.name + ' to Downloads.' : 'Drive: ' + (ACTION_MESSAGES[r && r.reason] || r.reason));
+          });
+          return;
+        }
+        var card = e.target.closest('[data-drive-path]');
+        if (card) {
+          bridge.view(card.getAttribute('data-drive-path')).then(function (r) {
+            show(r && r.ok ? '' : 'Drive: ' + (ACTION_MESSAGES[r && r.reason] || r.reason));
+          });
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

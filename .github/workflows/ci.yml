@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-linux:
+    name: Tests (Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: System libraries (Electron + Xvfb)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
+            libatspi2.0-0 libuuid1 libsecret-1-0 libgbm1 libasound2t64 xvfb
+      - run: npm ci
+      - name: Frontend/backend syntax
+        run: |
+          for f in $(find . -maxdepth 1 -name "*.js"); do
+            node --check "$f" || { echo "::error file=$f::syntax error"; exit 1; }
+          done
+      - name: Drive connection tests (null-drive.js, no Electron)
+        run: npm test
+      - name: Drive connection, live in the app (Electron + Playwright, under Xvfb)
+        run: xvfb-run -a npm run test:ui
+
+  test-windows:
+    name: Tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Drive connection tests (null-drive.js, no Electron)
+        run: npm test

@@ -1,0 +1,119 @@
+name: Release
+
+# Push a tag that matches the app version (package.json), with or without a
+# "v": v5.0.1 or 5.0.1. Or, for a tag that already exists: Actions > Release
+# > Run workflow, and type the tag.
+# Builds the .deb, the portable Windows build and the Microsoft Store
+# package, and attaches them to the release for that tag (an existing
+# release keeps its published/draft state; a new one is published).
+# The .msix is a workflow artifact only: it's unsigned and meant for
+# Partner Center, which signs it. store-identity.txt must be filled in
+# (see STORE-STEPS.txt) for the Store job to build anything meaningful.
+
+on:
+  push:
+    tags: ["v*", "[0-9]*.[0-9]*.[0-9]*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and attach to its release (e.g. 5.0.0)"
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Check tag matches the app version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - id: v
+        run: |
+          app=$(node -p "require('./package.json').version")
+          tag="${TAG#v}"
+          if [ "$app" != "$tag" ]; then echo "::error::tag $TAG but package.json says $app"; exit 1; fi
+          echo "version=$app" >> "$GITHUB_OUTPUT"
+
+  deb:
+    name: Debian / Ubuntu package
+    needs: version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Test
+        run: npm test
+      - name: Build .deb
+        run: npm run dist:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: store-dist/*.deb
+
+  windows:
+    name: Windows portable build + Store package
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Test
+        run: npm test
+      - name: Build portable Windows build
+        run: npm run dist
+      - name: Zip the portable build
+        shell: pwsh
+        run: Compress-Archive -Path "dist/NODE_GRID-win32-x64" -DestinationPath "dist/NODE_GRID-${{ needs.version.outputs.version }}-win32-x64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/NODE_GRID-*-win32-x64.zip
+      - name: Build Store package (MSIX)
+        run: npm run store
+        continue-on-error: true # needs store-identity.txt filled in from Partner Center; see STORE-STEPS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-package
+          path: store-dist/*.appx
+          if-no-files-found: ignore
+
+  release:
+    name: Attach to the GitHub release
+    needs: [version, deb, windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          append_body: true
+          name: NODE_GRID ${{ needs.version.outputs.version }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/deb/*.deb
+            dist/windows/*.zip
+          body: |
+            **Windows:** unzip `NODE_GRID-${{ needs.version.outputs.version }}-win32-x64.zip` and run `NODE_GRID.exe` (portable, no installer), or get it from the Microsoft Store.
+            **Ubuntu 24.04+ / Debian 13+:** `sudo apt install ./nullgrid-browser_${{ needs.version.outputs.version }}_amd64.deb`
+
+            The Microsoft Store package, if built, is in this run's `store-package` artifact (upload it in Partner Center).
