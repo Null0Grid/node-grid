@@ -6,7 +6,9 @@ ONE TIME
    Sign in with your personal Microsoft account, then verify your ID
    (photo of a government ID + a selfie).
 2. Partner Center > Apps and games > + New product > "MSIX or PWA app".
-   Reserve the name NODE_GRID (if it's taken, try "NODE_GRID Browser").
+   Reserve the name "Node Grid". (This app was first reserved as "Null Search";
+   on that existing product, reserve "Node Grid" as an extra name instead of
+   making a new product, then pick "Node Grid" in the Store listing.)
 3. Open the app > Product identity (left menu). Copy these three values
    into store-identity.txt and save it:
      Package/Identity/Name
@@ -18,6 +20,8 @@ ONE TIME
 EACH VERSION
 5. Double-click "Build Store package.bat" (store-identity.txt next to it).
    About 5-10 minutes. You get NODE_GRID-<version>.appx in this folder.
+   Or on GitHub: Actions > Store package > Run workflow, then download the
+   "store-package" artifact.
 6. Partner Center > your app > Start your submission:
    - Pricing and availability: Free. Visibility: Public, or "Private
      audience" / hidden if you only want people with the link.

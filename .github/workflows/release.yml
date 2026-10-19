@@ -87,7 +87,9 @@ jobs:
           name: windows
           path: dist/NODE_GRID-*-win32-x64.zip
       - name: Build Store package (MSIX)
-        run: npm run store
+        run: |
+          node store-apply.js store-identity.txt
+          npm run store
         continue-on-error: true # needs store-identity.txt filled in from Partner Center; see STORE-STEPS.txt
       - uses: actions/upload-artifact@v4
         with:

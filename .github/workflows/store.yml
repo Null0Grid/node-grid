@@ -1,0 +1,39 @@
+name: Store package
+
+# Builds just the Microsoft Store package (.appx) from the current branch,
+# using the identity in store-identity.txt. Actions > Store package > Run
+# workflow, then download the "store-package" artifact and upload the .appx
+# in Partner Center (which signs it).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  appx:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Test
+        run: npm test
+      - name: Apply Store identity
+        run: node store-apply.js store-identity.txt
+      - name: Build Store package
+        run: npm run store
+      - name: Show the package manifest
+        shell: pwsh
+        run: |
+          $appx = Get-ChildItem store-dist/*.appx | Select-Object -First 1
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead($appx.FullName)
+          $e = $zip.Entries | Where-Object FullName -eq 'AppxManifest.xml'
+          (New-Object IO.StreamReader($e.Open())).ReadToEnd()
+          $zip.Dispose()
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-package
+          path: store-dist/*.appx
+          if-no-files-found: error
