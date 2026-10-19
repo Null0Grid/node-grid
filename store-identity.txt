@@ -11,7 +11,7 @@ PUBLISHER_DISPLAY_NAME=NULLGRID
 # (Product management > Product identity / "Reserve another name").
 # The IDENTITY_NAME above stays NULLGRID.NullSearch: Partner Center fixes it
 # when the product is first created, and renaming the app does not change it.
-DISPLAY_NAME=Node Grid
+DISPLAY_NAME=Null Search
 
 # Parts that can cause trouble in Store review. Leave as "no" unless you
 # have dealt with the reason:

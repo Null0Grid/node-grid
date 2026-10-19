@@ -6,9 +6,8 @@ ONE TIME
    Sign in with your personal Microsoft account, then verify your ID
    (photo of a government ID + a selfie).
 2. Partner Center > Apps and games > + New product > "MSIX or PWA app".
-   Reserve the name "Node Grid". (This app was first reserved as "Null Search";
-   on that existing product, reserve "Node Grid" as an extra name instead of
-   making a new product, then pick "Node Grid" in the Store listing.)
+   The live listing is reserved as "Null Search" (DISPLAY_NAME in
+   store-identity.txt must stay exactly that).
 3. Open the app > Product identity (left menu). Copy these three values
    into store-identity.txt and save it:
      Package/Identity/Name
