@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NODE_GRID :: SEARCH</title>
+<!-- Bundled copy of search.nullgrid.dev/index.html, shipped inside the NODE_GRID app -->
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="icon" href="icon-512.png" type="image/png" sizes="512x512" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<script src="favicon-anim.js" defer></script>
+<style>
+  :root{
+    color-scheme: dark;
+    --bg:#080b0c;
+    --panel:#0d1315;
+    --panel-2:#111a1d;
+    --line:#1c2a2e;
+    --ink:#c9d6d9;
+    --ink-dim:#5f7379;
+    --cyan:#00e5ff;
+    --pink:#ff2e88;
+    --up:#29ff9b;
+    --wait:#ffc857;
+    --mono:"JetBrains Mono","SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--mono);
+    overflow-x:hidden;
+    position:relative;
+  }
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:50;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.018) 0px,
+      rgba(255,255,255,0.018) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode:overlay;
+  }
+  body::after{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:49;
+    background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:0.001s !important; transition-duration:0.001s !important;}
+  }
+
+  .wrap{
+    position:relative;
+    z-index:1;
+    min-height:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:20px 16px 40px;
+    gap:28px;
+  }
+
+  .topbar{
+    width:100%;
+    max-width:920px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:11px;
+    letter-spacing:1.5px;
+    color:var(--ink-dim);
+    text-transform:uppercase;
+    padding-top:4px;
+  }
+  .topbar .dot{
+    display:inline-block;
+    width:6px;height:6px;
+    border-radius:50%;
+    background:var(--up);
+    box-shadow:0 0 6px var(--up);
+    margin-right:6px;
+    animation:pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  #clock{color:var(--cyan);}
+
+  .grid-link{
+    position:relative;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:26px;
+    height:26px;
+    margin-left:12px;
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    text-decoration:none;
+    font-size:13px;
+    line-height:1;
+    transition:.15s;
+  }
+  .grid-link:hover{
+    color:var(--cyan);
+    border-color:var(--cyan);
+    box-shadow:0 0 10px rgba(0,229,255,.3);
+  }
+
+  .hero{
+    margin-top:6vh;
+    text-align:center;
+    min-height:64px;
+  }
+  .hero .prefix{color:var(--ink-dim);}
+  .hero-line{
+    font-size:clamp(20px,4vw,34px);
+    letter-spacing:2px;
+    text-transform:uppercase;
+    white-space:nowrap;
+    overflow:hidden;
+  }
+  .hero-line .txt{color:var(--cyan);text-shadow:0 0 12px rgba(0,229,255,.45);}
+  .cursor{
+    display:inline-block;
+    width:0.55ch;
+    background:var(--cyan);
+    margin-left:2px;
+    animation:blink 1s steps(1) infinite;
+  }
+  @keyframes blink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
+
+  .search-block{
+    width:100%;
+    max-width:640px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+  }
+  form.searchbar{
+    width:100%;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    padding:14px 18px;
+    position:relative;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  form.searchbar::before,
+  form.searchbar::after{
+    content:"";
+    position:absolute;
+    width:10px;height:10px;
+    border-color:var(--line);
+    transition:border-color .15s;
+  }
+  form.searchbar::before{top:-1px;left:-1px;border-top:2px solid;border-left:2px solid;}
+  form.searchbar::after{bottom:-1px;right:-1px;border-bottom:2px solid;border-right:2px solid;}
+  form.searchbar:focus-within{
+    border-color:rgba(0,229,255,.5);
+    box-shadow:0 0 18px rgba(0,229,255,.12);
+  }
+  form.searchbar:focus-within::before,
+  form.searchbar:focus-within::after{border-color:var(--cyan);}
+  .prompt-char{color:var(--cyan);font-size:16px;}
+  #q{
+    flex:1;
+    background:transparent;
+    border:none;
+    outline:none;
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:16px;
+    letter-spacing:0.5px;
+  }
+  #q::placeholder{color:var(--ink-dim);}
+  .go-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    padding:8px 12px;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .go-btn:hover{color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 10px rgba(0,229,255,.25);}
+
+  .engine-select{position:relative;display:inline-flex;align-items:center;}
+  .engine-select::after{
+    content:"▾";
+    position:absolute;
+    right:12px;
+    color:var(--ink-dim);
+    pointer-events:none;
+    font-size:10px;
+    transition:color .15s;
+  }
+  .engine-select:focus-within::after{color:var(--cyan);}
+  #engine{
+    appearance:none;-webkit-appearance:none;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    padding:9px 32px 9px 14px;
+    cursor:pointer;
+    transition:.15s;
+  }
+  #engine:hover,#engine:focus{color:var(--cyan);border-color:var(--cyan);outline:none;}
+  #engine option{background:var(--panel);color:var(--ink);}
+
+  .engine-row{display:flex;align-items:center;gap:12px;}
+
+  .vault-toggle{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
+  .vault-toggle .vt-label{
+    font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+    color:var(--ink-dim);transition:color .15s;
+  }
+  .vault-toggle input{position:absolute;opacity:0;width:1px;height:1px;}
+  .vt-track{
+    position:relative;width:38px;height:20px;
+    border:1px solid var(--line);background:var(--panel);
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .vt-track::before{
+    content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;
+    background:var(--ink-dim);
+    transition:transform .15s, background .15s, box-shadow .15s;
+  }
+  .vault-toggle input:checked ~ .vt-track{border-color:var(--pink);}
+  .vault-toggle input:checked ~ .vt-track::before{
+    transform:translateX(18px);background:var(--pink);box-shadow:0 0 8px rgba(255,46,136,.6);
+  }
+  .vault-toggle input:checked ~ .vt-label{color:var(--pink);}
+  .vault-toggle input:focus-visible ~ .vt-track{box-shadow:0 0 0 2px rgba(0,229,255,.35);}
+  /* Vault only applies to Startpage; with any other engine the switch rests, greyed out */
+  .vault-toggle.off{opacity:.35;cursor:not-allowed;}
+  .vault-toggle.off input ~ .vt-track{border-color:var(--line);}
+  .vault-toggle.off input ~ .vt-track::before{transform:none;background:var(--ink-dim);box-shadow:none;}
+  .vault-toggle.off input ~ .vt-label{color:var(--ink-dim);}
+
+  footer{
+    margin-top:auto;
+    padding-top:24px;
+    font-size:10px;
+    letter-spacing:1.5px;
+    color:var(--ink-dim);
+    text-transform:uppercase;
+    text-align:center;
+  }
+  footer .accent{color:var(--pink);}
+
+  @media (max-width:480px){
+    .hero-line{white-space:normal;font-size:20px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="topbar">
+    <span><span class="dot"></span>NODE_GRID :: LINK ESTABLISHED</span>
+    <span>
+      <span id="clock">--:--:--</span>
+      <a class="grid-link" href="http://10.0.1.133/" title="Open NODE_GRID dashboard">&#9638;</a>
+    </span>
+  </div>
+
+  <div class="hero">
+    <div class="hero-line"><span class="prefix">&gt;&nbsp;</span><span class="txt" id="hero-txt"></span><span class="cursor">&nbsp;</span></div>
+  </div>
+
+  <div class="search-block">
+    <form class="searchbar" id="searchForm">
+      <span class="prompt-char">&gt;</span>
+      <input id="q" name="q" type="text" placeholder="query://" autocomplete="off" autofocus />
+      <button class="go-btn" type="submit">Run</button>
+    </form>
+    <div class="engine-row">
+      <div class="engine-select">
+        <select id="engine">
+          <option value="duckduckgo" selected>DuckDuckGo</option>
+          <option value="brave">Brave</option>
+          <option value="google">Google</option>
+          <option value="startpage">Startpage</option>
+        </select>
+      </div>
+      <label class="vault-toggle" id="vaultWrap" title="Vault: search through NODE_GRID (Startpage only)">
+        <input type="checkbox" id="vaultToggle" checked />
+        <span class="vt-track"></span>
+        <span class="vt-label">Vault</span>
+      </label>
+    </div>
+  </div>
+
+  <footer>
+    <span id="ng-version">NODE_GRID</span> <span class="accent">::</span> Session Active <span class="accent">::</span> All Systems Nominal
+  </footer>
+
+</div>
+
+<script>
+  // Footer shows the app version (the app opens this page with ?v=<version>).
+  try {
+    var ngv = new URLSearchParams(location.search).get('v');
+    if (ngv && /^[0-9][0-9A-Za-z.\-]{0,20}$/.test(ngv)) document.getElementById('ng-version').textContent = 'NODE_GRID v' + ngv;
+  } catch (err) {}
+(function(){
+  var ENGINE_URLS = {
+    duckduckgo: "https://duckduckgo.com/",
+    brave: "https://search.brave.com/search",
+    google: "https://www.google.com/search",
+    startpage: "https://www.startpage.com/sp/search"
+  };
+
+  // clock
+  var clockEl = document.getElementById('clock');
+  function tick(){
+    var d = new Date();
+    var pad = function(n){ return String(n).padStart(2,'0'); };
+    clockEl.textContent = pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // typing hero
+  var phrases = [
+    "HELLO WORLD","HACK THE PLANET","WELCOME OPERATOR","SEARCH: READY",
+    "ERROR: 200","FSOCIETY","CONNECTION SECURE","AWAITING INPUT_"
+  ];
+  var heroEl = document.getElementById('hero-txt');
+  var pi = 0, ci = 0, deleting = false;
+  function typeStep(){
+    var word = phrases[pi];
+    if(!deleting){
+      ci++;
+      heroEl.textContent = word.slice(0, ci);
+      if(ci >= word.length){ deleting = true; setTimeout(typeStep, 1600); return; }
+    } else {
+      ci--;
+      heroEl.textContent = word.slice(0, ci);
+      if(ci <= 0){ deleting = false; pi = (pi+1) % phrases.length; setTimeout(typeStep, 300); return; }
+    }
+    var jitter = 40 + Math.random()*90;
+    setTimeout(typeStep, deleting ? jitter*0.6 : jitter);
+  }
+  typeStep();
+
+  // search
+  var form = document.getElementById('searchForm');
+  var engineSelect = document.getElementById('engine');
+  var vaultToggle = document.getElementById('vaultToggle');
+  var qInput = document.getElementById('q');
+
+  // ---- remember the last engine + Vault switch ----
+  // In the NODE_GRID app the choice is saved by the app; in a normal browser, in localStorage.
+  var VALID = { duckduckgo: 1, brave: 1, google: 1, startpage: 1 };
+  var bridge = window.nodegridPrefs || null;
+  var vaultWrap = document.getElementById('vaultWrap');
+  var vaultPref = true;                       // the switch's own position, kept while other engines are picked
+  function loadPrefs(){
+    var p = null;
+    if (bridge && bridge.search) p = bridge.search;
+    else { try { p = JSON.parse(localStorage.getItem('ng-search-prefs') || 'null'); } catch (err) {} }
+    if (p && VALID[p.engine]) engineSelect.value = p.engine;
+    if (p && typeof p.vault === 'boolean') vaultPref = p.vault;
+  }
+  function savePrefs(){
+    if (bridge) bridge.saveSearch(engineSelect.value, vaultPref);
+    else { try { localStorage.setItem('ng-search-prefs', JSON.stringify({ engine: engineSelect.value, vault: vaultPref })); } catch (err) {} }
+  }
+  function syncVault(){
+    var sp = engineSelect.value === 'startpage';
+    vaultToggle.disabled = !sp;
+    vaultToggle.checked = sp && vaultPref;
+    vaultWrap.classList.toggle('off', !sp);
+    vaultWrap.title = sp ? 'Vault: search through NODE_GRID' : 'Vault works with Startpage only';
+  }
+  loadPrefs();
+  syncVault();
+
+  engineSelect.addEventListener('change', function(){ syncVault(); savePrefs(); qInput.focus(); });
+  vaultToggle.addEventListener('change', function(){ vaultPref = vaultToggle.checked; savePrefs(); });
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var val = qInput.value.trim();
+    if(!val){ return; }
+
+    var engine = engineSelect.value;
+
+    if(engine === 'startpage' && vaultToggle.checked){
+      // route through NODE_GRID's own results page (vault + web, live)
+      var params = new URLSearchParams({ q: val, engine: engine });
+      // Bundled in the NODE_GRID app: the start page loads locally, results come from the server.
+      // (?search=<origin> on this page's own address overrides the server, for testing.)
+      var SEARCH_ORIGIN = 'https://search.nullgrid.dev';
+      try { var o = new URLSearchParams(location.search).get('search'); if (o && /^https?:\/\//.test(o)) SEARCH_ORIGIN = o.replace(/\/$/, ''); } catch (err) {}
+      window.location.href = SEARCH_ORIGIN + '/results.html?' + params.toString();
+    } else {
+      // any other engine (or Vault off): straight to that engine's own results page
+      window.location.href = ENGINE_URLS[engine] + '?q=' + encodeURIComponent(val);
+    }
+  });
+})();
+</script>
+</body>
+</html>

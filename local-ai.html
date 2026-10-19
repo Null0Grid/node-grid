@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:">
+  <title>Local AI</title>
+  <link rel="stylesheet" href="local-ai.css">
+</head>
+<body>
+  <header>
+    <span class="dot" id="dot" title="Not connected"></span>
+    <span class="brand">LOCAL AI</span>
+    <select id="model" title="Model" disabled><option>no model</option></select>
+    <button class="hb" id="setupbtn" title="Server settings">SERVER</button>
+  </header>
+
+  <section id="setup" hidden>
+    <p class="lead" id="setuplead">Looking for an AI on this PC…</p>
+    <form id="srvform" autocomplete="off">
+      <label>SERVER ADDRESS
+        <input id="srv" spellcheck="false" placeholder="http://localhost:11434  or  http://192.168.1.50:1234">
+      </label>
+      <label>API KEY <span class="opt">(only if your server needs one)</span>
+        <input id="key" type="password" spellcheck="false" placeholder="leave empty for Ollama / LM Studio">
+      </label>
+      <div class="row"><button type="button" class="btn" id="scan">FIND AUTOMATICALLY</button><button class="btn primary" type="submit">CONNECT</button></div>
+    </form>
+    <div class="help">
+      <p><b>Works with</b> Ollama, LM Studio, LocalAI, llama.cpp server, vLLM, Open WebUI and anything else that speaks the OpenAI chat format, on this PC or anywhere on your network.</p>
+      <p><b>Quick start:</b> install Ollama from ollama.com, run <code>ollama run llama3.2</code> once, then press FIND AUTOMATICALLY.</p>
+      <p><b>Another PC on your network?</b> Ollama only listens to its own PC by default; set <code>OLLAMA_HOST=0.0.0.0</code> on that machine. LM Studio: Developer tab &gt; Start server &gt; "Serve on local network".</p>
+    </div>
+  </section>
+
+  <main id="chat">
+    <div id="log" aria-live="polite">
+      <div class="hello" id="hello">
+        <p class="big">// your own AI</p>
+        <p>Nothing you type here goes to the internet: it's sent only to the server above. The conversation is forgotten when you close it or press CLEAR.</p>
+      </div>
+    </div>
+    <div class="attach" id="attach" hidden><span id="attachtxt"></span><button id="detach" title="Don't include the page">×</button></div>
+    <form id="ask" autocomplete="off">
+      <textarea id="msg" rows="2" placeholder="Ask your AI…  (Enter to send, Shift+Enter for a new line)" disabled></textarea>
+      <div class="askrow">
+        <button type="button" class="btn" id="pagebtn" title="Include the text of the page you're looking at">+ PAGE</button>
+        <button type="button" class="btn" id="clear" title="Forget this conversation">CLEAR</button>
+        <span class="grow"></span>
+        <button type="button" class="btn danger" id="stop" hidden>STOP</button>
+        <button type="submit" class="btn primary" id="send" disabled>SEND</button>
+      </div>
+    </form>
+  </main>
+  <script src="local-ai.js"></script>
+</body>
+</html>

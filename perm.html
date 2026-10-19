@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'">
+  <title>Permission</title>
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body class="perm">
+  <div class="card" id="card" hidden>
+    <div class="row">
+      <div class="badge" id="icon"></div>
+      <div class="ask">
+        <div class="host" id="host"></div>
+        <div class="what" id="what"></div>
+      </div>
+    </div>
+    <label class="remember"><input type="checkbox" id="remember"> Remember for this site</label>
+    <div class="btns">
+      <button id="block" class="btn">BLOCK</button>
+      <button id="allow" class="btn primary">ALLOW</button>
+    </div>
+  </div>
+  <script src="perm.js"></script>
+</body>
+</html>

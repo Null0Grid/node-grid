@@ -1,0 +1,11 @@
+node_modules/
+dist/
+store-dist/
+build/*.appx
+build/*.msix
+build/*.deb
+*.log
+*.ngpart
+.DS_Store
+Thumbs.db
+npm-debug.log*

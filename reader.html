@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'; img-src * data:; media-src *">
+  <title>Reader</title>
+  <link rel="stylesheet" href="reader.css">
+</head>
+<body class="neon">
+  <div class="bar" id="bar">
+    <button id="exit" title="Back to the normal page">◂ EXIT READER</button>
+    <span class="grow"></span>
+    <button id="smaller" title="Smaller text">A−</button>
+    <button id="bigger" title="Bigger text">A+</button>
+    <button id="width" title="Column width">WIDTH</button>
+    <button id="theme" title="Colors">THEME</button>
+    <button id="savemd" title="Save this article to your Vault as a Markdown (.md) file">SAVE .MD</button>
+  </div>
+  <article id="doc">
+    <p class="site" id="site"></p>
+    <h1 id="title"></h1>
+    <p class="meta" id="meta"></p>
+    <div id="content"></div>
+    <p class="src">Source: <a id="src" href="#"></a></p>
+  </article>
+  <div class="toast" id="toast"></div>
+  <script src="md-convert.js"></script>
+  <script src="reader.js"></script>
+</body>
+</html>

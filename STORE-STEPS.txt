@@ -1,0 +1,40 @@
+NODE_GRID :: publishing to the Microsoft Store
+==============================================
+
+ONE TIME
+1. Sign up (free): https://storedeveloper.microsoft.com  > Individual.
+   Sign in with your personal Microsoft account, then verify your ID
+   (photo of a government ID + a selfie).
+2. Partner Center > Apps and games > + New product > "MSIX or PWA app".
+   Reserve the name NODE_GRID (if it's taken, try "NODE_GRID Browser").
+3. Open the app > Product identity (left menu). Copy these three values
+   into store-identity.txt and save it:
+     Package/Identity/Name
+     Package/Identity/Publisher
+     Package/Properties/PublisherDisplayName
+4. Host privacy-policy.html somewhere public (for example
+   https://search.nullgrid.dev/privacy.html). Edit the date + contact email first.
+
+EACH VERSION
+5. Double-click "Build Store package.bat" (store-identity.txt next to it).
+   About 5-10 minutes. You get NODE_GRID-<version>.appx in this folder.
+6. Partner Center > your app > Start your submission:
+   - Pricing and availability: Free. Visibility: Public, or "Private
+     audience" / hidden if you only want people with the link.
+   - Properties: category Productivity (or Developer tools), privacy policy URL.
+   - Age ratings: fill in the questionnaire (unrestricted web access).
+   - Packages: upload the .appx.
+   - Store listings: description + at least 1 screenshot (1366x768 or larger).
+   - Submission options > Notes for certification: see below.
+7. Submit. Review usually takes a few days. Once live, share the Store link.
+
+NOTES FOR CERTIFICATION (paste this)
+  NODE_GRID is a Chromium-based (Electron) desktop web browser. It uses the
+  runFullTrust capability because it is a desktop app. No sign-in is needed
+  to test. Optional features (AI panel, radio, reader mode, etc.) can be
+  switched off in Settings (gear icon, bottom-left).
+
+UPDATES
+  Bump "version" in package.json (I do this with each update), rebuild with
+  the .bat, start a new submission, upload the new .appx. Installed copies
+  update themselves through the Store.

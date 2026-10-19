@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src * data:; style-src 'self'; font-src 'self'; media-src https: http:">
+  <title>NODE_GRID</title>
+  <link rel="stylesheet" href="shell.css">
+</head>
+<body>
+  <aside id="sidebar">
+    <div class="side-head">
+      <button id="toggle" class="icon-btn" title="Toggle sidebar (Ctrl+B)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><line x1="9" y1="4" x2="9" y2="20"/></svg>
+      </button>
+      <button id="logo" class="logo" title="NODE_GRID">//</button>
+      <span class="brand">NODE_GRID</span>
+    </div>
+
+    <ul id="pins" aria-label="Pinned tabs"></ul>
+    <ul id="tabs"></ul>
+    <div class="foot-row tabrow" id="tabrow">
+      <button id="newtab" class="newtab" title="New tab (Ctrl+T)">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span class="label">NEW TAB</span>
+      </button>
+      <button id="burnbtn" class="newtab burnbtn" title="Burner tab: throwaway storage, wipes itself (Ctrl+Shift+N). Right-click to set the timer.">
+        <svg viewBox="0 0 24 24"><path d="M12 22c4 0 7-2.8 7-7 0-3.5-2.2-5.6-3.6-7.6-.4 1.8-1.4 3-2.6 3.4.3-3.3-1.2-6.4-4-8.8.3 3.6-1.6 6-3 8C4.7 11.8 5 13.2 5 15c0 4.2 3 7 7 7z"/><path d="M12 22c-1.7 0-3-1.2-3-3 0-1.6 1.2-2.7 2-3.8.5 1 1.3 1.6 2 1.8.1-.8.6-1.6 1.2-2.2.9 1.2 1.8 2.4 1.8 4.2 0 1.8-1.3 3-3 3z"/></svg>
+      </button>
+    </div>
+    <div class="tabspacer"></div>
+
+    <section id="history" aria-label="History">
+      <div class="hist-head">
+        <span class="hist-title">HISTORY</span>
+        <button id="histclear" class="hist-clear" title="Forget every site">CLEAR ALL</button>
+      </div>
+      <ul id="histlist"></ul>
+      <p id="histempty" class="hist-empty">No sites yet. Only site names are kept (last 100 sites, up to 7 days), never pages or searches.</p>
+    </section>
+
+    <section id="downloads" aria-label="Downloads">
+      <div class="hist-head">
+        <span class="hist-title dl-title">DOWNLOADS</span>
+        <button id="dlclear" class="hist-clear" title="Clear finished downloads from this list (files stay)">CLEAR</button>
+      </div>
+      <ul id="dllist"></ul>
+      <p id="dlempty" class="hist-empty">Nothing downloaded yet. Files go to your Downloads folder. This list is forgotten when the app closes.</p>
+    </section>
+
+    <section id="trail" class="panel" aria-label="Packet trail">
+      <div class="hist-head">
+        <span class="hist-title trail-title">PACKET TRAIL</span>
+        <button id="trailclose" class="hist-clear" title="Close">CLOSE</button>
+      </div>
+      <p id="trailsum" class="panel-sub"></p>
+      <ul id="traillist" class="plist"></ul>
+      <p class="hist-empty">Every server this page talked to. Kept in memory for this page only.</p>
+    </section>
+
+    <section id="savedp" class="panel" aria-label="Vault">
+      <div class="hist-head">
+        <span class="hist-title saved-title">VAULT</span>
+        <button id="savenow" class="hist-clear" title="Save this page (Ctrl+S)">+ SAVE PAGE</button>
+      </div>
+      <p class="panel-sub">Pages you saved, with an offline copy. Stored on this PC for your Windows user only.</p>
+      <ul id="savedlist" class="plist"></ul>
+      <p id="savedempty" class="hist-empty">Nothing saved yet. Right-click a page &gt; Save to Vault, or press Ctrl+S.</p>
+    </section>
+
+    <section id="loadouts" class="panel" aria-label="Loadouts">
+      <div class="hist-head">
+        <span class="hist-title load-title">LOADOUTS</span>
+      </div>
+      <form id="loadform" class="loadform">
+        <input id="loadname" maxlength="60" placeholder="Name this loadout" spellcheck="false" autocomplete="off">
+        <button class="hist-clear" type="submit" title="Save every open tab as a loadout">SAVE TABS</button>
+      </form>
+      <ul id="loadlist" class="plist"></ul>
+      <p id="loadempty" class="hist-empty">Open the tabs you want, name them and hit SAVE TABS. DEPLOY opens them again; SWAP replaces your current tabs.</p>
+    </section>
+
+    <section id="player" aria-label="Music player">
+      <div class="pl-head">
+        <span class="pl-eq" id="pleq"><i></i><i></i><i></i><i></i></span>
+        <button class="pl-mode" data-mode="radio">RADIO</button>
+        <button class="pl-mode" data-mode="tabs">TABS</button>
+        <button class="pl-min" id="plmin" title="Hide / show the player">–</button>
+      </div>
+      <div class="pl-body">
+        <div class="pl-now" id="plnow" title="">
+          <div class="pl-title" id="pltitle">—</div>
+          <div class="pl-sub" id="plsub"></div>
+        </div>
+        <div class="pl-ctrl">
+          <button class="pl-btn" id="plprev" title="Previous"><svg viewBox="0 0 24 24"><polygon points="18 6 10 12 18 18"/><line x1="6" y1="6" x2="6" y2="18"/></svg></button>
+          <button class="pl-btn pl-play" id="plplay" title="Play / pause"><svg class="i-play" viewBox="0 0 24 24"><polygon points="7 5 19 12 7 19"/></svg><svg class="i-pause" viewBox="0 0 24 24"><line x1="8" y1="5" x2="8" y2="19"/><line x1="16" y1="5" x2="16" y2="19"/></svg></button>
+          <button class="pl-btn" id="plnext" title="Next"><svg viewBox="0 0 24 24"><polygon points="6 6 14 12 6 18"/><line x1="18" y1="6" x2="18" y2="18"/></svg></button>
+          <select id="plstation" title="Station"></select>
+          <input id="plvol" type="range" min="0" max="100" value="70" title="Volume">
+          <button class="pl-btn" id="plmute" title="Mute that tab"><svg viewBox="0 0 24 24"><polygon points="4 9 8 9 13 5 13 19 8 15 4 15"/><path class="wave" d="M16.5 9a4 4 0 0 1 0 6"/><line class="slash" x1="16" y1="9" x2="22" y2="15"/><line class="slash" x1="22" y1="9" x2="16" y2="15"/></svg></button>
+        </div>
+        <form id="pladd" class="pl-add" hidden>
+          <input id="pladdname" placeholder="Name" maxlength="40" spellcheck="false" autocomplete="off">
+          <input id="pladdurl" placeholder="Stream or YouTube link (https://...)" spellcheck="false" autocomplete="off">
+          <button class="hist-clear" type="submit">ADD</button>
+        </form>
+      </div>
+      <audio id="plaudio" preload="none"></audio>
+    </section>
+
+    <div class="side-foot">
+      <div class="foot-icons">
+        <button id="histbtn" class="foot-ico histbtn" title="History (Ctrl+H)">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+          <span class="label">HISTORY</span>
+        </button>
+        <button id="dlbtn" class="foot-ico dlbtn" title="Downloads (Ctrl+J)">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="3" x2="12" y2="15"/><polyline points="7 10 12 15 17 10"/><line x1="4" y1="20" x2="20" y2="20"/></svg>
+          <span class="label">DOWNLOADS</span>
+          <span id="dlbadge" class="dlbadge" hidden></span>
+        </button>
+        <button id="savedbtn" class="foot-ico savedbtn" title="Vault: your saved pages">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="8.5" x2="12" y2="6"/><line x1="18" y1="9" x2="18" y2="15"/></svg>
+          <span class="label">VAULT</span>
+        </button>
+        <button id="loadbtn" class="foot-ico loadbtn" title="Loadouts: saved sets of tabs">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><polyline points="14 17.5 17.5 21 21 14"/></svg>
+          <span class="label">LOADOUTS</span>
+        </button>
+        <button id="setbtn" class="foot-ico setbtn" title="Settings (Ctrl+,)">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+          <span class="label">SETTINGS</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <header id="bar">
+      <button id="back" class="icon-btn" title="Back (Alt+Left)">
+        <svg viewBox="0 0 24 24"><polyline points="15 5 8 12 15 19"/></svg>
+      </button>
+      <button id="reload" class="icon-btn" title="Reload (Ctrl+R)">
+        <svg class="i-reload" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><polyline points="20 4 20 9 15 9"/></svg>
+        <svg class="i-stop" viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+      </button>
+      <button id="home" class="icon-btn" title="Home (Alt+Home)">
+        <svg viewBox="0 0 24 24"><polyline points="3 11 12 3 21 11"/><polyline points="5 10 5 21 19 21 19 10"/></svg>
+      </button>
+      <button id="star" class="icon-btn" title="Add to favorites (Ctrl+D)">
+        <svg viewBox="0 0 24 24"><polygon points="12 3 14.8 9 21 9.6 16.3 13.8 17.7 20.2 12 16.9 6.3 20.2 7.7 13.8 3 9.6 9.2 9"/></svg>
+      </button>
+      <button id="simbtn" class="icon-btn" title="NODE_GRID SIM (play)" hidden>
+        <svg viewBox="0 0 24 24"><path d="M6 8h12a4 4 0 0 1 4 4v2a3 3 0 0 1-5.4 1.8L15 14H9l-1.6 1.8A3 3 0 0 1 2 14v-2a4 4 0 0 1 4-4z"/><line x1="7" y1="10" x2="7" y2="14"/><line x1="5" y1="12" x2="9" y2="12"/><rect x="15" y="10" width="1" height="1"/><rect x="17" y="12" width="1" height="1"/></svg>
+      </button>
+      <button id="devbtn" class="icon-btn" title="Developer mode is ON. Click to turn it off." hidden>
+        <svg viewBox="0 0 24 24"><polyline points="8 7 3 12 8 17"/><polyline points="16 7 21 12 16 17"/><line x1="14" y1="4" x2="10" y2="20"/></svg>
+      </button>
+      <div id="where" title="Click to type an address or search (Ctrl+L)"></div>
+      <input id="addr" class="addr" spellcheck="false" autocomplete="off" hidden
+             placeholder="Type an address or search">
+      <button id="shield" class="icon-btn shield" title="Ad &amp; tracker blocking" hidden>
+        <svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><line class="slash" x1="4" y1="4" x2="20" y2="20"/></svg>
+        <span id="blocked" class="blocked"></span>
+      </button>
+      <button id="aibtn" class="icon-btn bt-btn" title="AI side panel: opens Claude (Ctrl+Shift+A)">AI</button>
+      <button id="darkbtn" class="icon-btn" title="Dark pages">
+        <svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+      </button>
+      <button id="readbtn" class="icon-btn" title="Reader mode" hidden>
+        <svg viewBox="0 0 24 24"><path d="M3 5h6a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H3z"/><path d="M21 5h-6a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h7z"/></svg>
+      </button>
+      <button id="pipbtn" class="icon-btn" title="Picture in picture: pop the video out" hidden>
+        <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16"/><rect x="12" y="11" width="8" height="7" class="pipfill"/></svg>
+      </button>
+      <button id="trbtn" class="icon-btn tr" title="Translate this page" hidden>
+        <svg viewBox="0 0 24 24"><path d="M3 5h10"/><path d="M8 3v2"/><path d="M5 5c1 4 4 7 7 8"/><path d="M11 5c-1 4-4 7-7 8"/><path d="M13 21l4-10 4 10"/><path d="M14.5 17.5h5"/></svg>
+        <span id="trlabel" class="trlabel"></span>
+      </button>
+      <button id="keybtn" class="icon-btn" title="Saved logins">
+        <svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><line x1="10.7" y1="12.3" x2="20" y2="3"/><line x1="16" y1="7" x2="19" y2="10"/><line x1="18" y1="5" x2="21" y2="8"/></svg>
+      </button>
+      <div id="toast" class="shell-toast" role="status" aria-live="polite" hidden></div>
+    </header>
+    <nav id="favbar" aria-label="Favorites">
+      <div id="favs"></div>
+      <button id="favmore" class="favmore" title="More favorites" hidden>»</button>
+      <span id="favhint" class="favhint">☆ Star a page (Ctrl+D) to pin it here</span>
+    </nav>
+    <div id="findbar" hidden>
+      <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>
+      <input id="findq" spellcheck="false" autocomplete="off" placeholder="Find in page">
+      <span id="findcount" class="findcount"></span>
+      <button id="findprev" class="icon-btn" title="Previous (Shift+Enter)"><svg viewBox="0 0 24 24"><polyline points="6 15 12 9 18 15"/></svg></button>
+      <button id="findnext" class="icon-btn" title="Next (Enter)"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <button id="findclose" class="icon-btn" title="Close (Esc)"><svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    </div>
+    <div id="viewport"></div>
+  </main>
+
+  <aside id="aidock" aria-label="AI side panel">
+    <div class="ai-head">
+      <span class="ai-title">AI</span>
+    </div>
+    <div class="ai-tools">
+      <div class="ai-pick" id="aipick">
+        <button data-p="claude">CLAUDE</button>
+        <button data-p="chatgpt">CHATGPT</button>
+        <button data-p="gemini">GEMINI</button>
+        <button data-p="perplexity">PERPLEXITY</button>
+        <button data-p="grok">GROK</button>
+        <button data-p="local" title="Talk to an AI running on your own PC or network (Ollama, LM Studio...)">LOCAL</button>
+        <button data-p="custom" id="aicustombtn" title="Your own AI (like BT): set its address">+ CUSTOM</button>
+      </div>
+      <div class="ai-acts">
+        <button class="icon-btn" id="aiback" title="Back"><svg viewBox="0 0 24 24"><polyline points="15 5 8 12 15 19"/></svg></button>
+        <button class="icon-btn" id="aireload" title="Reload"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><polyline points="20 4 20 9 15 9"/></svg></button>
+        <button class="icon-btn" id="aitab" title="Open this chat in a normal tab"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="14" height="14"/><polyline points="13 3 21 3 21 11"/><line x1="21" y1="3" x2="11" y2="13"/></svg></button>
+        <button class="icon-btn" id="aiclose" title="Close panel (Ctrl+Shift+A)"><svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+      </div>
+      <form id="aicustomform" class="ai-custom" hidden>
+        <input id="aicustomurl" spellcheck="false" autocomplete="off" placeholder="Address of your AI, e.g. http://192.168.1.50:3000">
+        <button class="hist-clear" type="submit">USE</button>
+      </form>
+    </div>
+    <div id="aiview"></div>
+  </aside>
+
+  <script src="shell.js"></script>
+</body>
+</html>

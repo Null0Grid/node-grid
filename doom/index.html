@@ -1,0 +1,435 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>NODE_GRID Doom</title>
+<style>
+/* fonts ship inside the app (SIL OFL), so the sim works offline */
+@font-face { font-family: 'VT323'; src: url('fonts/vt323.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Silkscreen'; src: url('fonts/silkscreen.woff2') format('woff2'); font-display: swap; }
+/* Layout: the game alone. A 4:3 screen centered on black, filling the window. */
+:root {
+  --base: #05060a;
+  --ink: #d8e4f7;
+  --steel: #7f8db0;
+  --cyan: #00e5ff;
+  --pink: #ff2e88;
+  --green: #39ff7a;
+  --amber: #ffb020;
+  --red: #ff2e3e;
+  --f-display: "VT323", "Consolas", "Courier New", monospace;
+  --f-label: "Silkscreen", "Consolas", "Courier New", monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--base); color: var(--ink); font-family: var(--f-display); font-size: 20px; overflow: hidden; }
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; }
+.stage { position: fixed; inset: 0; display: grid; place-items: center; background: var(--base); }
+.screen { position: relative; width: min(100vw, 133.333vh); height: min(100vh, 75vw); max-width: 100%; }
+canvas#screen { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; outline: none; }
+.term {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: clamp(16px, 4%, 36px);
+  background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.28) 0 2px, transparent 2px 4px),
+    radial-gradient(ellipse at 50% 40%, #0f1626 0%, #07080d 75%);
+  overflow: hidden;
+}
+.nosig {
+  font-size: clamp(44px, 11vw, 120px); line-height: .85; color: var(--pink); letter-spacing: .02em;
+  text-shadow: 0 0 6px var(--pink), 0 0 26px rgba(255,46,136,.6), 2px 0 0 rgba(0,229,255,.7);
+  animation: flick 5s infinite;
+}
+@keyframes flick { 0%, 92%, 100% { opacity: 1; } 93% { opacity: .35; } 94% { opacity: 1; } 96% { opacity: .6; } }
+.sub { color: var(--steel); font-size: clamp(17px, 2.6vw, 24px); }
+.log {
+  flex: 1 1 auto; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  color: var(--green); font-size: clamp(14px, 2.1vw, 19px); line-height: 1.12;
+  text-shadow: 0 0 6px rgba(57,255,122,.45); white-space: pre-wrap; word-break: break-word;
+}
+.log .dim { color: #2f8f55; }
+.log .err { color: var(--red); text-shadow: 0 0 6px rgba(255,46,62,.5); }
+.bar { height: 6px; background: #121722; border: 1px solid #232a3d; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); transition: width .15s linear; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.jack {
+  padding: 8px 18px 6px; font-family: var(--f-label); font-size: 14px; letter-spacing: .1em;
+  background: transparent; color: var(--cyan); border: 1px solid var(--cyan); cursor: pointer;
+  box-shadow: 0 0 12px rgba(0,229,255,.35), inset 0 0 12px rgba(0,229,255,.15); text-shadow: 0 0 6px var(--cyan);
+}
+.jack:hover { background: rgba(0,229,255,.1); }
+.jack:focus-visible { outline: 2px solid var(--pink); outline-offset: 3px; }
+.jack[disabled] { opacity: .45; cursor: progress; }
+.hint { color: var(--steel); font-size: 17px; }
+.touchnote { color: var(--amber); font-size: 17px; }
+.credit { font-family: var(--f-label); font-size: 9px; letter-spacing: .08em; color: #4a5470; text-transform: uppercase; }
+@media (prefers-reduced-motion: reduce) { .nosig { animation: none; } }
+</style>
+
+<div class="stage">
+  <div class="screen" id="bezel">
+    <canvas id="screen" tabindex="0" aria-label="Game screen. Click to capture the mouse."></canvas>
+    <div class="term" id="term">
+      <div class="nosig">NODE_GRID SIM</div>
+      <div class="sub">Freedoom in the Neon Lab palette.</div>
+      <div class="log" id="log" aria-live="polite"><div class="dim">&gt; cartridge: freedoom phase 1 // palette: neon lab</div></div>
+      <div class="bar" id="bar" hidden><i id="barFill"></i></div>
+      <div class="row">
+        <button class="jack" id="jack" type="button">[ JACK IN ]</button>
+        <span class="hint">WASD move · mouse turn · click fire · E use · Esc menu</span>
+      </div>
+      <div class="touchnote" id="touchNote" hidden>This game needs a keyboard and mouse.</div>
+      <div class="credit">Engine: doomgeneric (GPL-2.0) · Game data: Freedoom (BSD-3) · Saves stay in this browser</div>
+    </div>
+  </div>
+</div>
+
+<script src="doom-runtime.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('screen'), term = $('term'), logEl = $('log'), jack = $('jack');
+  const W = 320, H = 200;
+
+  // ------------------------------------------------------------ settings
+  const prefs = { scan: true, bloom: true, sound: true, neon: true };
+  try { Object.assign(prefs, JSON.parse(localStorage.getItem('ng-sim-prefs') || '{}')); } catch (e) {}
+  const savePrefs = () => { try { localStorage.setItem('ng-sim-prefs', JSON.stringify(prefs)); } catch (e) {} };
+  const bindToggle = (id, key, after) => {
+    const b = $(id);
+    const sync = () => b.setAttribute('aria-pressed', prefs[key] ? 'true' : 'false');
+    sync();
+    b.addEventListener('click', () => { prefs[key] = !prefs[key]; sync(); savePrefs(); after && after(); canvas.focus(); });
+  };
+
+  // ------------------------------------------------------------ terminal log
+  function log(text, cls) {
+    const d = document.createElement('div');
+    if (cls) d.className = cls;
+    d.textContent = text;
+    logEl.appendChild(d);
+    while (logEl.children.length > 40) logEl.firstChild.remove();
+  }
+
+  // ------------------------------------------------------------ WebGL CRT + bloom
+  const gl = canvas.getContext('webgl', { antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false });
+  const VS = 'attribute vec2 p; varying vec2 uv; void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }';
+  const FS_EXTRACT = `precision mediump float; varying vec2 uv; uniform sampler2D src;
+    void main(){
+      vec3 c = texture2D(src, vec2(uv.x, 1.0-uv.y)).bgr;
+      float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
+      float sat = mx > 0.0 ? (mx-mn)/mx : 0.0;
+      // neon only: saturated, bright pixels glow; grey walls do not
+      float k = smoothstep(0.45, 0.9, mx) * smoothstep(0.25, 0.7, sat) + smoothstep(0.88, 1.0, mx)*0.35;
+      gl_FragColor = vec4(c*k, 1.0);
+    }`;
+  const FS_BLUR = `precision mediump float; varying vec2 uv; uniform sampler2D src; uniform vec2 dir;
+    void main(){
+      vec3 s = texture2D(src, uv).rgb * 0.2270;
+      s += (texture2D(src, uv + dir*1.3846).rgb + texture2D(src, uv - dir*1.3846).rgb) * 0.3162;
+      s += (texture2D(src, uv + dir*3.2308).rgb + texture2D(src, uv - dir*3.2308).rgb) * 0.0703;
+      gl_FragColor = vec4(s, 1.0);
+    }`;
+  const FS_FINAL = `precision mediump float; varying vec2 uv; uniform sampler2D src; uniform sampler2D glow;
+    uniform float scan, bloom, glitch, time; uniform vec2 res;
+    void main(){
+      vec2 q = vec2(uv.x, 1.0-uv.y);
+      float ab = glitch * 0.006;
+      float band = glitch > 0.0 ? step(0.97, fract(sin(floor(q.y*40.0)+time*30.0)*43758.5)) * glitch * 0.03 : 0.0;
+      vec2 qq = q + vec2(band, 0.0);
+      vec3 c;
+      c.r = texture2D(src, qq + vec2(ab, 0.)).b;
+      c.g = texture2D(src, qq).g;
+      c.b = texture2D(src, qq - vec2(ab, 0.)).r;
+      vec3 g = texture2D(glow, vec2(uv.x, uv.y)).rgb;
+      c += g * bloom * 1.35;
+      // scanlines locked to the 200 source rows
+      float row = fract(q.y * 200.0);
+      float sl = mix(1.0, 0.62 + 0.38 * smoothstep(0.0, 0.5, row) * (1.0 - smoothstep(0.5, 1.0, row)), scan);
+      c *= sl * (1.0 + 0.12*scan);
+      // aperture-grille tint, very light
+      float col = mod(gl_FragCoord.x, 3.0);
+      c *= mix(vec3(1.0), col < 1.0 ? vec3(1.06,0.97,0.97) : col < 2.0 ? vec3(0.97,1.06,0.97) : vec3(0.97,0.97,1.06), scan);
+      vec2 d = uv - 0.5;
+      c *= 1.0 - dot(d, d) * 0.7;
+      gl_FragColor = vec4(c, 1.0);
+    }`;
+
+  function prog(fs) {
+    const mk = (type, srcText) => { const s = gl.createShader(type); gl.shaderSource(s, srcText); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    const p = gl.createProgram();
+    gl.attachShader(p, mk(gl.VERTEX_SHADER, VS)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs));
+    gl.bindAttribLocation(p, 0, 'p'); gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i); u[a.name] = gl.getUniformLocation(p, a.name); }
+    return { p, u };
+  }
+  function tex(w, h, filter) {
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    return t;
+  }
+  function fbo(t) { const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return f; }
+
+  let R = null;
+  if (gl) {
+    try {
+      const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      const BW = 160, BH = 100;
+      const srcT = tex(W, H, gl.NEAREST), srcL = tex(W, H, gl.LINEAR);
+      const a = tex(BW, BH, gl.LINEAR), b = tex(BW, BH, gl.LINEAR);
+      R = { extract: prog(FS_EXTRACT), blur: prog(FS_BLUR), final: prog(FS_FINAL), srcT, srcL, a, b, fa: fbo(a), fb: fbo(b), BW, BH };
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    } catch (e) { console.error(e); R = null; }
+  }
+  const fallback2d = R ? null : (() => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; })();
+
+  let glitch = 0, lastFrame = null;
+  function draw(px) {
+    lastFrame = px;
+    if (!R) { // no WebGL: plain 2D blit (BGRA -> RGBA)
+      const ctx = canvas.getContext('2d'); const img = new ImageData(W, H);
+      for (let i = 0; i < px.length; i += 4) { img.data[i] = px[i + 2]; img.data[i + 1] = px[i + 1]; img.data[i + 2] = px[i]; img.data[i + 3] = 255; }
+      fallback2d.getContext('2d').putImageData(img, 0, 0);
+      ctx.imageSmoothingEnabled = false; ctx.drawImage(fallback2d, 0, 0, canvas.width, canvas.height);
+      return;
+    }
+    const data = new Uint8Array(px.buffer, px.byteOffset, px.length);
+    for (const t of [R.srcT, R.srcL]) { gl.bindTexture(gl.TEXTURE_2D, t); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, data); }
+    // bloom: extract -> blur H -> blur V (twice for width)
+    gl.viewport(0, 0, R.BW, R.BH);
+    gl.useProgram(R.extract.p); gl.bindFramebuffer(gl.FRAMEBUFFER, R.fa);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R.srcL); gl.uniform1i(R.extract.u.src, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.useProgram(R.blur.p); gl.uniform1i(R.blur.u.src, 0);
+    for (let i = 0; i < 2; i++) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, R.fb); gl.bindTexture(gl.TEXTURE_2D, R.a); gl.uniform2f(R.blur.u.dir, (1 + i) / R.BW, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, R.fa); gl.bindTexture(gl.TEXTURE_2D, R.b); gl.uniform2f(R.blur.u.dir, 0, (1 + i) / R.BH); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    const f = R.final; gl.useProgram(f.p);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R.srcT); gl.uniform1i(f.u.src, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, R.a); gl.uniform1i(f.u.glow, 1);
+    gl.uniform1f(f.u.scan, prefs.scan ? 1 : 0);
+    gl.uniform1f(f.u.bloom, prefs.bloom ? 1 : 0);
+    gl.uniform1f(f.u.glitch, glitch);
+    gl.uniform1f(f.u.time, performance.now() / 1000);
+    gl.uniform2f(f.u.res, canvas.width, canvas.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.activeTexture(gl.TEXTURE0);
+  }
+
+  function resize() {
+    const r = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(W, Math.round(r.width * dpr));
+    canvas.height = Math.max(H, Math.round(r.height * dpr));
+    if (lastFrame) draw(lastFrame);
+  }
+  new ResizeObserver(resize).observe(canvas);
+
+  // ------------------------------------------------------------ audio
+  let actx = null, master = null;
+  function audio() {
+    if (!prefs.sound) return null;
+    return actx;
+  }
+  function ensureAudio() {
+    if (actx) { if (actx.state === 'suspended') actx.resume().catch(() => {}); return; }
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      master = actx.createGain(); master.gain.value = 0.9; master.connect(actx.destination);
+    } catch (e) { actx = null; }
+  }
+
+  // ------------------------------------------------------------ persistence (saves only, this browser)
+  const PREFIX = 'ng-sim:';
+  const toB64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  const store = {
+    list() { const out = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith(PREFIX)) out.push(k.slice(PREFIX.length)); } } catch (e) {} return out; },
+    load(n) { try { const v = localStorage.getItem(PREFIX + n); return v ? fromB64(v) : null; } catch (e) { return null; } },
+    save(n, b) { try { localStorage.setItem(PREFIX + n, toB64(b)); } catch (e) {} },
+    remove(n) { try { localStorage.removeItem(PREFIX + n); } catch (e) {} },
+  };
+
+  // ------------------------------------------------------------ clock that stops while the tab is hidden
+  let hiddenAt = 0, hiddenTotal = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) hiddenAt = performance.now();
+    else if (hiddenAt) { hiddenTotal += performance.now() - hiddenAt; hiddenAt = 0; }
+  });
+  const now = () => (hiddenAt || performance.now()) - hiddenTotal;
+
+  // ------------------------------------------------------------ asset loading
+  let assets = null;
+  async function fetchBytes(url, onProgress) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(url + ' returned HTTP ' + res.status);
+    const total = +res.headers.get('content-length') || 0;
+    const reader = res.body.getReader(); const chunks = []; let got = 0;
+    for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; onProgress && onProgress(got, total); }
+    const out = new Uint8Array(got); let o = 0; for (const c of chunks) { out.set(c, o); o += c.length; }
+    return out;
+  }
+  // binary game data ships as base64 text (the host only serves web file types)
+  function b64bytes(textBytes) {
+    const s = new TextDecoder().decode(textBytes).replace(/\s+/g, '');
+    const bin = atob(s); const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  async function gunzip(bytes) {
+    const ds = new DecompressionStream('gzip');
+    const stream = new Blob([bytes]).stream().pipeThrough(ds);
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  async function loadAssets() {
+    if (assets) return assets;
+    const bar = $('bar'), fill = $('barFill'); bar.hidden = false;
+    log('> pulling cartridge (10.3 MB compressed)...');
+    const EST = 13704716;
+    const wadGz = b64bytes(await fetchBytes('freedoom1-wad-gz.b64.txt', (g, t) => { fill.style.width = Math.min(100, g / (t || EST) * 100) + '%'; }));
+    log('> decompressing game data...');
+    // some hosts decompress .gz in transit; only gunzip if the gzip magic is still there
+    const wad = (wadGz[0] === 0x1f && wadGz[1] === 0x8b) ? await gunzip(wadGz) : wadGz;
+    log('> loading engine + palette...');
+    const [wasm, theme] = await Promise.all([fetchBytes('doom.wasm'), fetchBytes('neonlab-wad.b64.txt').then(b64bytes)]);
+    bar.hidden = true;
+    return (assets = { wad, wasm, theme });
+  }
+
+  // ------------------------------------------------------------ engine lifecycle
+  let doom = null, running = false, lastHp = null;
+  function setSim(state) { $('bezel').classList.toggle('live', state === 'live'); }
+
+  async function boot() {
+    jack.disabled = true;
+    setSim('boot');
+    ensureAudio();
+    try {
+      const a = await loadAssets();
+      const files = { 'freedoom1.wad': a.wad };
+      if (prefs.neon) files['neonlab.wad'] = a.theme;
+      doom = new NeonDoom({
+        files, store, now,
+        persist: (p) => /\.dsg$/i.test(p) || /default\.cfg$/i.test(p),
+        audio, get audioOut() { return master; },
+        onFrame: (px) => draw(px),
+        onLog: (line) => { if (line.trim()) log(line.replace(/\s+$/, '')); },
+        onExit: () => { running = false; showTerm('SESSION TERMINATED', 'The sim was shut down from its menu.', '[ REBOOT ]'); },
+      });
+      await doom.load(a.wasm);
+      doom.start({ vanilla: !prefs.neon });
+      running = true;
+      lastHp = null;
+      term.hidden = true;
+      setSim('live');
+      canvas.focus();
+      requestAnimationFrame(loop);
+    } catch (e) {
+      console.error(e);
+      log('! boot failed: ' + (e && e.message ? e.message : e), 'err');
+      jack.disabled = false; jack.textContent = '[ RETRY ]';
+      setSim('idle');
+    }
+  }
+
+  function showTerm(head, sub, btn) {
+    term.hidden = false;
+    term.querySelector('.nosig').textContent = head;
+    term.querySelector('.sub').textContent = sub;
+    jack.textContent = btn; jack.disabled = false;
+    setSim('idle');
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+
+  function reboot() {
+    running = false; doom = null;
+    showTerm('REBOOTING', 'Switching palette.', '[ JACK IN ]');
+    boot();
+  }
+
+  // ------------------------------------------------------------ main loop + telemetry
+  let mouseDx = 0, mouseButtons = 0, lastStatus = 0;
+  function loop() {
+    if (!running || !doom) return;
+    if (mouseDx !== 0) { doom.mouse(mouseButtons, Math.round(mouseDx * 2.2)); mouseDx = 0; }
+    try { doom.pump(); } catch (e) { console.error(e); running = false; showTerm('SIM FAULT', String(e.message || e), '[ REBOOT ]'); return; }
+    if (glitch > 0) glitch = Math.max(0, glitch - 0.06);
+    const t = performance.now();
+    if (t - lastStatus > 120) { lastStatus = t; telemetry(); }
+    requestAnimationFrame(loop);
+  }
+
+  function telemetry() {
+    const s = doom && doom.status();
+    if (!s || !s.inGame) return;
+    const hp = Math.max(0, s.health);
+    if (lastHp !== null && hp < lastHp) glitch = Math.min(1, glitch + (lastHp - hp) / 25 + 0.25);
+    lastHp = hp;
+  }
+
+  // ------------------------------------------------------------ input
+  const K = { UP: 0xad, DOWN: 0xaf, LEFT: 0xac, RIGHT: 0xae, SL: 0xa0, SR: 0xa1, USE: 0xa2, FIRE: 0xa3, SHIFT: 0x80 + 0x36, ALT: 0x80 + 0x38 };
+  const MAP = {
+    KeyW: K.UP, ArrowUp: K.UP, KeyS: K.DOWN, ArrowDown: K.DOWN, KeyA: K.SL, KeyD: K.SR,
+    ArrowLeft: K.LEFT, ArrowRight: K.RIGHT, ControlLeft: K.FIRE, ControlRight: K.FIRE,
+    Space: K.USE, KeyE: K.USE, ShiftLeft: K.SHIFT, ShiftRight: K.SHIFT, AltLeft: K.ALT, AltRight: K.ALT,
+    Escape: 27, Backquote: 27, Enter: 13, NumpadEnter: 13, Tab: 9, Backspace: 0x7f, Pause: 0xff,
+    Minus: 0x2d, Equal: 0x3d, NumpadSubtract: 0x2d, NumpadAdd: 0x3d,
+    F1: 0xbb, F2: 0xbc, F3: 0xbd, F4: 0xbe, F5: 0xbf, F6: 0xc0, F7: 0xc1, F8: 0xc2, F9: 0xc3, F10: 0xc4, F11: 0xd7, F12: 0xd8,
+  };
+  function doomKey(e) {
+    if (MAP[e.code] !== undefined) return MAP[e.code];
+    if (/^Digit\d$/.test(e.code)) return e.code.charCodeAt(5);
+    if (/^Key[A-Z]$/.test(e.code)) return e.code.charCodeAt(3) + 32;   // lowercase ascii (y/n prompts, save names)
+    return 0;
+  }
+  const gameHasKeys = (e) => running && !e.target.closest('button, a, input');
+  window.addEventListener('keydown', (e) => {
+    if (!gameHasKeys(e)) return;
+    const k = doomKey(e); if (!k) return;
+    e.preventDefault(); ensureAudio();
+    if (!e.repeat) doom.key(1, k);
+  });
+  window.addEventListener('keyup', (e) => {
+    if (!running) return;
+    const k = doomKey(e); if (!k) return;
+    e.preventDefault(); doom.key(0, k);
+  });
+  window.addEventListener('blur', () => { if (running) Object.values(MAP).forEach((k) => doom.key(0, k)); });
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (!running) return;
+    ensureAudio();
+    if (document.pointerLockElement !== canvas) {
+      try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (err) {}
+      canvas.focus();
+      return;
+    }
+    if (e.button === 0) { mouseButtons |= 1; doom.mouse(mouseButtons, 0); }
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (!running) return;
+    if (e.button === 0 && (mouseButtons & 1)) { mouseButtons &= ~1; doom.mouse(mouseButtons, 0); }
+  });
+  document.addEventListener('mousemove', (e) => { if (running && document.pointerLockElement === canvas) mouseDx += e.movementX; });
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // ------------------------------------------------------------ wire up
+  jack.addEventListener('click', boot);
+  if (matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches) $('touchNote').hidden = false;
+  if (!gl) log('> webgl unavailable: running without bloom and scanlines', 'dim');
+})();
+</script>
+
+</body></html>

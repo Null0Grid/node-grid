@@ -1,0 +1,95 @@
+{
+  "name": "nullgrid-browser",
+  "productName": "NODE_GRID",
+  "version": "5.0.0",
+  "description": "NODE_GRID browser: vertical tab sidebar, favorites, hostname-only history, ad blocking, login vault.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-packager . NODE_GRID --platform=win32 --arch=x64 --icon=icon.ico --out=dist --overwrite --asar --ignore=\"^/dist\" --ignore=\"^/build\" --ignore=\"^/store-dist\" --ignore=\"INSTALL\\.bat\" --ignore=\"README\\.txt\"",
+    "store": "electron-builder --win appx --x64 --publish never",
+    "dist:linux": "electron-builder --linux deb --x64 --publish never"
+  },
+  "devDependencies": {
+    "@electron/packager": "^18.3.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "^2.20.1",
+    "@mozilla/readability": "^0.6.0",
+    "qrcode": "^1.5.4"
+  },
+  "build": {
+    "appId": "dev.nullgrid.nodegrid",
+    "productName": "NODE_GRID",
+    "directories": {
+      "output": "store-dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!store-dist/**",
+      "!build/**",
+      "!*.bat",
+      "!README*.txt",
+      "!store-identity.txt",
+      "!privacy-policy.html",
+      "!store-apply.js"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "appx",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.ico"
+    },
+    "appx": {
+      "identityName": "FILLED_IN_BY_THE_STORE_KIT",
+      "publisher": "CN=FILLED_IN_BY_THE_STORE_KIT",
+      "publisherDisplayName": "FILLED_IN_BY_THE_STORE_KIT",
+      "applicationId": "NODEGRID",
+      "displayName": "NODE_GRID",
+      "backgroundColor": "#0a0a0f",
+      "languages": [
+        "en-US"
+      ],
+      "showNameOnTiles": false
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "home/icon-512.png",
+      "category": "Network",
+      "synopsis": "NODE_GRID: vertical tab sidebar browser with ad blocking and a login vault.",
+      "maintainer": "NODE_GRID <support@nullgrid.dev>",
+      "executableName": "node-grid"
+    },
+    "deb": {
+      "depends": [
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0"
+      ]
+    }
+  },
+  "author": "NODE_GRID",
+  "homepage": "https://search.nullgrid.dev"
+}

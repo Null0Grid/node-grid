@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:">
+  <title>Signal lost</title>
+  <link rel="stylesheet" href="error.css">
+</head>
+<body>
+  <main>
+    <p class="tag">NODE_GRID :: LINK FAILED</p>
+    <h1 class="code" id="code" data-text="ERROR">ERROR</h1>
+    <h2 id="headline">Signal lost</h2>
+    <p class="explain" id="explain"></p>
+
+    <dl class="readout">
+      <dt>TARGET</dt><dd id="target">—</dd>
+      <dt>STATUS</dt><dd id="status">—</dd>
+    </dl>
+
+    <div class="trustbox" id="trustbox" hidden>
+      <p><b>This looks like one of your own devices.</b> Home lab gear (Proxmox, routers, Pi-hole…) often uses a
+        self-made certificate, which is normal. Only continue if you know this device.</p>
+      <p class="fp" id="trustfp"></p>
+      <a id="trust" class="btn warn" href="#">PROCEED ANYWAY</a>
+      <span class="trustnote">NODE_GRID remembers this device's certificate. If it ever changes, you'll be asked again.</span>
+    </div>
+    <nav>
+      <a id="retry" class="btn primary" href="#">RETRY</a>
+      <a id="back" class="btn" href="#">BACK</a>
+      <a id="home" class="btn" href="#">HOME</a>
+    </nav>
+
+    <section class="game" aria-label="Rooftop runner game">
+      <canvas id="gc" width="304" height="112"></canvas>
+      <div class="hud"><span id="score">00000 m</span><span id="hi">HI 00000</span></div>
+      <div class="msg" id="msg"></div>
+    </section>
+    <p class="game-hint">ROOFTOP RUNNER :: SPACE / ↑ / CLICK TO JUMP — HOLD FOR HIGHER</p>
+  </main>
+  <canvas id="sweeper" class="sweeper" aria-hidden="true" hidden></canvas>
+  <script src="error.js"></script>
+  <script src="runner.js"></script>
+  <script src="sweeper.js"></script>
+</body>
+</html>

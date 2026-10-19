@@ -1,0 +1,20 @@
+# NODE_GRID :: Microsoft Store identity
+# Partner Center > Apps and games > NODE_GRID > Product identity (left menu)
+# Copy the three values from that page and paste them after the = signs.
+# Keep this file in the same folder as "Build Store package.bat".
+
+IDENTITY_NAME=NULLGRID.NullSearch
+PUBLISHER=CN=8685350B-5C4C-4422-9CDF-8AEB87F50B2F
+PUBLISHER_DISPLAY_NAME=NULLGRID
+
+# Must match the app name you reserved in Partner Center exactly
+DISPLAY_NAME=Null Search
+
+# Parts that can cause trouble in Store review. Leave as "no" unless you
+# have dealt with the reason:
+#  - SIM game: its engine (doomgeneric) is GPL-2.0, so if you ship it you must
+#    also publish NODE_GRID's source code (e.g. a public GitHub repo).
+#  - YouTube radio: plays YouTube in a hidden player; YouTube's terms require
+#    the player to be visible, so Store review may reject it.
+INCLUDE_SIM_GAME=no
+INCLUDE_YOUTUBE_RADIO=no
