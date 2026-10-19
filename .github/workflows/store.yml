@@ -23,15 +23,24 @@ jobs:
         run: node store-apply.js store-identity.txt
       - name: Build Store package
         run: npm run store
-      - name: Show the package manifest
+      - name: Check the package manifest
         shell: pwsh
         run: |
           $appx = Get-ChildItem store-dist/*.appx | Select-Object -First 1
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $zip = [IO.Compression.ZipFile]::OpenRead($appx.FullName)
           $e = $zip.Entries | Where-Object FullName -eq 'AppxManifest.xml'
-          (New-Object IO.StreamReader($e.Open())).ReadToEnd()
+          [xml]$m = (New-Object IO.StreamReader($e.Open())).ReadToEnd()
+          $hasDoom = [bool]($zip.Entries | Where-Object FullName -like '*doom*')
           $zip.Dispose()
+          $id = $m.Package.Identity; $p = $m.Package.Properties
+          $vis = $m.Package.Applications.Application.VisualElements
+          echo "::notice title=Package::$($appx.Name) ($([math]::Round($appx.Length/1MB)) MB)"
+          echo "::notice title=Identity::Name=$($id.Name) Version=$($id.Version) Publisher=$($id.Publisher)"
+          echo "::notice title=Names::DisplayName=$($p.DisplayName) | PublisherDisplayName=$($p.PublisherDisplayName) | Tile=$($vis.DisplayName)"
+          $want = (Select-String -Path store-identity.txt -Pattern '^DISPLAY_NAME=(.*)$').Matches[0].Groups[1].Value.Trim()
+          if ($p.DisplayName -ne $want -or $vis.DisplayName -ne $want) { echo "::error::DisplayName is not '$want'"; exit 1 }
+          if ($id.Name -like 'FILLED_IN*') { echo "::error::identity not applied"; exit 1 }
       - uses: actions/upload-artifact@v4
         with:
           name: store-package
