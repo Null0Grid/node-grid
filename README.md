@@ -20,16 +20,16 @@
 - **Windows:** [Microsoft Store](https://apps.microsoft.com/detail/9NW82T0G35QF), or the portable build from [Releases](../../releases).
 - **Linux, any distro, no install needed:** download the `.AppImage` from [Releases](../../releases), then
   ```
-  chmod +x NODE_GRID-5.0.0.AppImage
-  ./NODE_GRID-5.0.0.AppImage
+  chmod +x NODE_GRID-5.1.0.AppImage
+  ./NODE_GRID-5.1.0.AppImage
   ```
 - **Ubuntu 24.04+ / Debian 13+:** download the `.deb` from [Releases](../../releases), then
   ```
-  sudo apt install ./nullgrid-browser_5.0.0_amd64.deb
+  sudo apt install ./nullgrid-browser_5.1.0_amd64.deb
   ```
 - **Fedora / openSUSE / RHEL:** download the `.rpm` from [Releases](../../releases), then
   ```
-  sudo rpm -i nullgrid-browser-5.0.0.x86_64.rpm
+  sudo rpm -i nullgrid-browser-5.1.0.x86_64.rpm
   ```
 - **Any other Linux:** download the `.tar.gz` from [Releases](../../releases), unpack it, and run the `node-grid` binary inside.
 

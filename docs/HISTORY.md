@@ -21,3 +21,8 @@ A later pass checked `null-drive.js`'s handshake/search/view/download against th
 The actual gap was the UI side: nothing in the shipped app called `window.nodegridDrive` at all, so none of the three states had anywhere to show up. That's fixed now — see [docs/handoffs/node-grid-v3.0-drive-vault.md](handoffs/node-grid-v3.0-drive-vault.md) for the full account of what was found, what changed, and how it was verified live in the app for all three states (`tests/ui-drive.test.js`, `npm run test:ui`).
 
 A pure-Node test (`tests/drive.test.js`, `npm test`) exercises `null-drive.js` directly against the same three states without needing Electron at all, using the mock Drive server in `tools/mock-drive.js`.
+
+## 5.1.0: more Linux packages and Store build fixes
+
+- Linux builds now come in four formats: `.deb` (as before), AppImage (any distro, no install), `.rpm` (Fedora / openSUSE / RHEL) and `.tar.gz`. `npm run dist:linux` builds all four, and the release workflow attaches all four.
+- Microsoft Store package: the release build now applies `store-identity.txt` before packaging (it previously built with placeholder identity values), and a separate **Store package** workflow builds just the `.appx` and fails if its name or identity don't match `store-identity.txt`.
