@@ -18,10 +18,20 @@
 ## Install
 
 - **Windows:** [Microsoft Store](https://apps.microsoft.com/detail/9NW82T0G35QF), or the portable build from [Releases](../../releases).
+- **Linux, any distro, no install needed:** download the `.AppImage` from [Releases](../../releases), then
+  ```
+  chmod +x NODE_GRID-5.0.0.AppImage
+  ./NODE_GRID-5.0.0.AppImage
+  ```
 - **Ubuntu 24.04+ / Debian 13+:** download the `.deb` from [Releases](../../releases), then
   ```
   sudo apt install ./nullgrid-browser_5.0.0_amd64.deb
   ```
+- **Fedora / openSUSE / RHEL:** download the `.rpm` from [Releases](../../releases), then
+  ```
+  sudo rpm -i nullgrid-browser-5.0.0.x86_64.rpm
+  ```
+- **Any other Linux:** download the `.tar.gz` from [Releases](../../releases), unpack it, and run the `node-grid` binary inside.
 
 ## How it connects to Null Grid
 
@@ -49,7 +59,7 @@ npm run test:ui # the same three states, live in the real app (needs a display; 
 **Packages:**
 ```bash
 npm run dist         # portable Windows build (electron-packager), dist/NODE_GRID-win32-x64/
-npm run dist:linux   # Linux .deb (electron-builder), store-dist/
+npm run dist:linux   # Linux .deb, .rpm, AppImage, .tar.gz (electron-builder), store-dist/
 npm run store        # Microsoft Store .appx (electron-builder) — needs store-identity.txt
                       # filled in from Partner Center first; see STORE-STEPS.txt
 ```

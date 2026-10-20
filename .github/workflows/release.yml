@@ -3,11 +3,11 @@ name: Release
 # Push a tag that matches the app version (package.json), with or without a
 # "v": v5.0.1 or 5.0.1. Or, for a tag that already exists: Actions > Release
 # > Run workflow, and type the tag.
-# Builds the .deb, the portable Windows build and the Microsoft Store
-# package, and attaches them to the release for that tag (an existing
-# release keeps its published/draft state; a new one is published).
-# The .msix is a workflow artifact only: it's unsigned and meant for
-# Partner Center, which signs it. store-identity.txt must be filled in
+# Builds the .deb, .rpm, AppImage and .tar.gz, the portable Windows build and
+# the Microsoft Store package, and attaches them to the release for that tag
+# (an existing release keeps its published/draft state; a new one is
+# published). The .msix is a workflow artifact only: it's unsigned and meant
+# for Partner Center, which signs it. store-identity.txt must be filled in
 # (see STORE-STEPS.txt) for the Store job to build anything meaningful.
 
 on:
@@ -42,8 +42,8 @@ jobs:
           if [ "$app" != "$tag" ]; then echo "::error::tag $TAG but package.json says $app"; exit 1; fi
           echo "version=$app" >> "$GITHUB_OUTPUT"
 
-  deb:
-    name: Debian / Ubuntu package
+  linux:
+    name: Linux packages (.deb, .rpm, AppImage, .tar.gz)
     needs: version
     runs-on: ubuntu-24.04
     steps:
@@ -53,15 +53,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: rpmbuild (for the .rpm target)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
       - run: npm ci
       - name: Test
         run: npm test
-      - name: Build .deb
+      - name: Build .deb, .rpm, AppImage, .tar.gz
         run: npm run dist:linux
       - uses: actions/upload-artifact@v4
         with:
-          name: deb
-          path: store-dist/*.deb
+          name: linux
+          path: |
+            store-dist/*.deb
+            store-dist/*.rpm
+            store-dist/*.AppImage
+            store-dist/*.tar.gz
 
   windows:
     name: Windows portable build + Store package
@@ -99,7 +107,7 @@ jobs:
 
   release:
     name: Attach to the GitHub release
-    needs: [version, deb, windows]
+    needs: [version, linux, windows]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
@@ -112,10 +120,17 @@ jobs:
           name: NODE_GRID ${{ needs.version.outputs.version }}
           fail_on_unmatched_files: true
           files: |
-            dist/deb/*.deb
+            dist/linux/*.deb
+            dist/linux/*.rpm
+            dist/linux/*.AppImage
+            dist/linux/*.tar.gz
             dist/windows/*.zip
           body: |
             **Windows:** unzip `NODE_GRID-${{ needs.version.outputs.version }}-win32-x64.zip` and run `NODE_GRID.exe` (portable, no installer), or get it from the Microsoft Store.
-            **Ubuntu 24.04+ / Debian 13+:** `sudo apt install ./nullgrid-browser_${{ needs.version.outputs.version }}_amd64.deb`
+            **Linux:**
+            - Any distro, no install needed: download `NODE_GRID-${{ needs.version.outputs.version }}.AppImage`, `chmod +x` it, and run it.
+            - Ubuntu 24.04+ / Debian 13+: `sudo apt install ./nullgrid-browser_${{ needs.version.outputs.version }}_amd64.deb`
+            - Fedora / openSUSE / RHEL: `sudo rpm -i nullgrid-browser-${{ needs.version.outputs.version }}.x86_64.rpm`
+            - Anything else: unpack `nullgrid-browser-${{ needs.version.outputs.version }}.tar.gz` and run the `node-grid` binary inside.
 
             The Microsoft Store package, if built, is in this run's `store-package` artifact (upload it in Partner Center).

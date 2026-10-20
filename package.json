@@ -10,7 +10,7 @@
     "test:ui": "node tests/ui-drive.test.js",
     "dist": "electron-packager . NODE_GRID --platform=win32 --arch=x64 --icon=icon.ico --out=dist --overwrite --asar --ignore=\"^/dist\" --ignore=\"^/build\" --ignore=\"^/store-dist\" --ignore=\"INSTALL\\.bat\" --ignore=\"README\\.txt\"",
     "store": "electron-builder --win appx --x64 --publish never",
-    "dist:linux": "electron-builder --linux deb --x64 --publish never"
+    "dist:linux": "electron-builder --linux deb rpm AppImage tar.gz --x64 --publish never"
   },
   "devDependencies": {
     "@electron/packager": "^18.3.0",
@@ -72,6 +72,24 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "home/icon-512.png",
@@ -90,6 +108,18 @@
         "libatspi2.0-0",
         "libuuid1",
         "libsecret-1-0"
+      ]
+    },
+    "rpm": {
+      "depends": [
+        "libnotify",
+        "nss",
+        "libXScrnSaver",
+        "libXtst",
+        "xdg-utils",
+        "at-spi2-core",
+        "libuuid",
+        "libsecret"
       ]
     }
   },
