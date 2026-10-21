@@ -22,7 +22,19 @@ The actual gap was the UI side: nothing in the shipped app called `window.nodegr
 
 A pure-Node test (`tests/drive.test.js`, `npm test`) exercises `null-drive.js` directly against the same three states without needing Electron at all, using the mock Drive server in `tools/mock-drive.js`.
 
-## 5.1.0: more Linux packages and Store build fixes
+## 5.1.0: more Linux packages, Store build fixes, sidebar picture-in-picture
 
 - Linux builds now come in four formats: `.deb` (as before), AppImage (any distro, no install), `.rpm` (Fedora / openSUSE / RHEL) and `.tar.gz`. `npm run dist:linux` builds all four, and the release workflow attaches all four.
 - Microsoft Store package: the release build now applies `store-identity.txt` before packaging (it previously built with placeholder identity values), and a separate **Store package** workflow builds just the `.appx` and fails if its name or identity don't match `store-identity.txt`.
+
+### Picture-in-picture docked in the sidebar
+
+Every tab is its own `WebContentsView`; all of them sit on top of `win.contentView` at the same bounds (`tabBounds(t)`), and `activate(id)` just re-adds a view to bring it to the top of the stack — nothing is ever hidden or torn down on switch. That meant a tab's bounds could be redirected anywhere on screen, including into the sidebar's `.tabspacer` strip (the gap above the music player, below the tab list), without touching playback or process state at all.
+
+Docking works by shrinking the *entire* docked tab down to that strip's rect and injecting a scoped stylesheet that hides everything on the page except the chosen `<video>`, stretched to fill the tab's now-tiny view (`visibility: hidden` on everything else, `position: fixed; inset: 0; object-fit: contain` on the video). The tab keeps running exactly as it was — same process, same playback position — only its visual bounds moved. A small overlay view (`pipdock.html`/`pipdock-preload.js`, the same pattern as the existing `gear.html` overlay) draws a restore/close bar on top of it.
+
+`shell.js` reports `#tabspacer`'s live rect to main (`setPipDockBounds`, mirroring the existing `#viewport` → `setViewport` reporting), so collapsing the sidebar, or any other panel covering it, is detected the same way and falls back to a normal floating PiP window automatically (`dockRoomy()` — collapsing or no room both land here, not just one deliberate case). Toggling PiP again on the docked tab restores it to the foreground tab; closing the dock's own `X` leaves focus where it was.
+
+A separate Settings toggle (`pipdock`, defaulting on) controls this independently of the master `pip` toggle — turning it off always gives the OS's own floating PiP window instead.
+
+Verified live in the app (`tests/ui-pipdock.test.js`, `npm run test:ui:pipdock`) against a tiny local video fixture: dock pulls focus to the remaining tab while keeping the docked tab alive, restore brings it back to the foreground, close drops the overlay without switching focus, and collapsing the sidebar with no room to dock removes the overlay on its own. Assertions are made the same way a person would judge it from the UI — which tab carries `.active`, whether the `pipdock.html` overlay window exists — not through any main-process backdoor. (Playwright's own page-level `screenshot()` can't be used for this: it only captures one `WebContentsView`'s own paint, not the other views Electron composites alongside it at the window level — a real limitation of the test tooling, not of the feature.)

@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('shell', {
   reload:      ()   => ipcRenderer.send('nav:reload'),
   home:        ()   => ipcRenderer.send('nav:home'),
   setViewport: (r)  => ipcRenderer.send('viewport', r),
+  setPipDockBounds: (r) => ipcRenderer.send('pipdock:bounds', r),
   onState:          (cb) => ipcRenderer.on('state', (_e, s) => cb(s)),
   onToggleSidebar:  (cb) => ipcRenderer.on('toggle-sidebar', () => cb()),
   onPageHover:      (cb) => ipcRenderer.on('page-hover', () => cb()),

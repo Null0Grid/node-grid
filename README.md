@@ -14,6 +14,7 @@
 - **An AI side panel** — Claude by default, or your own pick (ChatGPT, Gemini, Grok, a local model).
 - **Null Search integration** — the start page searches through Null Search, with Vault Matches merging your own notes and Drive files right into web results.
 - **A direct Null Drive connection.** The browser itself — not the web page — handshakes with your Null Drive, so your address and token never reach the search origin. See [How it connects to Null Grid](#how-it-connects-to-null-grid).
+- **Picture-in-picture, docked in the sidebar.** Pop a video out and, if the sidebar is expanded, it docks into the empty strip below the tab list instead of a floating OS window — it stays there as long as the sidebar stays expanded, with a small restore/close bar over it. Collapse the sidebar (or there's no room) and it falls back to a normal floating PiP window automatically. Toggle it off in Settings if you'd rather always get the floating window.
 
 ## Install
 
@@ -52,8 +53,9 @@ npm start
 
 **Tests:**
 ```bash
-npm test        # null-drive.js against the three documented Drive account states (no Electron)
-npm run test:ui # the same three states, live in the real app (needs a display; xvfb-run -a npm run test:ui on Linux without one)
+npm test              # null-drive.js against the three documented Drive account states (no Electron)
+npm run test:ui       # the same three states, live in the real app (needs a display; xvfb-run -a npm run test:ui on Linux without one)
+npm run test:ui:pipdock # picture-in-picture sidebar docking: dock, restore, close, auto-fallback on collapse (needs a display too)
 ```
 
 **Packages:**
@@ -85,7 +87,8 @@ Then connect to `127.0.0.1:8081` in Settings → NULL DRIVE with any token.
 | `doom/` | the NODE_GRID SIM mini-game (`doomgeneric`, GPL-2.0 — see below) |
 | `packaging/`, `build/` | Microsoft Store (MSIX) assets and manifest |
 | `tools/mock-drive.js` | a stand-in Null Drive server for the three account states, used by tests and for trying Drive by hand |
-| `tests/` | `drive.test.js` (backend, no Electron) and `ui-drive.test.js` (live in the app, via Playwright) |
+| `tests/` | `drive.test.js` (backend, no Electron), `ui-drive.test.js` and `ui-pipdock.test.js` (live in the app, via Playwright) |
+| `pipdock.html` / `pipdock.js` / `pipdock-preload.js` | the tiny restore/close bar drawn over a tab docked in the sidebar's PiP strip |
 | `docs/HISTORY.md` | technical history, phase by phase |
 | `docs/handoffs/` | handoff notes for the Null Grid apps |
 

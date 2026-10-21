@@ -52,6 +52,13 @@ let tabs = [];          // { id, view, title, favicon, loading, url }
 let activeId = null;
 let nextId = 1;
 let viewport = { x: 0, y: 0, width: 800, height: 600 };
+// The sidebar's empty strip (below the tabs, above the music player) that a video
+// can dock into instead of popping out as its own floating window. 0x0 means
+// there's nowhere to dock right now (sidebar collapsed, or a history/downloads/
+// etc. panel is covering that strip) -- see the picture-in-picture section below.
+let pipDockRect = { x: 0, y: 0, width: 0, height: 0 };
+let pipDock = null;          // { tabId } of the tab currently docked there, or null
+let pipControlsView = null;  // the tiny restore/close bar drawn over the docked video
 
 // ---------- window ----------
 
@@ -177,7 +184,12 @@ function newTab(url = HOME, opts = {}) {
     pushState();
   });
   wc.on('did-start-navigation', (_e, u, inPage, isMainFrame) => {
-    if (isMainFrame && !inPage) { blockedByTab.delete(wc.id); trails.set(wc.id, freshTrail()); trailChanged(wc.id); tab.readerable = false; tab.hasVideo = false; }
+    if (isMainFrame && !inPage) {
+      blockedByTab.delete(wc.id); trails.set(wc.id, freshTrail()); trailChanged(wc.id); tab.readerable = false; tab.hasVideo = false;
+      // Navigating away loses the video that was docked -- undock back to a normal
+      // (now blank/loading) tab rather than leaving a stale frame sitting there.
+      if (pipDock && pipDock.tabId === tab.id) stopPipDock({ switchTo: false });
+    }
   });
   wc.on('found-in-page', (_e, r) => {
     if (tab.id === activeId && win && !win.isDestroyed()) win.webContents.send('find-result', { active: r.activeMatchOrdinal, total: r.matches });
@@ -255,6 +267,10 @@ function newTab(url = HOME, opts = {}) {
 function activate(id) {
   const next = getTab(id);
   if (!next) return;
+  // Clicking a tab that's currently docked in the sidebar brings it back to full
+  // view, same as hitting restore on it -- "switching to it" should show it, not
+  // leave it playing small off to the side while something else fills the window.
+  if (pipDock && pipDock.tabId === id) { stopPipDock({ switchTo: true }); return; }
   if (peekUI) closePeek();
   setTimeout(raiseOverlays, 0);                        // keep popups + pixel above the newly front tab
   if (overlays.vault) setTimeout(sendVault, 0);
@@ -276,6 +292,7 @@ function closeTab(id) {
   const idx = tabs.findIndex(t => t.id === id);
   if (idx === -1) return;
   const [tab] = tabs.splice(idx, 1);
+  if (pipDock && pipDock.tabId === id) dropPipControls();   // its view is about to be destroyed below
   if (tab.pinned) setTimeout(savePins, 0);
   win.contentView.removeChildView(tab.view);
   trails.delete(tab.view.webContents.id);
@@ -667,6 +684,7 @@ function saveSettings() { try { fs.writeFileSync(SETTINGS_FILE(), JSON.stringify
 const FEATURES = {
   music: 'Music player', ai: 'AI side panel', translate: 'Translate button', dark: 'Dark pages (moon)',
   reader: 'Reader mode', md: 'Save text pages as Markdown', pip: 'Picture-in-picture', qr: 'QR code (send to phone)',
+  pipdock: 'Dock picture-in-picture in the sidebar (when the sidebar is expanded, instead of a floating window)',
   pinned: 'Pinned tabs', passgen: 'Password generator', burner: 'Burner tabs', loadouts: 'Loadouts',
   saved: 'Vault (saved pages)', trail: 'Packet trail', eggs: 'Easter eggs',
   gear: 'Settings button (bottom-right corner)',
@@ -1883,6 +1901,14 @@ ipcMain.handle('reader:save-md', (e, id, markdown) => {
 });
 
 // ---------- picture-in-picture ----------
+// Two ways a video can pop out: the normal floating OS window (always available),
+// or docked into the sidebar's empty strip (pipDockRect) when the sidebar is
+// expanded and that strip is actually showing. The dock is just the picked video's
+// own tab, shrunk down and moved there -- the tab, and everything running in its
+// page, keeps going exactly as it was; see tabBounds() above for how its bounds
+// get redirected there instead of the main viewport.
+const MIN_DOCK_W = 80, MIN_DOCK_H = 60;   // below this, there's no real room to show anything useful
+
 const PIP_JS = `(() => {
   if (document.pictureInPictureElement) { document.exitPictureInPicture(); return 'off'; }
   const vids = [...document.querySelectorAll('video')].filter((v) => v.readyState > 0 && !v.disablePictureInPicture);
@@ -1891,13 +1917,124 @@ const PIP_JS = `(() => {
   if (!v) return 'none';
   return v.requestPictureInPicture().then(() => 'on', (e) => 'error:' + e.message);
 })()`;
-async function togglePip(tab) {
-  if (!tab || !featureOn('pip')) return;
+async function floatPip(tab) {
   const r = await tab.view.webContents.executeJavaScript(PIP_JS, true).catch((e) => 'error:' + e.message);
   if (r === 'none') toast('No video to pop out on this page');
   else if (String(r).startsWith('error')) toast("This video can't be popped out");
 }
+
+// Picks the same video PIP_JS would, but instead of handing it to the OS, hides
+// everything else on the page and makes the video fill it, so shrinking the whole
+// tab down to the dock rect shows a clean picture instead of a tiny whole page.
+const DOCK_JS = `(() => {
+  const vids = [...document.querySelectorAll('video')].filter((v) => v.readyState > 0 && !v.disablePictureInPicture);
+  vids.sort((a, b) => (b.clientWidth * b.clientHeight) - (a.clientWidth * a.clientHeight));
+  const v = vids.find((x) => !x.paused) || vids[0];
+  if (!v) return 'none';
+  document.getElementById('__ngpipdock_style__')?.remove();
+  v.dataset.ngpipdock = '1';
+  const style = document.createElement('style');
+  style.id = '__ngpipdock_style__';
+  style.textContent = \`
+    html, body { background: #000 !important; }
+    body *:not(video[data-ngpipdock]) { visibility: hidden !important; }
+    video[data-ngpipdock] {
+      visibility: visible !important; position: fixed !important; inset: 0 !important;
+      width: 100vw !important; height: 100vh !important; object-fit: contain !important;
+      z-index: 2147483647 !important; background: #000 !important; margin: 0 !important;
+    }
+  \`;
+  document.documentElement.appendChild(style);
+  return 'on';
+})()`;
+const UNDOCK_JS = `(() => {
+  document.getElementById('__ngpipdock_style__')?.remove();
+  const v = document.querySelector('video[data-ngpipdock]');
+  if (v) delete v.dataset.ngpipdock;
+  return true;
+})()`;
+
+function dockRoomy() { return pipDockRect.width >= MIN_DOCK_W && pipDockRect.height >= MIN_DOCK_H; }
+
+function placePipControls() {
+  if (!pipDock || !win || win.isDestroyed()) return;
+  if (!pipControlsView) {
+    pipControlsView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'pipdock-preload.js'), contextIsolation: true, sandbox: true } });
+    pipControlsView.setBackgroundColor('#00000000');
+    pipControlsView.webContents.loadFile(path.join(__dirname, 'pipdock.html'));
+  }
+  const BAR = 22;
+  pipControlsView.setBounds({ x: Math.round(pipDockRect.x), y: Math.round(pipDockRect.y), width: Math.round(pipDockRect.width), height: BAR });
+  win.contentView.addChildView(pipControlsView);   // added after the docked tab's view each time -> stays on top of it
+}
+function dropPipControls() {
+  pipDock = null;
+  if (pipControlsView) { try { win.contentView.removeChildView(pipControlsView); pipControlsView.webContents.close(); } catch {} pipControlsView = null; }
+}
+
+async function startPipDock(tab) {
+  const r = await tab.view.webContents.executeJavaScript(DOCK_JS, true).catch((e) => 'error:' + e.message);
+  if (r !== 'on') return r;
+  if (pipDock && pipDock.tabId !== tab.id) await stopPipDock({ switchTo: false });   // only one dock at a time
+  pipDock = { tabId: tab.id };
+  tab.view.setBounds(pipDockRect);
+  win.contentView.addChildView(tab.view);   // to the top, above the sidebar's own base layer
+  placePipControls();
+  // The main window needs something else to show now that this tab has moved to
+  // the sidebar -- bring whatever tab was browsed most recently besides this one
+  // to the front there, so the tab list's "active" highlight matches what's
+  // actually on screen.
+  if (tab.id === activeId) {
+    const other = tabs.filter((t) => t.id !== tab.id).sort((a, b) => b.lastActive - a.lastActive)[0];
+    if (other) activate(other.id);
+  }
+  pushState();
+  return 'on';
+}
+async function stopPipDock({ switchTo } = {}) {
+  if (!pipDock) return;
+  const id = pipDock.tabId;
+  const tab = getTab(id);
+  dropPipControls();
+  if (tab) {
+    await tab.view.webContents.executeJavaScript(UNDOCK_JS, true).catch(() => {});
+    if (switchTo) activate(id); else tab.view.setBounds(tabBounds(tab));
+  }
+  pushState();
+}
+
+async function togglePip(tab) {
+  if (!tab || !featureOn('pip')) return;
+  if (pipDock && pipDock.tabId === tab.id) { await stopPipDock({ switchTo: true }); return; }   // toggling again = restore
+  if (featureOn('pipdock') && dockRoomy()) {
+    const r = await startPipDock(tab);
+    if (r === 'none') toast('No video to pop out on this page');
+    else if (String(r).startsWith('error')) toast("This video can't be popped out");
+    return;
+  }
+  await floatPip(tab);
+}
 ipcMain.on('pip:toggle', (e) => { if (e.sender === win.webContents) togglePip(activeTab()); });
+
+// The shell reports the sidebar's dock strip the same way it reports the main
+// viewport. If it shrinks below anything useful (sidebar collapsed, or a history/
+// downloads/etc. panel now covering it) while something is docked, that video
+// pops back out to a normal floating window instead of just vanishing.
+ipcMain.on('pipdock:bounds', (e, r) => {
+  if (e.sender !== win.webContents) return;
+  pipDockRect = { x: Math.round(r.x), y: Math.round(r.y), width: Math.max(0, Math.round(r.width)), height: Math.max(0, Math.round(r.height)) };
+  if (!pipDock) return;
+  if (!dockRoomy()) {
+    const tab = getTab(pipDock.tabId);
+    stopPipDock({ switchTo: false }).then(() => { if (tab) floatPip(tab); });
+    return;
+  }
+  const tab = getTab(pipDock.tabId);
+  if (tab) tab.view.setBounds(pipDockRect);
+  placePipControls();
+});
+ipcMain.on('pipdock:restore', (e) => { if (pipControlsView && e.sender === pipControlsView.webContents) stopPipDock({ switchTo: true }); });
+ipcMain.on('pipdock:close', (e) => { if (pipControlsView && e.sender === pipControlsView.webContents) stopPipDock({ switchTo: false }); });
 
 // ---------- QR code: send this page to your phone ----------
 let QRCode = null;
@@ -1959,6 +2096,7 @@ ipcMain.on('dev:mode', (e, on) => {
 const PHONE = { width: 390, height: 844 };
 const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
 function tabBounds(t) {
+  if (t && pipDock && t.id === pipDock.tabId) return pipDockRect;
   if (!t || !t.mobile) return viewport;
   const w = Math.min(PHONE.width, viewport.width);
   return { x: Math.round(viewport.x + (viewport.width - w) / 2), y: viewport.y, width: w, height: viewport.height };

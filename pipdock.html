@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self'">
+  <title>Picture in picture</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+    #bar {
+      height: 100%; display: flex; align-items: center; justify-content: flex-end; gap: 4px;
+      padding: 0 4px; box-sizing: border-box;
+      background: linear-gradient(rgba(10, 10, 15, .75), rgba(10, 10, 15, 0));
+    }
+    button {
+      width: 20px; height: 20px; display: grid; place-items: center; cursor: pointer;
+      background: rgba(16, 19, 27, .72); border: 1px solid #1f2a3a; border-radius: 3px; color: #b8c7d9;
+      transition: color .15s, border-color .15s;
+    }
+    button:hover { color: #00e5ff; border-color: #00e5ff; }
+    #close:hover { color: #ff3b5c; border-color: #ff3b5c; }
+    svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <button id="restore" title="Back to the tab">
+      <svg viewBox="0 0 24 24"><path d="M4 14h7V4"/><path d="M11 14 3 22"/><path d="M20 10h-7V20"/><path d="M13 10l8-8"/></svg>
+    </button>
+    <button id="close" title="Close picture-in-picture">
+      <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+    </button>
+  </div>
+  <script src="pipdock.js"></script>
+</body>
+</html>

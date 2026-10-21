@@ -8,6 +8,7 @@
     "start": "electron .",
     "test": "node tests/drive.test.js",
     "test:ui": "node tests/ui-drive.test.js",
+    "test:ui:pipdock": "node tests/ui-pipdock.test.js",
     "dist": "electron-packager . NODE_GRID --platform=win32 --arch=x64 --icon=icon.ico --out=dist --overwrite --asar --ignore=\"^/dist\" --ignore=\"^/build\" --ignore=\"^/store-dist\" --ignore=\"INSTALL\\.bat\" --ignore=\"README\\.txt\"",
     "store": "electron-builder --win appx --x64 --publish never",
     "dist:linux": "electron-builder --linux deb rpm AppImage tar.gz --x64 --publish never"

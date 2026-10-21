@@ -53,6 +53,20 @@ new ResizeObserver(() => {
   window.shell.setViewport({ x: r.left, y: r.top, width: r.width, height: r.height });
 }).observe(vp);
 
+// ---------- picture-in-picture dock area ----------
+// The empty strip below the tab list (above the music player), when nothing else
+// in the sidebar is open. A video can dock here instead of popping out as its own
+// floating window. We just report its rect, the same way #viewport does -- the
+// main process decides whether anything actually lives there. It naturally goes
+// to 0x0 while collapsed or while another sidebar panel (history, downloads...)
+// is showing, since those hide .tabspacer in CSS; the main process treats that as
+// "nowhere to dock" and falls back to a floating window on its own.
+const pipdockEl = $('tabspacer');
+new ResizeObserver(() => {
+  const r = pipdockEl.getBoundingClientRect();
+  window.shell.setPipDockBounds({ x: r.left, y: r.top, width: r.width, height: r.height });
+}).observe(pipdockEl);
+
 // ---------- tabs ----------
 // Each tab's element is created once and then updated in place. Rebuilding the
 // whole list on every page event swallowed clicks, which made switching feel slow.
