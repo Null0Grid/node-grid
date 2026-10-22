@@ -1,0 +1,64 @@
+# Maintainer: NODE_GRID <support@nullgrid.dev>
+# This packages the prebuilt Linux release (the same .tar.gz built by
+# `npm run dist:linux` / the release workflow) rather than compiling from
+# source — Electron apps are conventionally distributed this way on the AUR.
+# After every release: bump pkgver, reset pkgrel=1, then regenerate the
+# checksums against the new release assets with `updpkgsums` (or
+# `makepkg -g >> PKGBUILD` and move the new sha256sums_* lines into place).
+pkgname=nullgrid-browser-bin
+pkgver=5.0.0
+pkgrel=1
+pkgdesc="NODE_GRID: vertical tab sidebar browser with ad blocking, hostname-only history, and a login vault (part of Null Grid)"
+arch=('x86_64' 'aarch64')
+url="https://search.nullgrid.dev"
+license=('unknown')
+provides=('nullgrid-browser' 'node-grid')
+conflicts=('nullgrid-browser')
+depends=('gtk3' 'nss' 'libxss' 'libxtst' 'libnotify' 'at-spi2-core' 'libsecret' 'xdg-utils' 'libdrm' 'libxcomposite' 'libxdamage' 'libxrandr' 'libxkbcommon' 'mesa')
+options=('!strip')
+
+# dev.nullgrid.nodegrid.png ships alongside this PKGBUILD in the AUR repo
+# (the app's own icon, copied from home/icon-512.png in the main repo) since
+# the real icon lives inside app.asar and isn't a loose file in the release
+# tarball to install from directly.
+source=('dev.nullgrid.nodegrid.png')
+source_x86_64=("${pkgname%-bin}-${pkgver}.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/${pkgver}/nullgrid-browser-${pkgver}.tar.gz")
+source_aarch64=("${pkgname%-bin}-${pkgver}-arm64.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/${pkgver}/nullgrid-browser-${pkgver}-arm64.tar.gz")
+
+# Computed against the 5.0.0 release build; verify against the actual
+# published GitHub release asset before trusting this for a new version.
+sha256sums=('979f7dbe7f98bf532602a1f89957de59e6dcc9a4390326a9abe02a5adb86d73c')
+sha256sums_x86_64=('0bfb93d1a54b2e12e88d4c717dbdb7f2e138c2898ebc42577c0f1460602e23a6')
+sha256sums_aarch64=('dbf6cb96b55c57633927100ad564013363930262d0d6e00cebc1515f5b63bafa')
+
+package() {
+  local _instdir="${pkgdir}/opt/${pkgname%-bin}"
+  local _srcdir
+  if [[ "${CARCH}" == "aarch64" ]]; then
+    _srcdir="${srcdir}/nullgrid-browser-${pkgver}-arm64"
+  else
+    _srcdir="${srcdir}/nullgrid-browser-${pkgver}"
+  fi
+
+  install -dm755 "${_instdir}"
+  cp -a "${_srcdir}/." "${_instdir}/"
+  chmod 4755 "${_instdir}/chrome-sandbox"
+
+  install -dm755 "${pkgdir}/usr/bin"
+  ln -s "/opt/${pkgname%-bin}/node-grid" "${pkgdir}/usr/bin/node-grid"
+
+  install -dm755 "${pkgdir}/usr/share/applications"
+  install -m644 /dev/stdin "${pkgdir}/usr/share/applications/dev.nullgrid.nodegrid.desktop" <<EOF
+[Desktop Entry]
+Name=NODE_GRID
+Comment=${pkgdesc}
+Exec=node-grid %U
+Terminal=false
+Type=Application
+Icon=dev.nullgrid.nodegrid
+Categories=Network;WebBrowser;
+EOF
+
+  install -Dm644 "${srcdir}/dev.nullgrid.nodegrid.png" \
+    "${pkgdir}/usr/share/icons/hicolor/512x512/apps/dev.nullgrid.nodegrid.png"
+}

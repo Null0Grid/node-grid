@@ -19,20 +19,22 @@
 ## Install
 
 - **Windows:** [Microsoft Store](https://apps.microsoft.com/detail/9NW82T0G35QF), or the portable build from [Releases](../../releases).
-- **Linux, any distro, no install needed:** download the `.AppImage` from [Releases](../../releases), then
+- **Linux, any distro, no install needed:** download the `.AppImage` for your architecture from [Releases](../../releases), then
   ```
-  chmod +x NODE_GRID-5.1.0.AppImage
+  chmod +x NODE_GRID-5.1.0.AppImage          # or NODE_GRID-5.1.0-arm64.AppImage
   ./NODE_GRID-5.1.0.AppImage
   ```
-- **Ubuntu 24.04+ / Debian 13+:** download the `.deb` from [Releases](../../releases), then
+- **Ubuntu 24.04+ / Debian 13+ (x64 or arm64):** download the `.deb` from [Releases](../../releases), then
   ```
-  sudo apt install ./nullgrid-browser_5.1.0_amd64.deb
+  sudo apt install ./nullgrid-browser_5.1.0_amd64.deb   # or _arm64.deb
   ```
-- **Fedora / openSUSE / RHEL:** download the `.rpm` from [Releases](../../releases), then
+- **Fedora / openSUSE / RHEL (x64 or arm64):** download the `.rpm` from [Releases](../../releases), then
   ```
-  sudo rpm -i nullgrid-browser-5.1.0.x86_64.rpm
+  sudo rpm -i nullgrid-browser-5.1.0.x86_64.rpm   # or .aarch64.rpm
   ```
-- **Any other Linux:** download the `.tar.gz` from [Releases](../../releases), unpack it, and run the `node-grid` binary inside.
+- **Arch (AUR):** [`nullgrid-browser-bin`](packaging/aur/) — `yay -S nullgrid-browser-bin` (or your AUR helper of choice; `aarch64` is listed too). The PKGBUILD/`.SRCINFO` live in this repo; a maintainer pushes them to the actual AUR package repo.
+- **Flatpak / Snap (x64 or arm64):** if a release built them, grab the `.flatpak` or `.snap` from [Releases](../../releases) and install with `flatpak install` / `snap install --dangerous`. Both build in best-effort CI jobs — see [Build from source](#build-from-source) if a given release doesn't have them and you want to build locally. A submission-ready Flathub manifest is at [`packaging/flathub/dev.nullgrid.nodegrid.yml`](packaging/flathub/dev.nullgrid.nodegrid.yml) for getting onto Flathub proper.
+- **Any other Linux:** download the `.tar.gz` for your architecture from [Releases](../../releases), unpack it, and run the `node-grid` binary inside.
 
 ## How it connects to Null Grid
 
@@ -60,13 +62,22 @@ npm run test:ui:pipdock # picture-in-picture sidebar docking: dock, restore, clo
 
 **Packages:**
 ```bash
-npm run dist         # portable Windows build (electron-packager), dist/NODE_GRID-win32-x64/
-npm run dist:linux   # Linux .deb, .rpm, AppImage, .tar.gz (electron-builder), store-dist/
-npm run store        # Microsoft Store .appx (electron-builder) — needs store-identity.txt
-                      # filled in from Partner Center first; see STORE-STEPS.txt
+npm run dist              # portable Windows build (electron-packager), dist/NODE_GRID-win32-x64/
+npm run dist:linux        # Linux .deb, .rpm, AppImage, .tar.gz — x64 + arm64 (electron-builder), store-dist/
+npm run dist:linux:flatpak # .flatpak — x64 + arm64. Needs flatpak-builder and the Flathub remote
+                           # (flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo)
+                           # — it'll pull org.freedesktop.{Platform,Sdk} and org.electronjs.Electron2.BaseApp on first run.
+npm run dist:linux:snap   # .snap — x64 + arm64. Needs a working snapcraft (snap install snapcraft --classic,
+                           # or snapcraft via apt on some distros); CI builds this best-effort, see release.yml.
+npm run store             # Microsoft Store .appx (electron-builder) — needs store-identity.txt
+                           # filled in from Partner Center first; see STORE-STEPS.txt
 ```
 
-Pushing a tag like `5.0.1` or `v5.0.1` runs [the release workflow](.github/workflows/release.yml), which builds all of them and attaches them to the GitHub release. For a tag that already exists: Actions → Release → Run workflow.
+No native node modules are compiled, so the arm64 builds above don't need arm64 hardware or an emulator — electron-builder just fetches the prebuilt arm64 Electron binary and repackages the same app.
+
+Pushing a tag like `5.0.1` or `v5.0.1` runs [the release workflow](.github/workflows/release.yml), which builds the .deb/.rpm/AppImage/.tar.gz (x64 + arm64) and the Windows build, attempts .flatpak and .snap in their own best-effort jobs, and attaches whatever succeeded to the GitHub release. For a tag that already exists: Actions → Release → Run workflow.
+
+**AUR and Flathub** aren't built by this workflow — they're maintained by hand in [`packaging/aur/`](packaging/aur/) (a `-bin` PKGBUILD pulling the release `.tar.gz`; bump `pkgver` and regenerate the checksums with `updpkgsums` after each release) and [`packaging/flathub/`](packaging/flathub/) (the manifest, `.desktop` file, and AppStream metainfo a Flathub submission needs — different from the `.flatpak` target above, which just repackages the release build for direct download).
 
 **Try Null Drive without a real server:**
 ```bash
@@ -85,7 +96,9 @@ Then connect to `127.0.0.1:8081` in Settings → NULL DRIVE with any token.
 | `settings.html` / `settings.js` / `settings.css` | the native Settings page, including the NULL DRIVE section |
 | `home/` | the bundled start page |
 | `doom/` | the NODE_GRID SIM mini-game (`doomgeneric`, GPL-2.0 — see below) |
-| `packaging/`, `build/` | Microsoft Store (MSIX) assets and manifest |
+| `build/` | Microsoft Store (MSIX) assets and manifest |
+| `packaging/aur/` | hand-maintained AUR `PKGBUILD` + `.SRCINFO` for `nullgrid-browser-bin` |
+| `packaging/flathub/` | hand-maintained Flathub submission manifest, `.desktop` file, and AppStream metainfo |
 | `tools/mock-drive.js` | a stand-in Null Drive server for the three account states, used by tests and for trying Drive by hand |
 | `tests/` | `drive.test.js` (backend, no Electron), `ui-drive.test.js` and `ui-pipdock.test.js` (live in the app, via Playwright) |
 | `pipdock.html` / `pipdock.js` / `pipdock-preload.js` | the tiny restore/close bar drawn over a tab docked in the sidebar's PiP strip |

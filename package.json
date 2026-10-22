@@ -11,7 +11,9 @@
     "test:ui:pipdock": "node tests/ui-pipdock.test.js",
     "dist": "electron-packager . NODE_GRID --platform=win32 --arch=x64 --icon=icon.ico --out=dist --overwrite --asar --ignore=\"^/dist\" --ignore=\"^/build\" --ignore=\"^/store-dist\" --ignore=\"INSTALL\\.bat\" --ignore=\"README\\.txt\"",
     "store": "electron-builder --win appx --x64 --publish never",
-    "dist:linux": "electron-builder --linux deb rpm AppImage tar.gz --x64 --publish never"
+    "dist:linux": "electron-builder --linux deb rpm AppImage tar.gz --x64 --arm64 --publish never",
+    "dist:linux:flatpak": "electron-builder --linux flatpak --x64 --arm64 --publish never",
+    "dist:linux:snap": "electron-builder --linux snap --x64 --arm64 --publish never"
   },
   "devDependencies": {
     "@electron/packager": "^18.3.0",
@@ -71,25 +73,43 @@
         {
           "target": "deb",
           "arch": [
-            "x64"
+            "x64",
+            "arm64"
           ]
         },
         {
           "target": "rpm",
           "arch": [
-            "x64"
+            "x64",
+            "arm64"
           ]
         },
         {
           "target": "AppImage",
           "arch": [
-            "x64"
+            "x64",
+            "arm64"
           ]
         },
         {
           "target": "tar.gz",
           "arch": [
-            "x64"
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "flatpak",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "snap",
+          "arch": [
+            "x64",
+            "arm64"
           ]
         }
       ],
@@ -121,6 +141,43 @@
         "at-spi2-core",
         "libuuid",
         "libsecret"
+      ]
+    },
+    "flatpak": {
+      "runtime": "org.freedesktop.Platform",
+      "runtimeVersion": "23.08",
+      "sdk": "org.freedesktop.Sdk",
+      "base": "org.electronjs.Electron2.BaseApp",
+      "baseVersion": "23.08",
+      "finishArgs": [
+        "--share=ipc",
+        "--share=network",
+        "--socket=x11",
+        "--socket=pulseaudio",
+        "--socket=wayland",
+        "--device=dri",
+        "--filesystem=home"
+      ]
+    },
+    "snap": {
+      "confinement": "strict",
+      "grade": "stable",
+      "summary": "NODE_GRID: vertical tab sidebar browser with ad blocking and a login vault.",
+      "plugs": [
+        "default",
+        "home",
+        "removable-media",
+        "network",
+        "network-bind",
+        "audio-playback",
+        "audio-record",
+        "desktop",
+        "desktop-legacy",
+        "wayland",
+        "x11",
+        "opengl",
+        "browser-support",
+        "password-manager-service"
       ]
     }
   },
