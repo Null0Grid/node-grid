@@ -1,7 +1,7 @@
 {
   "name": "nullgrid-browser",
   "productName": "NODE_GRID",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "description": "NODE_GRID browser: vertical tab sidebar, favorites, hostname-only history, ad blocking, login vault.",
   "main": "main.js",
   "scripts": {

@@ -1,6 +1,6 @@
 pkgbase = nullgrid-browser-bin
 	pkgdesc = NODE_GRID: vertical tab sidebar browser with ad blocking, hostname-only history, and a login vault (part of Null Grid)
-	pkgver = 5.0.0
+	pkgver = 5.1.1
 	pkgrel = 1
 	url = https://search.nullgrid.dev
 	arch = x86_64
@@ -25,10 +25,10 @@ pkgbase = nullgrid-browser-bin
 	conflicts = nullgrid-browser
 	options = !strip
 	source = dev.nullgrid.nodegrid.png
-	sha256sums = 979f7dbe7f98bf532602a1f89957de59e6dcc9a4390326a9abe02a5adb86d73c
-	source_x86_64 = nullgrid-browser-5.0.0.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/5.0.0/nullgrid-browser-5.0.0.tar.gz
-	sha256sums_x86_64 = 0bfb93d1a54b2e12e88d4c717dbdb7f2e138c2898ebc42577c0f1460602e23a6
-	source_aarch64 = nullgrid-browser-5.0.0-arm64.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/5.0.0/nullgrid-browser-5.0.0-arm64.tar.gz
-	sha256sums_aarch64 = dbf6cb96b55c57633927100ad564013363930262d0d6e00cebc1515f5b63bafa
+	sha256sums = f304828ddc49b946dbc2f4c28329a8318f546ac423b92c649a4b0e489fcf38a8
+	source_x86_64 = nullgrid-browser-5.1.1.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/5.1.1/nullgrid-browser-5.1.1.tar.gz
+	sha256sums_x86_64 = FILL_IN_FROM_THE_5.1.1_RELEASE_x86_64_TARBALL
+	source_aarch64 = nullgrid-browser-5.1.1-arm64.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/5.1.1/nullgrid-browser-5.1.1-arm64.tar.gz
+	sha256sums_aarch64 = FILL_IN_FROM_THE_5.1.1_RELEASE_arm64_TARBALL
 
 pkgname = nullgrid-browser-bin
