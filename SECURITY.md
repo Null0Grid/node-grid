@@ -22,4 +22,4 @@ See [docs/handoffs/node-grid-v3.0-drive-vault.md](docs/handoffs/node-grid-v3.0-d
 
 ## Reporting a vulnerability
 
-Please don't open a public issue. Email **luc.honz@proton.me** with the steps to reproduce, and you'll get an answer within a few days.
+Please don't open a public issue. Email **volosteele55@proton.me** with the steps to reproduce, and you'll get an answer within a few days.
