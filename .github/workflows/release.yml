@@ -215,14 +215,12 @@ jobs:
           tag_name: ${{ env.TAG }}
           append_body: true
           name: NODE_GRID ${{ needs.version.outputs.version }}
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: true      # the core packages must all be there
           files: |
             dist/linux/*.deb
             dist/linux/*.rpm
             dist/linux/*.AppImage
             dist/linux/*.tar.gz
-            dist/linux-flatpak/*.flatpak
-            dist/linux-snap/*.snap
             dist/windows/*.zip
           body: |
             **Windows:** unzip `NODE_GRID-${{ needs.version.outputs.version }}-win32-x64.zip` and run `NODE_GRID.exe` (portable, no installer), or get it from the Microsoft Store.
@@ -235,3 +233,12 @@ jobs:
             - Arch (AUR): `nullgrid-browser-bin` — see `packaging/aur/` in this repo for the PKGBUILD.
 
             The Microsoft Store package, if built, is in this run's `store-package` artifact (upload it in Partner Center).
+      # Flatpak and Snap are best-effort: attach them only if their jobs made them,
+      # so a failed best-effort job never stops the release.
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          fail_on_unmatched_files: false
+          files: |
+            dist/linux-flatpak/*.flatpak
+            dist/linux-snap/*.snap
