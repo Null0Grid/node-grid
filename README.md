@@ -16,10 +16,12 @@
 - **A direct Null Drive connection.** The browser itself — not the web page — handshakes with your Null Drive, so your address and token never reach the search origin. See [How it connects to Null Grid](#how-it-connects-to-null-grid).
 - **Picture-in-picture, docked in the sidebar.** Pop a video out and, if the sidebar is expanded, it docks into the empty strip below the tab list instead of a floating OS window — it stays there as long as the sidebar stays expanded, with a small restore/close bar over it. Collapse the sidebar (or there's no room) and it falls back to a normal floating PiP window automatically. Toggle it off in Settings if you'd rather always get the floating window.
 - **Masking, per tab.** Right-click a page (or its tab) → **Masking**, and that one tab tells sites it's the current Google Chrome instead of an Electron app — for sites like WhatsApp Web that turn away browsers they don't recognise. Every other tab is untouched; pick it again to turn it off.
+- **Update bot.** NODE_GRID asks GitHub once a day whether a newer version is out. If one is, a little pixel robot runs in, hops, and tells you, with a button to get it. Settings → UPDATES has CHECK FOR UPDATES any time and a switch for the daily check. Microsoft Store copies hear about it too, and get the update itself through the Store.
+- **YouTube radio stations** play in a small visible player (200 × 200, YouTube's minimum) in the radio panel, and pause while the player is hidden.
 
 ## Install
 
-- **Windows:** [Microsoft Store](https://apps.microsoft.com/detail/9NW82T0G35QF), or the portable build from [Releases](../../releases).
+- **Windows:** [Microsoft Store](https://apps.microsoft.com/detail/9PL3D6SNHMLS), or the portable build from [Releases](../../releases).
 - **Linux, any distro, no install needed:** download the `.AppImage` for your architecture from [Releases](../../releases), then
   ```
   chmod +x NODE_GRID-5.1.1.AppImage          # or NODE_GRID-5.1.1-arm64.AppImage
@@ -60,6 +62,8 @@ npm test              # null-drive.js against the three documented Drive account
 npm run test:ui       # the same three states, live in the real app (needs a display; xvfb-run -a npm run test:ui on Linux without one)
 npm run test:ui:pipdock # picture-in-picture sidebar docking: dock, restore, close, auto-fallback on collapse (needs a display too)
 npm run test:ui:masking # right-click > Masking, through the real menu (needs a display and xdotool)
+npm run test:ui:ytradio # YouTube radio: visible player, pauses when hidden (needs a display and ImageMagick)
+npm run test:ui:updates # update check, update bot, Settings > UPDATES, sidebar hover switch (needs a display)
 ```
 
 **Packages:**
@@ -102,8 +106,9 @@ Then connect to `127.0.0.1:8081` in Settings → NULL DRIVE with any token.
 | `packaging/aur/` | hand-maintained AUR `PKGBUILD` + `.SRCINFO` for `nullgrid-browser-bin` |
 | `packaging/flathub/` | hand-maintained Flathub submission manifest, `.desktop` file, and AppStream metainfo |
 | `tools/mock-drive.js` | a stand-in Null Drive server for the three account states, used by tests and for trying Drive by hand |
-| `tests/` | `drive.test.js` (backend, no Electron), `ui-drive.test.js`, `ui-pipdock.test.js` and `ui-masking.test.js` (live in the app, via Playwright) |
+| `tests/` | `drive.test.js` (backend, no Electron), `ui-drive.test.js`, `ui-pipdock.test.js`, `ui-masking.test.js`, `ui-ytradio.test.js` and `ui-updates.test.js` (live in the app, via Playwright) |
 | `pipdock.html` / `pipdock.js` / `pipdock-preload.js` | the tiny restore/close bar drawn over a tab docked in the sidebar's PiP strip |
+| `updatebot.html` / `updatebot.js` / `updatebot-preload.js` | the update bot: a see-through overlay where a pixel robot announces a new version |
 | `docs/HISTORY.md` | technical history, phase by phase |
 | `docs/handoffs/` | handoff notes for the Null Grid apps |
 

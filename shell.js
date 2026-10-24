@@ -29,8 +29,9 @@ window.shell.onToggleSidebar(() => setCollapsed(!isCollapsed()));
 let peekTimer = null;
 function endPeek() { clearTimeout(peekTimer); body.classList.remove('peek'); }
 
+// Settings > FEATURES > "Expand the shrunk sidebar when you hover over it" can turn this off.
 sidebar.addEventListener('mouseenter', () => {
-  if (!isCollapsed()) return;
+  if (!isCollapsed() || body.classList.contains('nofeat-hoverpeek')) return;
   clearTimeout(peekTimer);
   peekTimer = setTimeout(() => body.classList.add('peek'), 150);
 });
@@ -488,6 +489,7 @@ window.shell.onState((s) => {
   // Feature switches (Settings > FEATURES): hide what's turned off
   const f = s.features || {};
   for (const k of Object.keys(f)) body.classList.toggle('nofeat-' + k, f[k] === false);
+  if (f.hoverpeek === false) endPeek();
   if (f.music === false && radioPlaying()) { stopAll(); renderPlayer(); }
   if (f.ai === false && aiOpen()) setAi(false);
   for (const [k, cls] of [['saved', 'show-saved'], ['loadouts', 'show-loadouts'], ['trail', 'show-trail']]) if (f[k] === false && body.classList.contains(cls)) setPanel(cls, false);
@@ -887,7 +889,7 @@ const pl = {
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 pl.custom = (lsGet('plCustom', []) || []).filter((c) => c && (/^https?:\/\//i.test(c.url) || c.yt));
-let ytRadioOn = true;          // (Store builds leave YouTube stations out)
+let ytRadioOn = true;          // (a build can still leave YouTube stations out)
 const allStations = () => STATIONS.concat(pl.custom.map((c) => ({ ...c, sub: c.yt ? 'your YouTube station' : 'your station', custom: true })))
   .filter((s) => ytRadioOn || !s.yt);
 pl.yt = 'stopped';          // state of a YouTube station: stopped | connecting | playing | paused | error
@@ -1000,6 +1002,22 @@ for (const id of ['pladdname', 'pladdurl']) $(id).addEventListener('keydown', (e
 
 for (const ev of ['playing', 'pause', 'waiting', 'error', 'emptied']) pl.audio.addEventListener(ev, () => { if (pl.connecting && (ev === 'error' || ev === 'emptied')) return; renderPlayer(ev); });   // (errors while trying backup servers are expected)
 
+// YouTube stations play in a small visible YouTube player (YouTube's terms don't
+// allow a hidden one). #plvideo is the box it sits in: we report the box's rect,
+// the same way #viewport is reported, and the main process keeps the player on
+// top of it. When the box can't be seen (player minimised, sidebar collapsed),
+// its rect is 0x0 and the main process pauses YouTube until it's back.
+const plVideo = $('plvideo');
+function reportYt() {
+  const r = plVideo.getBoundingClientRect();
+  window.shell.setYtBounds({ x: r.left, y: r.top, width: r.width, height: r.height });
+}
+new ResizeObserver(reportYt).observe(plVideo);
+new ResizeObserver(reportYt).observe(document.body);
+window.addEventListener('resize', reportYt);
+document.addEventListener('transitionend', reportYt);
+setInterval(() => { if (!plVideo.hidden) reportYt(); }, 700);   // catches the box moving without resizing
+
 function renderPlayer(ev) {
   const radio = pl.mode === 'radio';
   for (const b of document.querySelectorAll('.pl-mode')) b.classList.toggle('on', b.dataset.mode === pl.mode);
@@ -1026,6 +1044,8 @@ function renderPlayer(ev) {
   $('plsub').textContent = sub;
   $('plnow').title = radio ? title : (pl.media ? 'Go to this tab' : '');
   $('player').classList.toggle('playing', playing);
+  const ytOn = pl.yt === 'connecting' || pl.yt === 'playing' || pl.yt === 'paused';
+  if (plVideo.hidden === ytOn) { plVideo.hidden = !ytOn; requestAnimationFrame(reportYt); }
   $('pleq').classList.toggle('on', radioPlaying() || !!(pl.media && pl.media.playing));
 }
 window.shell.onState((s) => {

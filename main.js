@@ -685,9 +685,11 @@ const FEATURES = {
   music: 'Music player', ai: 'AI side panel', translate: 'Translate button', dark: 'Dark pages (moon)',
   reader: 'Reader mode', md: 'Save text pages as Markdown', pip: 'Picture-in-picture', qr: 'QR code (send to phone)',
   pipdock: 'Dock picture-in-picture in the sidebar (when the sidebar is expanded, instead of a floating window)',
+  hoverpeek: 'Expand the shrunk sidebar when you hover over it',
   pinned: 'Pinned tabs', passgen: 'Password generator', burner: 'Burner tabs', loadouts: 'Loadouts',
   saved: 'Vault (saved pages)', trail: 'Packet trail', eggs: 'Easter eggs',
   gear: 'Settings button (bottom-right corner)',
+  updates: 'Check GitHub for new versions (once a day)',
   recon: 'Recon (developer mode)', mobile: 'Mobile view (developer mode)', sim: 'NODE_GRID SIM game (developer mode)'
 };
 // Store builds can leave parts out (see store-kit): build-flags.json next to the app.
@@ -728,9 +730,122 @@ function placeGear() {
 }
 ipcMain.on('gear:open', (e) => { if (gearView && e.sender === gearView.webContents) openSettings(); });
 
+// ---------- updates ----------
+// Asks GitHub for the newest NODE_GRID release (api.github.com, public, no login)
+// at launch and once a day, if Settings > FEATURES > "Check GitHub for new
+// versions" is on; Settings > UPDATES > CHECK NOW asks any time. Only the version
+// number and download links come back; nothing about you is sent beyond the
+// request itself. A newer version brings out the update bot (updatebot.html).
+//
+// Microsoft Store copies check too, but they can't replace themselves with a
+// GitHub download (Windows keeps Store apps, and their data, separate), so for
+// them the bot says the Store update is on its way and links to what's new.
+const UPDATE_REPO = 'Null0Grid/node-grid';
+const UPDATE_URL = process.env.NODEGRID_UPDATE_URL || `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
+const UPDATE_EVERY = 24 * 3600 * 1000;
+const IS_STORE = !!(BUILD.store || process.windowsStore);
+let update = { state: 'idle', latest: null, url: null, notes: '', asset: null, checkedAt: 0, error: null };
+
+const verParts = (v) => String(v || '').replace(/^v/i, '').split(/[.+-]/).slice(0, 3).map((n) => parseInt(n, 10) || 0);
+function newerThan(a, b) {          // is version a newer than version b?
+  const x = verParts(a), y = verParts(b);
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+  return false;
+}
+// The release file that fits this computer, or null (then we open the release page).
+function pickAsset(assets) {
+  const arm = process.arch === 'arm64';
+  const by = (re) => assets.find((a) => re.test(a.name) && (arm ? /arm64|aarch64/i.test(a.name) : !/arm64|aarch64/i.test(a.name)));
+  if (process.platform === 'win32') return assets.find((a) => /-win32-x64\.zip$/i.test(a.name)) || null;
+  if (process.platform !== 'linux') return null;
+  if (process.env.APPIMAGE) return by(/\.AppImage$/i);
+  if (fs.existsSync('/etc/debian_version')) return by(/\.deb$/i);
+  if (fs.existsSync('/etc/redhat-release') || fs.existsSync('/etc/fedora-release') || fs.existsSync('/etc/SuSE-release')) return by(/\.rpm$/i);
+  return by(/\.tar\.gz$/i);
+}
+async function checkUpdates({ manual = false } = {}) {
+  if (update.state === 'checking') return update;
+  update = { ...update, state: 'checking', error: null };
+  pushUpdate();
+  try {
+    const res = await net.fetch(UPDATE_URL, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'NODE_GRID' }, signal: AbortSignal.timeout(12000) });
+    if (res.status === 404) throw new Error('no releases yet');
+    if (!res.ok) throw new Error('GitHub answered ' + res.status);
+    const r = await res.json();
+    const latest = String(r.tag_name || '').replace(/^v/i, '');
+    if (!/^\d+\.\d+/.test(latest)) throw new Error("couldn't read the release version");
+    const assets = Array.isArray(r.assets) ? r.assets.map((a) => ({ name: String(a.name), url: String(a.browser_download_url), size: Number(a.size) || 0 })) : [];
+    const ok = (u) => /^https:\/\/github\.com\//.test(u);
+    const asset = IS_STORE ? null : pickAsset(assets.filter((a) => ok(a.url)));
+    update = { state: newerThan(latest, APP_VERSION) ? 'available' : 'current', latest, url: ok(String(r.html_url)) ? String(r.html_url) : `https://github.com/${UPDATE_REPO}/releases`,
+      notes: String(r.body || '').slice(0, 4000), asset, checkedAt: Date.now(), error: null };
+    settings.updateCheckedAt = update.checkedAt; saveSettings();
+    if (update.state === 'available' && (manual || settings.updateDismissed !== latest)) showUpdateBot();
+  } catch (err) {
+    update = { ...update, state: 'error', error: String(err && err.message || err), checkedAt: Date.now() };
+  }
+  pushUpdate();
+  return update;
+}
+function updateInfo() {
+  return { state: update.state, current: APP_VERSION, latest: update.latest, url: update.url, store: IS_STORE,
+    asset: update.asset ? { name: update.asset.name, size: update.asset.size } : null, checkedAt: update.checkedAt, error: update.error, auto: featureOn('updates') };
+}
+function pushUpdate() {
+  if (updateBot && !updateBot.webContents.isDestroyed()) updateBot.webContents.send('updbot-info', updateInfo());
+  for (const t of tabs) if (t.settingsTab && !t.view.webContents.isDestroyed()) t.view.webContents.send('settings-refresh');
+}
+// GET IT: the right file through the normal Downloads panel, or the release page.
+function getUpdate() {
+  if (update.state !== 'available') return;
+  if (update.asset) {
+    const t = activeTab();
+    (t && !t.sim ? t.view.webContents : win.webContents).downloadURL(update.asset.url);
+  } else newTab(update.url);
+}
+function startUpdateChecks() {             // called once the app is ready
+  const delay = Number(process.env.NODEGRID_UPDATE_DELAY_MS) || 8000;
+  setTimeout(() => { if (featureOn('updates')) checkUpdates(); }, delay);
+  setInterval(() => {
+    const last = Math.max(update.checkedAt || 0, settings.updateCheckedAt || 0);
+    if (featureOn('updates') && Date.now() - last >= UPDATE_EVERY) checkUpdates();
+  }, 3600 * 1000);
+}
+
+// The bot: a small see-through view along the bottom-left of the page that a
+// pixel robot runs into, hops, and says there's an update. Gone after a choice.
+let updateBot = null;
+const BOT_W = 440, BOT_H = 190;
+function placeUpdateBot() {
+  if (!updateBot || !win || win.isDestroyed()) return;
+  const w = Math.min(BOT_W, Math.max(260, viewport.width - 60));
+  updateBot.setBounds({ x: Math.round(viewport.x + 12), y: Math.round(viewport.y + viewport.height - BOT_H - 6), width: Math.round(w), height: BOT_H });
+  win.contentView.addChildView(updateBot);             // keep it on top
+}
+function showUpdateBot() {
+  if (!win || win.isDestroyed()) return;
+  if (updateBot) { pushUpdate(); placeUpdateBot(); return; }
+  updateBot = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'updatebot-preload.js'), contextIsolation: true, sandbox: true } });
+  updateBot.setBackgroundColor('#00000000');
+  updateBot.webContents.loadFile(path.join(__dirname, 'updatebot.html'));
+  placeUpdateBot();
+}
+function closeUpdateBot() {
+  if (!updateBot) return;
+  try { win.contentView.removeChildView(updateBot); updateBot.webContents.close(); } catch {}
+  updateBot = null;
+}
+const fromBot = (e) => updateBot && e.sender === updateBot.webContents;
+ipcMain.handle('updbot:info', (e) => (fromBot(e) ? updateInfo() : null));
+ipcMain.on('updbot:get', (e) => { if (fromBot(e)) { getUpdate(); closeUpdateBot(); } });
+ipcMain.on('updbot:notes', (e) => { if (fromBot(e)) newTab(update.url); });
+ipcMain.on('updbot:later', (e) => { if (fromBot(e)) { settings.updateDismissed = update.latest; saveSettings(); } });
+ipcMain.on('updbot:gone', (e) => { if (fromBot(e)) closeUpdateBot(); });
+
 function placePixel() {
   if (!win || win.isDestroyed()) return;
   placeGear();
+  placeUpdateBot();
   if (!settings.redPixel || !featureOn('eggs')) { if (pixelView) { win.contentView.removeChildView(pixelView); pixelView = null; } return; }
   if (!pixelView) {
     pixelView = new WebContentsView({ webPreferences: { javascript: false, sandbox: true } });
@@ -1445,13 +1560,37 @@ ipcMain.handle('radio:health', async (e, list) => {
 });
 
 // ---------- music player: YouTube live streams as radio stations ----------
-// A YouTube stream isn't a plain audio stream, so it plays in a tiny 1x1 YouTube
-// player tucked under everything. Its own in-memory storage, ad blocking on.
+// A YouTube stream isn't a plain audio stream, so it plays in a real YouTube
+// player. YouTube's terms require that player to be visible, so it sits on top
+// of the radio panel's video box (#plvideo, reported by the shell). When that box
+// can't be seen -- player minimised, sidebar collapsed -- the player is tucked
+// away and YouTube is paused, and it carries on when the box is back. Its own
+// in-memory storage, ad blocking on.
 const RADIO_PARTITION = 'nodegrid-radio';
 let ytView = null, ytVol = 0.7, ytStartTimer = null;
 const ytEmbed = (id) => (process.env.NODEGRID_YT_EMBED || 'https://www.youtube.com/embed/') + encodeURIComponent(id) +
   '?autoplay=1&playsinline=1&rel=0&modestbranding=1';
 const ytSend = (st) => { if (win && !win.isDestroyed()) win.webContents.send('yt-state', st); };
+let ytRect = { x: 0, y: 0, width: 0, height: 0 }, ytHidPaused = false;
+const ytVisible = () => ytRect.width >= 200 && ytRect.height >= 200;   // YouTube: embedded players must be at least 200x200
+const YT_MEDIA_JS = (cmd) => `(() => { const m = document.querySelector('video, audio'); if (m) m.${cmd}(); })()`;
+function ytPlace() {
+  if (!ytView || ytView.webContents.isDestroyed()) return;
+  const wc = ytView.webContents;
+  if (ytVisible()) {
+    ytView.setBounds({ x: Math.round(ytRect.x), y: Math.round(ytRect.y), width: Math.round(ytRect.width), height: Math.round(ytRect.height) });
+    if (ytHidPaused) { ytHidPaused = false; wc.executeJavaScript(YT_MEDIA_JS('play'), true).catch(() => {}); }
+  } else {
+    ytView.setBounds({ x: 0, y: 0, width: 1, height: 1 });
+    if (wc.isCurrentlyAudible() || !ytHidPaused) { ytHidPaused = true; wc.executeJavaScript(YT_MEDIA_JS('pause')).catch(() => {}); }
+  }
+}
+ipcMain.on('yt:bounds', (e, r) => {
+  if (e.sender !== win.webContents || !r) return;
+  const n = (v) => (Number.isFinite(v) ? Math.max(0, v) : 0);
+  ytRect = { x: n(r.x), y: n(r.y), width: n(r.width), height: n(r.height) };
+  ytPlace();
+});
 const YT_VOL_JS = (v) => `(() => { const m = document.querySelector('video, audio'); if (m) { m.volume = ${Number(v)}; m.muted = false; } })()`;
 function ytStop() {
   clearTimeout(ytStartTimer);
@@ -1466,10 +1605,15 @@ function ytPlay(id) {
   if (!/^[\w-]{6,20}$/.test(id)) { ytSend({ state: 'error' }); return; }
   const v = ytView = new WebContentsView({ webPreferences: { partition: RADIO_PARTITION, contextIsolation: true, sandbox: true, backgroundThrottling: false } });
   v.setBounds({ x: 0, y: 0, width: 1, height: 1 });
-  win.contentView.addChildView(v, 0);                  // bottom of the stack: never covers anything
+  win.contentView.addChildView(v);                     // on top: it lives inside the sidebar's radio box
+  ytHidPaused = false;
   const wc = v.webContents;
   wc.setWindowOpenHandler(() => ({ action: 'deny' }));
-  wc.on('media-started-playing', () => { wc.executeJavaScript(YT_VOL_JS(ytVol)).catch(() => {}); ytSend({ state: 'playing' }); });
+  wc.on('media-started-playing', () => {
+    wc.executeJavaScript(YT_VOL_JS(ytVol)).catch(() => {});
+    if (!ytVisible()) { ytHidPaused = true; wc.executeJavaScript(YT_MEDIA_JS('pause')).catch(() => {}); }   // never plays while it can't be seen
+    ytSend({ state: 'playing' });
+  });
   wc.on('media-paused', () => ytSend({ state: 'paused' }));
   wc.on('did-fail-load', (_e, code, _d, _u, main) => { if (main && code !== -3) ytSend({ state: 'error' }); });
   wc.on('did-finish-load', () => {
@@ -1478,6 +1622,7 @@ function ytPlay(id) {
       if (ytView === v && !wc.isDestroyed()) wc.executeJavaScript(`(() => { const b = document.querySelector('.ytp-large-play-button, .ytp-play-button'); if (b) b.click(); else { const m = document.querySelector('video, audio'); if (m) m.play(); } })()`, true).catch(() => {});
     }, 2500);
   });
+  ytPlace();
   ytSend({ state: 'connecting' });
   wc.loadURL(ytEmbed(id), { httpReferrer: { url: 'https://search.nullgrid.dev/', policy: 'unsafe-url' } }).catch(() => {});   // embeds need a referring site
 }
@@ -1729,6 +1874,7 @@ function settingsModel() {
     ai: { provider: aiProvider(), custom: settings.aiCustom || '', local: settings.localAi || '' },
     sleep: { after: sleepAfter(), choices: SLEEP_CHOICES },
     drive: drive.status(),
+    update: updateInfo(),
     features: Object.entries(FEATURES).filter(([key]) => key !== 'sim' || SIM_AVAILABLE).map(([key, label]) => ({ key, label, on: featureOn(key) }))
   };
 }
@@ -1764,6 +1910,9 @@ ipcMain.handle('settings:do', async (e, action, a, b) => {
     case 'drive-retry': await drive.handshake(); return ok();
     case 'drive-disconnect': drive.disconnect(); return ok();
     case 'open-data': eshell.openPath(app.getPath('userData')); return ok();
+    case 'update-check': await checkUpdates({ manual: true }); return ok();
+    case 'update-get': getUpdate(); return ok();
+    case 'update-notes': if (update.url) newTab(update.url); return ok();
     default: return { ok: false };
   }
 });
@@ -2869,6 +3018,7 @@ function handleKeys(e, input) {
 app.whenReady().then(() => {
   if (!gotLock) return;
   loadFavs(); loadHistory(); loadSettings(); loadVault();
+  startUpdateChecks();
   loadSaved(); loadLoadouts();
   drive.handshake().catch(() => {});          // Null Drive: check the connection on every launch
   setupWebSession(session.fromPartition(PARTITION));

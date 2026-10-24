@@ -642,6 +642,10 @@ body.ai-open #bar { padding-right: 8px; }          /* the window buttons now sit
 @keyframes eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
 @media (prefers-reduced-motion: reduce) { .pl-eq.on i { animation: none; height: 8px; } }
 .pl-body { padding: 5px 6px 6px; }
+/* The YouTube player sits exactly on top of this box (main.js keeps it there).
+   YouTube requires an embedded player of at least 200x200 px. */
+.pl-video { width: 100%; min-width: 200px; height: 200px; box-sizing: border-box; background: #000; border: 1px solid var(--line); margin-bottom: 5px; }
+.pl-video[hidden] { display: none; }
 body.pl-min .pl-body { display: none; }
 .pl-now { overflow: hidden; cursor: default; }
 #player.tabs .pl-now { cursor: pointer; }

@@ -78,6 +78,7 @@ contextBridge.exposeInMainWorld('shell', {
   // music player
   mediaCmd:    (c)  => ipcRenderer.send('media:cmd', c),
   ytCmd:       (c, a) => ipcRenderer.send('yt:cmd', c, a),
+  setYtBounds: (r) => ipcRenderer.send('yt:bounds', r),
   radioCandidates: (st) => ipcRenderer.invoke('radio:candidates', st),
   radioHealth:     (list) => ipcRenderer.invoke('radio:health', list),
   onYtState:        (cb) => ipcRenderer.on('yt-state', (_e, s) => cb(s)),

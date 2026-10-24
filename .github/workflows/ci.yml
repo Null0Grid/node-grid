@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: System libraries (Electron + Xvfb)
         run: |
           sudo apt-get update
@@ -32,6 +32,10 @@ jobs:
         run: npm test
       - name: Drive connection, live in the app (Electron + Playwright, under Xvfb)
         run: xvfb-run -a npm run test:ui
+      - name: Update checks, update bot, Settings > UPDATES, sidebar hover switch (live in the app)
+        run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:updates
+      - name: Picture-in-picture docking (live in the app)
+        run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:pipdock
 
   test-windows:
     name: Tests (Windows)
@@ -40,7 +44,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npm ci
       - name: Drive connection tests (null-drive.js, no Electron)
         run: npm test

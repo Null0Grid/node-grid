@@ -50,9 +50,32 @@ Two more formats are hand-maintained rather than built by electron-builder, sinc
 - **AUR**: `packaging/aur/PKGBUILD` (a `-bin` package, `nullgrid-browser-bin`, that downloads the released `.tar.gz`/`-arm64.tar.gz` rather than compiling) and `packaging/aur/.SRCINFO` (generated from it with a real `makepkg --printsrcinfo`, not hand-typed). The icon ships as a local file next to the PKGBUILD (`dev.nullgrid.nodegrid.png`, copied from `home/icon-512.png`) because the app's actual icon lives inside `app.asar` and isn't a loose file in the release tarball to install from directly. Verified end-to-end: `makepkg -d --nodeps` against the real locally-built 5.0.0 x64 tarball successfully produced a package with the binary at `/opt/nullgrid-browser/node-grid`, a `/usr/bin/node-grid` symlink, the `chrome-sandbox` helper with its setuid bit intact (`chmod 4755`, needed for Chromium's sandboxing to work when installed outside a user's home directory), the `.desktop` file, and the icon all in the right places.
 - **Flathub submission manifest**: `packaging/flathub/dev.nullgrid.nodegrid.yml`, `.desktop`, and `.metainfo.xml` — the manifest a `github.com/flathub/dev.nullgrid.nodegrid` submission actually needs, which is a from-source build against the Freedesktop/Electron2 base app, not the same thing as the electron-builder `.flatpak` target above (that one just repackages the release build for direct download). Validated with `appstreamcli validate --no-net` (passed) and `desktop-file-validate` (passed) — both tools installed and run in this pass, not just inspected by eye. The manifest pins to a GitHub release tag for its source and leaves a placeholder checksum (`REPLACE_WITH_SHA256_OF_SOURCE_TARBALL_FOR_THIS_TAG`) to be filled in against the actual tagged source archive at submission time, since that hash can't be computed before the tag exists.
 
-## Next release: Masking
+## Next release: Masking, menus, Electron 45, updates, YouTube radio
+
+### Masking
 
 Right-click a page or a tab → **Masking** (a per-tab checkbox). Normal tabs identify as `… Chrome/130 … Electron/33 … NODE_GRID/5.1.1`, and some sites — WhatsApp Web is the one that prompted this — refuse browsers they don't recognise. A masked tab presents as the current Google Chrome instead: `webContents.setUserAgent()` sets the `User-Agent` header and `navigator.userAgent` for that tab only, and a CDP `Emulation.setUserAgentOverride` (same debugger approach as Mobile view) puts "Google Chrome" in `navigator.userAgentData.brands`. The OS part uses Chrome's frozen "reduced" strings (`Windows NT 10.0; Win64; x64`, `X11; Linux x86_64`, `Macintosh; Intel Mac OS X 10_15_7`). The version is computed from the date: Chrome 156 reached Stable on 2026-10-20 and Chrome ships a new major every two weeks, so the mask keeps up without updates. Toggling reloads the page, since sites check on load. Mobile view, when on, wins over the mask and restores it when turned off. If Inspect is open on the tab, the debugger is busy, so only the header and `navigator.userAgent` are masked, not the brands.
 
 Verified live (`tests/ui-masking.test.js`, `npm run test:ui:masking`) through the real native right-click menu, driven with xdotool: unmasked tab says Electron; after picking Masking the echoed header, `navigator.userAgent` and brands all say Google Chrome; a second tab stays unmasked; picking it again restores the normal identity.
+
+### Electron 45 (Chromium 156)
+
+Upgraded from Electron 33 (Chromium 130) to Electron 45 (Chromium 156.0.8078.48, Node 24). Microsoft Store policy 10.2.1 requires a Chromium-based browser to be within two major versions of the latest Chromium; 130 was 26 behind. Electron 45 needs Node 22.12+ to install, so every workflow now uses Node 22. All test suites pass unchanged.
+
+### Right-click menus regrouped
+
+Page menu: navigate (Back/Forward/Reload) / this page (Translate, Reader mode, Picture in picture, Select all) / keep & share (favorites, copy address, Vault, send to phone, print, PDF) / Masking / developer (View page source, Packet trail, Recon, Mobile view, Inspect). Tab menu: new / this page / Masking / pin & sleep (and burner) / close. Link, image, text-box and spelling sections are unchanged at the top.
+
+### Update checks and the update bot
+
+`main.js` › updates asks `api.github.com/repos/Null0Grid/node-grid/releases/latest` 8 s after launch and then once a day (Settings › FEATURES › "Check GitHub for new versions", on by default), and any time from Settings › UPDATES › CHECK FOR UPDATES. A newer `tag_name` than the app's version brings out the update bot: a transparent `WebContentsView` (`updatebot.html`) along the bottom-left of the page, where the crashed-tab page's robot (without its broom) runs in, hops twice and offers GET IT / WHAT'S NEW / LATER. GET IT downloads the release file that fits the computer through the normal Downloads panel (Windows zip; on Linux the AppImage if running from one, else `.deb`/`.rpm`/`.tar.gz` by distro), or opens the release page. LATER remembers the version so the daily check doesn't bring it back for that one; CHECK FOR UPDATES always does. Microsoft Store copies check too but can't replace themselves with a GitHub download (Windows keeps Store apps and their data separate), so for them the bot says the Store update is on its way. The release workflow's `store-submit` job sends each release's `.appx` to Partner Center with the Microsoft Store CLI once the Partner Center secrets are set (STORE-STEPS.txt). Tested live with a stand-in GitHub (`tests/ui-updates.test.js`); the test caught that the robot's canvas covered the bubble's buttons, now `pointer-events: none`.
+
+### YouTube radio, visible
+
+YouTube stations used to play in a hidden 1×1 player, which YouTube's terms don't allow, so Store builds left them out. The player now sits on top of a 213×200 box in the radio panel (`#plvideo`; YouTube requires embedded players to be at least 200×200 with nothing covering them), reported by the shell like `#viewport`. When the box can't be seen (player minimised, sidebar collapsed) the main process pauses YouTube and resumes when it's back, and playback never starts while hidden. With that, `INCLUDE_YOUTUBE_RADIO=yes` for Store builds. Tested live (`tests/ui-ytradio.test.js`) with a stand-in embed page: the box's on-screen centre pixel is the test video's red, and minimise/restore pauses and resumes it.
+
+### Smaller
+
+- Settings › FEATURES › "Expand the shrunk sidebar when you hover over it" (on by default).
+- The settings icon is now an 8-tooth cog.
 

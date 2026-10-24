@@ -14,11 +14,13 @@
     "dist:linux": "electron-builder --linux deb rpm AppImage tar.gz --x64 --arm64 --publish never",
     "dist:linux:flatpak": "electron-builder --linux flatpak --x64 --arm64 --publish never",
     "dist:linux:snap": "electron-builder --linux snap --x64 --arm64 --publish never",
-    "test:ui:masking": "node tests/ui-masking.test.js"
+    "test:ui:masking": "node tests/ui-masking.test.js",
+    "test:ui:ytradio": "node tests/ui-ytradio.test.js",
+    "test:ui:updates": "node tests/ui-updates.test.js"
   },
   "devDependencies": {
     "@electron/packager": "^18.3.0",
-    "electron": "^33.0.0",
+    "electron": "^45.0.0",
     "electron-builder": "^26.15.3",
     "playwright": "^1.56.0"
   },

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self'; font-src 'self'">
+  <title>Update</title>
+  <style>
+    @font-face { font-family: 'Silkscreen'; src: url('fonts/silkscreen.woff2') format('woff2'); }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; }
+    body { font: 12px/1.4 'JetBrains Mono', ui-monospace, Consolas, monospace; color: #c7d3e0; }
+    #bot { position: absolute; left: 0; bottom: 0; image-rendering: pixelated; pointer-events: none; filter: drop-shadow(0 0 8px rgba(0, 229, 255, .4)); }   /* never in the way of the buttons */
+    #bubble {
+      position: absolute; z-index: 1; bottom: 60px; left: 100px; max-width: 320px;
+      background: rgba(10, 10, 15, .96); border: 1px solid #00e5ff; box-shadow: 0 0 12px rgba(0, 229, 255, .35);
+      padding: 9px 11px 10px; opacity: 0; transform: translateY(6px) scale(.96); transform-origin: 0 70%;
+      transition: opacity .18s, transform .18s; pointer-events: none;
+    }
+    #bubble.on { opacity: 1; transform: none; pointer-events: auto; }
+    #bubble::after {                     /* the little tail, pointing left at Packet */
+      content: ''; position: absolute; left: -7px; bottom: 18px; width: 10px; height: 10px;
+      background: #0a0a0f; border-left: 1px solid #00e5ff; border-bottom: 1px solid #00e5ff; transform: rotate(45deg);
+    }
+    #bubble h1 { margin: 0 0 3px; font: 10px 'Silkscreen', monospace; letter-spacing: 1px; color: #ff2e88; }
+    #bubble p { margin: 0 0 8px; }
+    #bubble b { color: #00e5ff; font-weight: normal; }
+    .row { display: flex; gap: 6px; flex-wrap: wrap; }
+    button {
+      background: none; border: 1px solid #1f2a3a; color: #c7d3e0; cursor: pointer;
+      font: 9px 'Silkscreen', monospace; letter-spacing: 1px; padding: 5px 8px;
+    }
+    button:hover { border-color: #00e5ff; color: #00e5ff; }
+    button.go { border-color: #00e5ff; color: #00e5ff; }
+    button.go:hover { background: rgba(0, 229, 255, .12); box-shadow: 0 0 8px rgba(0, 229, 255, .4); }
+  </style>
+</head>
+<body>
+  <div id="bubble" role="alertdialog" aria-labelledby="bt" aria-describedby="bx">
+    <h1 id="bt">// UPDATE AVAILABLE</h1>
+    <p id="bx"></p>
+    <div class="row" id="btns"></div>
+  </div>
+  <canvas id="bot"></canvas>
+  <script src="updatebot.js"></script>
+</body>
+</html>

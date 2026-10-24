@@ -60,7 +60,7 @@ modules:
       - npm ci
       - mkdir -p /app/main
       - cp -r package.json main.js *.html *.js *.css home tab-preload.js null-drive.js
-          gear.html gear.js gear-preload.js pipdock.html pipdock.js pipdock-preload.js
+          gear.html gear.js gear-preload.js pipdock.html pipdock.js pipdock-preload.js updatebot.html updatebot.js updatebot-preload.js
           node_modules doom fonts build /app/main/ 2>/dev/null || true
       - install -Dm644 home/icon-512.png /app/share/icons/hicolor/512x512/apps/dev.nullgrid.nodegrid.png
       - install -Dm644 packaging/flathub/dev.nullgrid.nodegrid.desktop /app/share/applications/dev.nullgrid.nodegrid.desktop

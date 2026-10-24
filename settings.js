@@ -192,6 +192,42 @@
       select(M.sleep.choices.map((x) => [x, fmtSec(x)]), M.sleep.after, (v) => act('sleep', Number(v), null, 'Saved'))));
     out.push(s7);
 
+    // UPDATES: ask GitHub whether a newer NODE_GRID is out
+    const U = M.update;
+    const su = section('updates', 'UPDATES', U.store
+      ? 'This is the Microsoft Store copy, so the Store installs your updates. NODE_GRID still asks GitHub, so you hear about a new version as soon as it is out.'
+      : 'NODE_GRID asks GitHub (github.com/Null0Grid/node-grid) whether a newer version is out. Only that question is sent.');
+    su.append(row('Check automatically', 'At launch and once a day', toggle(U.auto, async (on) => {
+      const r = await S.feature('updates', on);
+      if (r && r.ok) { M = r.model; render(); toast(on ? 'Automatic update checks on' : 'Automatic update checks off'); }
+    })));
+    const ust = el('div', 'dstat ' + (U.state === 'available' ? 'warn' : U.state === 'current' ? 'ok' : U.state === 'error' ? 'bad' : ''));
+    ust.id = 'updstat';
+    const when = U.checkedAt ? ' :: checked ' + new Date(U.checkedAt).toLocaleString() : '';
+    ust.append(el('span', 'ddot'), el('span', null,
+      U.state === 'checking' ? 'Checking GitHub…'
+        : U.state === 'available' ? `NODE_GRID ${U.latest} is available. You have ${U.current}.`
+        : U.state === 'current' ? `You're up to date (${U.current})${when}`
+        : U.state === 'error' ? `Couldn't check: ${U.error}${when}`
+        : `You have ${U.current}. Not checked yet.`));
+    su.append(ust);
+    const ub = el('div', 'drow');
+    const chk = button('CHECK FOR UPDATES', async () => { chk.disabled = true; ust.className = 'dstat wait'; ust.lastChild.textContent = 'Checking GitHub…'; await act('update-check'); }, 'primary');
+    chk.id = 'updcheck';
+    ub.append(chk);
+    if (U.state === 'available') {
+      if (U.store) ub.append(button("WHAT'S NEW", () => act('update-notes')));
+      else {
+        const get = button(U.asset ? 'DOWNLOAD ' + U.latest : 'GET IT ON GITHUB', () => act('update-get', null, null, U.asset ? 'Downloading ' + U.asset.name : 'Opened the release page'), 'primary');
+        get.id = 'updget';
+        ub.append(get, button("WHAT'S NEW", () => act('update-notes')));
+      }
+    }
+    su.append(ub);
+    if (U.state === 'available' && !U.store && U.asset) su.append(el('p', 'hint', `Downloads ${U.asset.name} to your Downloads folder. Close NODE_GRID and install it like the version you have now.`));
+    if (U.state === 'available' && U.store) su.append(el('p', 'hint', "The Store update usually arrives within a few days. A GitHub download would install as a second, separate NODE_GRID without your settings, so it's better to wait."));
+    out.push(su);
+
     // ABOUT
     const s8 = section('about', 'ABOUT');
     s8.append(row('Version', null, el('span', 'state', 'v' + M.version)));

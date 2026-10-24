@@ -68,7 +68,7 @@ jobs:
           ref: ${{ env.TAG }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: rpmbuild (for the .rpm target)
         run: |
           sudo apt-get update
@@ -98,7 +98,7 @@ jobs:
           ref: ${{ env.TAG }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: flatpak + flatpak-builder
         run: |
           sudo apt-get update
@@ -124,7 +124,7 @@ jobs:
           ref: ${{ env.TAG }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npm ci
       - name: Build .snap (x64 + arm64)
         run: npm run dist:linux:snap
@@ -144,7 +144,7 @@ jobs:
           ref: ${{ env.TAG }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npm ci
       - name: Test
         run: npm test
@@ -167,6 +167,39 @@ jobs:
           name: store-package
           path: store-dist/*.appx
           if-no-files-found: ignore
+
+  store-submit:
+    name: Send the Store package to the Microsoft Store
+    # Submits this release's .appx to Partner Center, so Store copies get the
+    # update through the Store once Microsoft certifies it (hours to a few days).
+    # Needs four repository secrets and one variable; without them this job just
+    # says so and skips -- see STORE-STEPS.txt > AUTOMATIC STORE UPDATES.
+    needs: [version, windows]
+    runs-on: windows-latest
+    env:
+      HAVE_KEYS: ${{ secrets.AZURE_AD_TENANT_ID != '' && secrets.AZURE_AD_APPLICATION_CLIENT_ID != '' && secrets.AZURE_AD_APPLICATION_SECRET != '' && secrets.SELLER_ID != '' && vars.STORE_PRODUCT_ID != '' }}
+    steps:
+      - name: Check for Partner Center keys
+        if: env.HAVE_KEYS != 'true'
+        run: echo "::notice title=Store submission skipped::Add the Partner Center secrets and the STORE_PRODUCT_ID variable (see STORE-STEPS.txt) to send releases to the Store automatically."
+      - uses: actions/download-artifact@v4
+        if: env.HAVE_KEYS == 'true'
+        with:
+          name: store-package
+          path: store-package
+      - name: Set up the Microsoft Store CLI
+        if: env.HAVE_KEYS == 'true'
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+      - name: Sign in to Partner Center
+        if: env.HAVE_KEYS == 'true'
+        run: msstore reconfigure --tenantId "${{ secrets.AZURE_AD_TENANT_ID }}" --sellerId "${{ secrets.SELLER_ID }}" --clientId "${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}" --clientSecret "${{ secrets.AZURE_AD_APPLICATION_SECRET }}"
+      - name: Submit the package
+        if: env.HAVE_KEYS == 'true'
+        shell: pwsh
+        run: |
+          $appx = Get-ChildItem store-package/*.appx | Select-Object -First 1
+          if (-not $appx) { echo "::error::No Store package was built for this release"; exit 1 }
+          msstore publish "$($appx.FullName)" -id "${{ vars.STORE_PRODUCT_ID }}"
 
   release:
     name: Attach to the GitHub release
