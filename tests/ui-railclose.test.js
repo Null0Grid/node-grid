@@ -76,6 +76,15 @@ async function waitFor(fn, timeoutMs = 10000) {
       return f.classList.contains('x-on') && getComputedStyle(f.querySelector('.fav-x')).display !== 'none' && getComputedStyle(f.querySelector('.icon')).display === 'none';
     })));
     if (SHOTS) execFileSync('import', ['-window', 'root', path.join(SHOTS, 'rail-close-x.png')]);
+    // a press that starts before the X shows (held past the delay) is a normal click, not a close
+    await shell.mouse.move(0, 0);
+    const b1 = await (await fav(1)).boundingBox();
+    await shell.mouse.move(b1.x + b1.width / 2, b1.y + b1.height / 2); await wait(100);
+    await shell.mouse.down(); await wait(500); await shell.mouse.up(); await wait(400);
+    await check('a slow press that began before the X appeared does not close the tab', async () => { assert.strictEqual(await count(), 3); assert.strictEqual(await active(), 1); });
+    await shell.mouse.move(0, 0);
+    await (await fav(2)).hover();
+    await wait(600);
     await (await fav(2)).click();
     await check('clicking the X closes that tab', async () => assert.ok(await waitFor(async () => (await count()) === 2, 4000)));
 

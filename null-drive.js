@@ -14,7 +14,8 @@
 //   GET /api/v1/files/{path}            view / download a file
 
 const http = require('http');
-const https = require('https');
+const tls = require('tls');
+const net = require('net');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -51,21 +52,39 @@ module.exports = function createDrive({ getSettings, saveSettings, enc, dec, can
 
   // One request to Drive. Accepts self-signed HTTPS only for devices you already trusted
   // in NODE_GRID (Settings > Trusted local devices), same as for web pages.
-  function request(base, p, { timeout = 4000, tok = token(), stream = false } = {}) {
+  // For https the TLS handshake is done first and the certificate checked before a
+  // single byte (and so the token) is sent; only then does the request go out on
+  // that socket.
+  function secureSocket(u, timeout) {
     return new Promise((resolve, reject) => {
-      let u; try { u = new URL(base + p); } catch { reject(Object.assign(new Error('bad address'), { kind: 'address' })); return; }
-      const lib = u.protocol === 'https:' ? https : http;
-      const req = lib.request(u, {
-        method: 'GET', timeout,
-        headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json, */*', 'User-Agent': 'NODE_GRID' },
-        rejectUnauthorized: false
-      }, (res) => {
-        if (u.protocol === 'https:' && !res.socket.authorized) {
-          const c = res.socket.getPeerCertificate();
+      const host = u.hostname.replace(/^\[|\]$/g, '');
+      const sock = tls.connect({ host, port: Number(u.port) || 443, servername: net.isIP(host) ? undefined : host, rejectUnauthorized: false, ALPNProtocols: ['http/1.1'] });
+      const fail = (err) => { sock.destroy(); reject(err); };
+      sock.setTimeout(timeout, () => fail(Object.assign(new Error('timed out'), { kind: 'unreachable' })));
+      sock.once('error', (err) => fail(err.kind ? err : Object.assign(err, { kind: 'unreachable' })));
+      sock.once('secureConnect', () => {
+        if (!sock.authorized) {
+          const c = sock.getPeerCertificate();
           const fp = c && c.raw ? 'sha256/' + crypto.createHash('sha256').update(c.raw).digest('base64') : '';
           const t = (getSettings().trustedCerts || {})[u.hostname.toLowerCase()];
-          if (!t || t.fingerprint !== fp) { res.destroy(); reject(Object.assign(new Error('untrusted certificate'), { kind: 'cert' })); return; }
+          if (!t || t.fingerprint !== fp) return fail(Object.assign(new Error('untrusted certificate'), { kind: 'cert' }));
         }
+        sock.setTimeout(0); sock.removeAllListeners('error');
+        resolve(sock);
+      });
+    });
+  }
+  async function request(base, p, { timeout = 4000, tok = token(), stream = false } = {}) {
+    let u; try { u = new URL(base + p); } catch { throw Object.assign(new Error('bad address'), { kind: 'address' }); }
+    if (!/^https?:$/.test(u.protocol)) throw Object.assign(new Error('bad address'), { kind: 'address' });
+    const sock = u.protocol === 'https:' ? await secureSocket(u, timeout) : null;
+    return new Promise((resolve, reject) => {
+      const req = http.request({
+        host: u.hostname.replace(/^\[|\]$/g, ''), port: Number(u.port) || (sock ? 443 : 80), path: u.pathname + u.search,
+        method: 'GET', timeout,
+        headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json, */*', 'User-Agent': 'NODE_GRID' },
+        ...(sock ? { createConnection: () => sock } : {})
+      }, (res) => {
         if (stream) { resolve(res); return; }
         const bufs = []; let n = 0;
         res.on('data', (d) => { n += d.length; if (n > VIEW_MAX + 1024) { res.destroy(); reject(Object.assign(new Error('too big'), { kind: 'big' })); } else bufs.push(d); });

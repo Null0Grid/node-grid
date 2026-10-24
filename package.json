@@ -21,7 +21,9 @@
     "test:ui:pinned": "node tests/ui-pinned.test.js",
     "test:ui:favicons": "node tests/ui-favicons.test.js",
     "test:ui:openlinks": "node tests/ui-openlinks.test.js",
-    "test:ui:defaultbrowser": "node tests/ui-defaultbrowser.test.js"
+    "test:ui:defaultbrowser": "node tests/ui-defaultbrowser.test.js",
+    "test:ui:settings": "node tests/ui-settings.test.js",
+    "test:ui:core": "node tests/ui-core.test.js"
   },
   "devDependencies": {
     "@electron/packager": "^18.3.0",

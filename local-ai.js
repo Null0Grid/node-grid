@@ -42,7 +42,7 @@
   $('srvform').addEventListener('submit', async (e) => {
     e.preventDefault();
     const key = $('key').value.trim();
-    if (key) { const ok = await L.setKey(key); $('key').value = ''; $('key').placeholder = ok ? 'saved (encrypted by Windows)' : "couldn't save the key"; }
+    if (key) { const ok = await L.setKey(key); $('key').value = ''; $('key').placeholder = ok ? 'saved (encrypted on this computer)' : "couldn't save the key"; }
     connect($('srv').value.trim());
   });
 
@@ -110,7 +110,8 @@
   $('msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
   $('stop').onclick = () => { if (busy) L.stop(busy); };
   $('clear').onclick = () => {
-    if (busy) L.stop(busy);
+    if (busy) { L.stop(busy); setBusy(null); }    // the stopped answer must not land in the new chat
+    liveBody = null; liveText = '';
     messages = []; pageCtx = null; $('attach').hidden = true;
     for (const n of [...$('log').querySelectorAll('.msg')]) n.remove();
     $('hello').hidden = false;
@@ -126,6 +127,6 @@
   };
   $('detach').onclick = () => { pageCtx = null; $('attach').hidden = true; };
 
-  L.hasKey().then((k) => { if (k) $('key').placeholder = 'saved (encrypted by Windows)'; });
+  L.hasKey().then((k) => { if (k) $('key').placeholder = 'saved (encrypted on this computer)'; });
   connect('');
 })();

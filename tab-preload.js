@@ -103,7 +103,7 @@ function toast(text, ms = 2200) {
 function eggFor(q) {
   const t = String(q || '').trim().toLowerCase().replace(/\s+/g, ' ');
   if (/^(sudo )?rm -rf \/\*?$/.test(t)) return 'rm';
-  if (t === 'sudo' || t.startsWith('sudo ')) return 'sudo';
+  if (t === 'sudo' || t === 'sudo su' || t === 'sudo !!' || t === 'sudo -i') return 'sudo';   // real "sudo ..." commands search normally
   if (t === 'ping') return 'ping';
   if (t === 'protocol 3' || t === 'bt-7274' || t === 'bt 7274') return 'bt';
   if (t === 'fsociety') return 'fsociety';

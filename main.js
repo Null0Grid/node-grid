@@ -203,7 +203,7 @@ function newTab(url = HOME, opts = {}) {
   wc.on('page-favicon-updated', async (_e, icons) => {
     if (tab.sleeping) return;
     const gen = tab.iconGen = (tab.iconGen || 0) + 1;      // a newer page's icon wins over one still loading
-    const icon = await siteIcon(wc.session, icons);
+    const icon = await siteIcon(wc.session, icons, /^file:/i.test(wc.getURL()));
     if (gen !== tab.iconGen || tab.sleeping) return;
     tab.favicon = icon;
     const f = findFav(tab.url);
@@ -241,6 +241,7 @@ function newTab(url = HOME, opts = {}) {
     if (tab.waking) { tab.waking = false; dropBlankEntries(wc); }   // woke up: no history visit, no blank entry left behind
     else tab.lastNavRecorded = true;
     tab.favicon = null;
+    tab.iconGen = (tab.iconGen || 0) + 1;        // an icon still loading for the previous page must not land on this one
     if (peek && u.startsWith('data:text/html')) { tab.url = tab.errorUrl; pushState(); return; }
     if (isReaderPage(u)) {
       tab.reader = true; tab.url = tab.readerUrl || tab.url;   // reader view shows the article's own address
@@ -330,7 +331,8 @@ function closeTab(id) {
   if (pipDock && pipDock.tabId === id) dropPipControls();   // its view is about to be destroyed below
   if (tab.pinned) setTimeout(savePins, 0);
   win.contentView.removeChildView(tab.view);
-  trails.delete(tab.view.webContents.id);
+  const wcid = tab.view.webContents.id;
+  trails.delete(wcid); blockedByTab.delete(wcid); certErrors.delete(wcid);
   tab.view.webContents.close();
   if (tab.burner && !tabs.some((t) => t.burner && t.burner.part === tab.burner.part)) burnGroup(tab.burner.part, false);
 
@@ -433,8 +435,20 @@ const fs = require('fs');
 const iconCache = new Map();      // icon URL -> data: URL, or null if it didn't load
 const ICON_MAX = 256 * 1024;
 const ICON_TYPES = { ico: 'image/x-icon', png: 'image/png', svg: 'image/svg+xml', gif: 'image/gif', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
-async function iconData(ses, url) {
+async function iconData(ses, url, allowFile) {
   if (/^data:image\//i.test(url)) return url.length < ICON_MAX * 1.4 ? url : null;
+  if (/^file:\/\//i.test(url)) {                 // the start page, local .html files: read the image file itself
+    if (!allowFile || !/^file:\/\/\//i.test(url)) return null;   // only for local pages, never a network share (file://host/...)
+    const type = ICON_TYPES[(url.split(/[?#]/)[0].split('.').pop() || '').toLowerCase()];
+    if (!type) return null;
+    try {
+      const p = require('url').fileURLToPath(url);
+      if (/^(\\\\|\/\/)/.test(p)) return null;
+      const st = await fs.promises.stat(p);
+      if (!st.isFile() || st.size > ICON_MAX) return null;
+      return `data:${type};base64,${(await fs.promises.readFile(p)).toString('base64')}`;
+    } catch { return null; }
+  }
   if (!/^https?:\/\//i.test(url)) return null;
   if (iconCache.has(url)) return iconCache.get(url);
   let out = null;
@@ -451,8 +465,8 @@ async function iconData(ses, url) {
   if (iconCache.size > 400) iconCache.delete(iconCache.keys().next().value);
   return out;
 }
-async function siteIcon(ses, icons) {
-  for (const u of (icons || []).slice(0, 4)) { const d = await iconData(ses, u); if (d) return d; }
+async function siteIcon(ses, icons, allowFile) {
+  for (const u of (icons || []).slice(0, 4)) { const d = await iconData(ses, u, allowFile); if (d) return d; }
   return null;
 }
 
@@ -705,6 +719,7 @@ function closePeek() {
   for (const v of [peekView, peekUI]) {
     if (!v) continue;
     try { win && win.contentView.removeChildView(v); } catch {}
+    try { trails.delete(v.webContents.id); } catch {}
     try { v.webContents.close(); } catch {}
   }
   peekUI = peekView = null;
@@ -743,7 +758,11 @@ ipcMain.on('egg:config', (e) => {
 const SETTINGS_FILE = () => process.env.NODEGRID_SETTINGS || path.join(app.getPath('userData'), 'settings.json');
 let settings = {};
 function loadSettings() { try { settings = JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')) || {}; } catch { settings = {}; } }
-function saveSettings() { try { fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(settings, null, 1)); } catch {} }
+function saveSettings() {          // temp file + rename, so a crash mid-write can't leave a half-written file
+  const f = SETTINGS_FILE();
+  try { fs.writeFileSync(f + '.tmp', JSON.stringify(settings, null, 1)); fs.renameSync(f + '.tmp', f); }
+  catch (err) { console.error('NODE_GRID: could not save settings:', err.message); }
+}
 
 // ---------- feature switches ----------
 // Every extra can be switched off in Settings > FEATURES. Off = its button, menu items and
@@ -820,19 +839,25 @@ function writeUserDesktopFile() {
   const iconDir = path.join(process.env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'icons', 'hicolor', '512x512', 'apps');
   fs.mkdirSync(appsDir, { recursive: true }); fs.mkdirSync(iconDir, { recursive: true });
   try { fs.copyFileSync(path.join(__dirname, 'home', 'icon-512.png'), path.join(iconDir, 'node-grid.png')); } catch {}
-  const q = (s) => '"' + String(s).replace(/(["`$\\])/g, '\\$1') + '"';
+  // Desktop Entry spec: quote each argument, backslash-escape " ` $ \ inside the
+  // quotes, write % as %%, then escape backslashes again for the string value.
+  const q = (s) => {
+    s = String(s);
+    if (/[\r\n]/.test(s)) throw new Error('path has a line break');
+    return '"' + s.replace(/%/g, '%%').replace(/(["`$\\])/g, '\\$1') + '"';
+  };
   const exec = process.env.APPIMAGE ? q(process.env.APPIMAGE) : app.isPackaged ? q(process.execPath) : q(process.execPath) + ' ' + q(app.getAppPath());
   const file = path.join(appsDir, DESKTOP_ID);
   fs.writeFileSync(file, [
     '[Desktop Entry]', 'Name=NODE_GRID', 'GenericName=Web Browser', 'Comment=Null Grid web browser',
-    'Exec=' + exec + ' %U', 'Terminal=false', 'Type=Application', 'Icon=node-grid', 'StartupWMClass=node-grid',
+    'Exec=' + exec.replace(/\\/g, '\\\\') + ' %U', 'Terminal=false', 'Type=Application', 'Icon=node-grid', 'StartupWMClass=node-grid',
     'StartupNotify=true', 'Categories=Network;WebBrowser;', 'MimeType=' + WEB_MIME.join(';') + ';', ''
   ].join('\n'));
   runCmd('update-desktop-database', [appsDir]);
   return file;
 }
 async function defaultBrowserInfo() {
-  if (process.platform === 'win32') return { platform: 'win32', state: 'unknown', store: IS_STORE };
+  if (process.platform === 'win32') return { platform: 'win32', state: IS_STORE ? 'unknown' : 'portable', store: IS_STORE };
   if (process.platform !== 'linux') return { platform: process.platform, state: 'unsupported' };
   if (sandboxed()) return { platform: 'linux', state: 'sandboxed' };
   const cur = await runCmd('xdg-settings', ['get', 'default-web-browser']);
@@ -840,11 +865,14 @@ async function defaultBrowserInfo() {
 }
 async function makeDefaultBrowser() {
   if (process.platform === 'win32') {
+    if (!IS_STORE) return { ok: false, reason: 'portable' };   // the portable zip isn't installed, so Windows has nothing to list
     await eshell.openExternal('ms-settings:defaultapps').catch(() => {});
     return { ok: true, opened: true };
   }
   if (process.platform !== 'linux' || sandboxed()) return { ok: false, reason: 'unsupported' };
-  if (!systemDesktopFile()) writeUserDesktopFile();       // AppImage / .tar.gz: register this copy first
+  if (!systemDesktopFile()) {                             // AppImage / .tar.gz: register this copy first
+    try { writeUserDesktopFile(); } catch { return { ok: false, reason: 'write' }; }
+  }
   const set = await runCmd('xdg-settings', ['set', 'default-web-browser', DESKTOP_ID]);
   await runCmd('xdg-mime', ['default', DESKTOP_ID, ...WEB_MIME]);
   const now = await runCmd('xdg-settings', ['get', 'default-web-browser']);
@@ -920,8 +948,7 @@ function pushUpdate() {
 function getUpdate() {
   if (update.state !== 'available') return;
   if (update.asset) {
-    const t = activeTab();
-    (t && !t.sim ? t.view.webContents : win.webContents).downloadURL(update.asset.url);
+    win.webContents.downloadURL(update.asset.url);      // the window's own session: works even with a Peek or burner tab open
   } else newTab(update.url);
 }
 function startUpdateChecks() {             // called once the app is ready
@@ -1434,7 +1461,7 @@ ipcMain.on('loadout:save', (e, name) => {
 ipcMain.on('loadout:deploy', (e, id, swap) => {
   const l = loadouts.find((x) => x.id === id);
   if (e.sender !== win.webContents || !l) return;
-  const old = swap ? tabs.filter((t) => !t.burner).map((t) => t.id) : [];
+  const old = swap ? tabs.filter((t) => !t.burner && !(t.pinned && featureOn('pinned'))).map((t) => t.id) : [];   // pinned tabs stay
   for (const u of l.urls) {
     if (u === 'nodegrid://doom') { if (devMode) openSim(); }
     else newTab(u === 'nodegrid://home' ? HOME : u);
@@ -1762,6 +1789,7 @@ const SLEEP_CHOICES = [0, 20, 60, 300, 900];             // seconds; 0 = never
 const sleepAfter = () => (settings.sleepAfter === undefined ? 20 : SLEEP_CHOICES.includes(settings.sleepAfter) ? settings.sleepAfter : 20);
 function canSleep(t, manual) {
   if (!t || t.sleeping || t.sim || t.peek || t.settingsTab || (t.pinned && featureOn('pinned'))) return false;
+  if (pipDock && pipDock.tabId === t.id) return false;     // its video is docked in the corner
   if (!manual && t.id === activeId) return false;
   if (t.id === activeId) return false;                     // never the tab you're looking at
   const wc = t.view.webContents;
@@ -1848,8 +1876,15 @@ function tryUnlock(pin) {
   if (pinFails >= 5) { pinFails = 0; pinLockedUntil = Date.now() + 30000; return { ok: false, wait: pinLockedUntil }; }
   return { ok: false, left: 5 - pinFails };
 }
+// Every PIN check counts toward the same 5-tries-then-30-seconds limit.
+function checkPin(pin) {
+  if (Date.now() < pinLockedUntil) return { ok: false, reason: 'wait', wait: pinLockedUntil };
+  if (pinMatches(pin)) { pinFails = 0; return { ok: true }; }
+  if (++pinFails >= 5) { pinFails = 0; pinLockedUntil = Date.now() + 30000; return { ok: false, reason: 'wait', wait: pinLockedUntil }; }
+  return { ok: false, reason: 'wrong', left: 5 - pinFails };
+}
 function setPin(oldPin, newPin) {
-  if (pinSet() && !pinMatches(oldPin)) return { ok: false, reason: 'wrong' };
+  if (pinSet()) { const c = checkPin(oldPin); if (!c.ok) return c; }
   if (!validPin(newPin)) return { ok: false, reason: 'format' };
   const salt = crypto.randomBytes(16).toString('hex');
   settings.vaultPin = { salt, hash: hashPin(newPin, salt) }; saveSettings();
@@ -1858,7 +1893,7 @@ function setPin(oldPin, newPin) {
 }
 function clearPin(pin) {
   if (!pinSet()) return { ok: true };
-  if (!pinMatches(pin)) return { ok: false, reason: 'wrong' };
+  { const c = checkPin(pin); if (!c.ok) return c; }
   delete settings.vaultPin; saveSettings();
   return { ok: true };
 }
@@ -1990,7 +2025,7 @@ function settingsModel() {
     certs: Object.entries(settings.trustedCerts || {}).map(([host, c]) => ({ host, issuer: c.issuer, added: c.added })),
     burnerMinutes: burnerMinutes(), burnerChoices: BURN_CHOICES,
     pin: { set: pinSet() }, logins: vault.length,
-    dark: { on: darkOn(), except: settings.darkExcept || [] },
+    dark: { on: !!settings.darkPages, except: settings.darkExcept || [] },
     translate: { lang: settings.translateLang || '', system: langName(systemLang()), langs: LANGS },
     ai: { provider: aiProvider(), custom: settings.aiCustom || '', local: settings.localAi || '' },
     sleep: { after: sleepAfter(), choices: SLEEP_CHOICES },
@@ -2027,7 +2062,9 @@ ipcMain.handle('settings:do', async (e, action, a, b) => {
       if (!u) { delete settings.aiCustom; if (settings.aiProvider === 'custom') settings.aiProvider = 'claude'; saveSettings(); return ok(); }
       if (!/^https?:\/\//i.test(u)) u = (LOCALISH.test(u) ? 'http://' : 'https://') + u;
       try { new URL(u); } catch { return { ok: false, reason: 'address' }; }
-      settings.aiCustom = u; saveSettings(); return ok();
+      settings.aiCustom = u; saveSettings();
+      if (aiView && settings.aiProvider === 'custom') aiView.webContents.loadURL(u).catch(() => {});
+      return ok();
     }
     case 'local-ai': { const u = normBase(a); if (u) settings.localAi = u; else delete settings.localAi; saveSettings(); return ok(); }
     case 'sleep': if (!SLEEP_CHOICES.includes(Number(a))) return { ok: false }; settings.sleepAfter = Number(a); saveSettings(); return ok();
@@ -2369,6 +2406,7 @@ ipcMain.on('dev:mode', (e, on) => {
   if (e.sender !== win.webContents) return;
   devMode = !!on;
   if (!devMode) tabs.filter((t) => t.sim).map((t) => t.id).forEach(closeTab);   // leaving dev mode closes the game
+  for (const t of tabs) if (t.settingsTab && !t.view.webContents.isDestroyed()) t.view.webContents.send('settings-refresh');
 });
 const PHONE = { width: 390, height: 844 };
 const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
@@ -2729,7 +2767,7 @@ const FILL_JS = (user, pass) => `(() => {
 
 ipcMain.handle('vault:fill', async (e, id, force) => {
   if (!isOverlay(e.sender, 'vault')) return { ok: false };
-  if (vaultLocked()) return { ok: false, reason: 'locked' };
+  if (vaultLocked()) { sendVault(); return { ok: false, reason: 'locked' }; }
   touchUnlock();
   const v = vault.find((x) => x.id === id), t = activeTab();
   if (!v || !t) return { ok: false };
@@ -2747,7 +2785,7 @@ ipcMain.handle('vault:fill', async (e, id, force) => {
 });
 ipcMain.handle('vault:copy', (e, id, what) => {
   if (!isOverlay(e.sender, 'vault')) return false;
-  if (vaultLocked()) return false;
+  if (vaultLocked()) { sendVault(); return false; }
   touchUnlock();
   const v = vault.find((x) => x.id === id);
   if (!v) return false;
@@ -2761,7 +2799,7 @@ ipcMain.handle('vault:copy', (e, id, what) => {
 });
 ipcMain.handle('vault:save', (e, entry) => {
   if (!isOverlay(e.sender, 'vault')) return { ok: false };
-  if (vaultLocked()) return { ok: false, reason: 'locked' };
+  if (vaultLocked()) { sendVault(); return { ok: false, reason: 'locked' }; }
   touchUnlock();
   if (!canEncrypt()) return { ok: false, reason: 'no-encryption' };
   const host = normHost(entry && entry.host), user = String((entry && entry.user) || '').trim();
@@ -2781,7 +2819,7 @@ ipcMain.handle('vault:save', (e, entry) => {
 });
 ipcMain.handle('vault:delete', (e, id) => {
   if (!isOverlay(e.sender, 'vault')) return false;
-  if (vaultLocked()) return false;
+  if (vaultLocked()) { sendVault(); return false; }
   touchUnlock();
   vault = vault.filter((x) => x.id !== id); saveVault(); sendVault();
   return true;
@@ -2905,7 +2943,7 @@ function pageMenu(tab, p) {
   // Links
   if (p.linkURL) {
     items.push(
-      { label: 'Open link in new tab', click: () => newTab(p.linkURL, { peek: tab.peek }) },
+      ...(/^https?:\/\//i.test(p.linkURL) ? [{ label: 'Open link in new tab', click: () => newTab(p.linkURL, { peek: tab.peek, burner: tab.burner }) }] : []),
       starrable(p.linkURL) ? { label: 'Peek (quick look, no scripts)', click: () => openPeek(p.linkURL) } : SEP,
       { label: 'Copy link address', click: () => clipboard.writeText(p.linkURL) },
       starrable(p.linkURL) && !findFav(p.linkURL)
@@ -2918,7 +2956,7 @@ function pageMenu(tab, p) {
   // Images
   if (p.mediaType === 'image' && p.srcURL) {
     items.push(
-      { label: 'Open image in new tab', click: () => newTab(p.srcURL) },
+      { label: 'Open image in new tab', click: () => { if (/^https?:\/\//i.test(p.srcURL)) newTab(p.srcURL, { burner: tab.burner }); } },
       { label: 'Copy image', click: () => wc.copyImageAt(p.x, p.y) },
       { label: 'Copy image address', click: () => clipboard.writeText(p.srcURL) },
       SEP
@@ -2944,7 +2982,7 @@ function pageMenu(tab, p) {
     items.push(
       { label: 'Copy', accelerator: 'CmdOrCtrl+C', click: () => wc.copy() },
       { label: `Search DuckDuckGo for "${short(selection)}"`,
-        click: () => newTab('https://duckduckgo.com/?q=' + encodeURIComponent(selection)) },
+        click: () => newTab('https://duckduckgo.com/?q=' + encodeURIComponent(selection), { burner: tab.burner }) },
       SEP
     );
   }

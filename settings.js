@@ -10,7 +10,7 @@
   async function act(action, a, b, msg) {
     const r = await S.do(action, a, b);
     if (r && r.ok) { M = r.model; render(); if (msg) toast(msg); }
-    else toast(r && r.reason === 'wrong' ? 'Wrong PIN' : r && r.reason === 'format' ? 'Use 4 to 8 digits' : r && r.reason === 'address' ? "That isn't a valid address" : r && r.reason === 'token' ? 'Paste your Null Drive token' : r && r.reason === 'encrypt' ? "This computer can't encrypt the token" : "Couldn't change that", true);
+    else toast(r && r.reason === 'wrong' ? 'Wrong PIN' : r && r.reason === 'wait' ? 'Too many wrong PINs. Wait 30 seconds and try again' : r && r.reason === 'format' ? 'Use 4 to 8 digits' : r && r.reason === 'address' ? "That isn't a valid address" : r && r.reason === 'token' ? 'Paste your Null Drive token' : r && r.reason === 'encrypt' ? "This computer can't encrypt the token" : "Couldn't change that", true);
     return r;
   }
 
@@ -248,7 +248,9 @@
     // DEFAULT BROWSER: open web links from other apps in NODE_GRID
     const B = M.browser || {};
     const sb = section('browser', 'DEFAULT BROWSER', 'Open web links from other apps (mail, chat, the terminal) in NODE_GRID.', 'DEFAULT');
-    if (B.platform === 'win32') {
+    if (B.platform === 'win32' && B.state === 'portable') {
+      sb.append(el('p', 'hint', "This is the portable version, which isn't installed, so Windows can't list it as a browser. To make NODE_GRID your default browser, install it from the Microsoft Store, then pick it here."));
+    } else if (B.platform === 'win32') {
       sb.append(row('Make NODE_GRID your default browser', 'Windows asks you to choose: in Default apps, pick NODE_GRID, then set it for HTTP, HTTPS and .html.',
         button('OPEN DEFAULT APPS', () => act('default-browser', null, null, 'Opened Windows Default apps'), 'primary')));
     } else if (B.platform === 'linux' && B.state !== 'sandboxed') {
@@ -260,9 +262,10 @@
       sb.append(bst);
       if (B.state !== 'yes') {
         const mk = button('MAKE DEFAULT', async () => {
-          const r = await S.do('default-browser');
+          let r = null;
+          try { r = await S.do('default-browser'); } catch { r = null; }
           if (r && r.model) { M = r.model; render(); }
-          toast(r && r.ok ? 'NODE_GRID is now your default browser' : "Couldn't set it. Try: xdg-settings set default-web-browser node-grid.desktop", !(r && r.ok));
+          toast(r && r.ok ? 'NODE_GRID is now your default browser' : r && r.reason === 'write' ? "Couldn't write the launcher file in ~/.local/share/applications" : "Couldn't set it. Try: xdg-settings set default-web-browser node-grid.desktop", !(r && r.ok));
         }, 'primary');
         mk.id = 'browsermake';
         const br = el('div', 'drow'); br.append(mk); sb.append(br);

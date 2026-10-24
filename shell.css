@@ -327,6 +327,7 @@ body.collapsed:not(.peek) .logo { display: none; }
 }
 .shell-toast[hidden] { display: block; opacity: 0; visibility: hidden; }
 #devbtn[hidden] { display: none; }
+#readbtn[hidden], #pipbtn[hidden] { display: none; }
 #devbtn:not([hidden]) { color: var(--green); }
 
 /* ---------- favorites ---------- */

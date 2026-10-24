@@ -128,7 +128,11 @@ function createTab(id) {
     if (railX()) xTimer = setTimeout(() => { if (railX()) { fav.classList.add('x-on'); fav.title = 'Close tab'; } }, RAIL_X_DELAY);
   });
   fav.addEventListener('mouseleave', () => { clearTimeout(xTimer); fav.classList.remove('x-on'); fav.title = ''; });
-  fav.addEventListener('click', (e) => { if (fav.classList.contains('x-on')) closeThis(e); });
+  // Only a click that *started* on the X closes the tab: a press that began
+  // before the X appeared is a normal click, even if the X shows up mid-press.
+  let pressedOnX = false;
+  fav.addEventListener('mousedown', () => { clearTimeout(xTimer); pressedOnX = fav.classList.contains('x-on'); });
+  fav.addEventListener('click', (e) => { if (pressedOnX && fav.classList.contains('x-on')) closeThis(e); pressedOnX = false; });
 
   close.addEventListener('click', closeThis);
   li.addEventListener('auxclick', (e) => { if (e.button === 1) window.shell.closeTab(id); }); // middle-click

@@ -67,7 +67,7 @@
     );
     li.append(txt, acts);
     li.addEventListener('click', () => fill(e, false));
-    li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') fill(e, false); });
+    li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && ev.target === li) fill(e, false); });
     return li;
   }
 
@@ -176,7 +176,7 @@
     ev.preventDefault();
     const r = await V.save({ id: editing || undefined, host: $('f-host').value, user: $('f-user').value, pass: $('f-pass').value });
     if (r && r.ok) { say(editing ? 'Saved' : 'Login saved'); closeForm(); return; }
-    const why = { host: 'Enter the site, like example.com', pass: 'Enter a password', 'no-encryption': "Windows encryption isn't available." };
+    const why = { host: 'Enter the site, like example.com', pass: 'Enter a password', 'no-encryption': "This computer's encryption isn't available." };
     say((r && why[r.reason]) || "Couldn't save.", true);
   });
 
