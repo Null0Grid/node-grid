@@ -81,14 +81,21 @@ function selectTab(id) {
   window.shell.activate(id);
 }
 
+// Shrunk sidebar that stays shrunk (Settings > FEATURES > hover-to-expand off):
+// the tabs' own close buttons are hidden there, so the site icon doubles as one.
+const RAIL_X_DELAY = 350;   // ms of hovering before the icon turns into an X
+const railX = () => isCollapsed() && body.classList.contains('nofeat-hoverpeek') && !body.classList.contains('peek');
+
 function createTab(id) {
   const li = document.createElement('li');
   li.className = 'tab';
 
-  // Site icon; hovering it swaps in an X that closes the tab.
+  // Site icon. Normally just an icon (closing is the X on the right). On the
+  // shrunk sidebar with hover-to-expand switched off, that X is hidden, so
+  // resting the mouse on the icon for a moment turns it into a close X (see
+  // railX below). A quick click still switches to the tab.
   const fav = document.createElement('span');
   fav.className = 'fav';
-  // (closing is the X on the right; the site icon is just an icon)
   const icon = document.createElement('span');
   icon.className = 'icon';
   const favX = document.createElement('span');
@@ -110,10 +117,18 @@ function createTab(id) {
 
   // Switch on mouse-down: fires immediately, no waiting for the click to finish.
   li.addEventListener('mousedown', (e) => {
-    if (e.button !== 0 || e.target.closest('.fav, .close')) return;
+    if (e.button !== 0 || e.target.closest('.fav.x-on, .close')) return;
     selectTab(id);
   });
   const closeThis = (e) => { e.stopPropagation(); window.shell.closeTab(id); };
+
+  let xTimer = null;
+  fav.addEventListener('mouseenter', () => {
+    clearTimeout(xTimer);
+    if (railX()) xTimer = setTimeout(() => { if (railX()) { fav.classList.add('x-on'); fav.title = 'Close tab'; } }, RAIL_X_DELAY);
+  });
+  fav.addEventListener('mouseleave', () => { clearTimeout(xTimer); fav.classList.remove('x-on'); fav.title = ''; });
+  fav.addEventListener('click', (e) => { if (fav.classList.contains('x-on')) closeThis(e); });
 
   close.addEventListener('click', closeThis);
   li.addEventListener('auxclick', (e) => { if (e.button === 1) window.shell.closeTab(id); }); // middle-click

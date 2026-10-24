@@ -79,3 +79,7 @@ YouTube stations used to play in a hidden 1×1 player, which YouTube's terms don
 - Settings › FEATURES › "Expand the shrunk sidebar when you hover over it" (on by default).
 - The settings icon is now an 8-tooth cog.
 
+## Next release: closing tabs from the shrunk sidebar
+
+With the sidebar shrunk and Settings › FEATURES › "Expand the shrunk sidebar when you hover over it" off, the tabs' close buttons are hidden and the sidebar never expands. Resting the mouse on a tab's icon for 350 ms now turns it into a pink close X; clicking it closes the tab. A quick click on the icon still switches to the tab (it used to do nothing: the icon was excluded from the tab's click handler, a leftover from when it was a close button). With hover-to-expand on, nothing changes. Tested live (`tests/ui-railclose.test.js`).
+

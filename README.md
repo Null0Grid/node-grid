@@ -64,6 +64,7 @@ npm run test:ui:pipdock # picture-in-picture sidebar docking: dock, restore, clo
 npm run test:ui:masking # right-click > Masking, through the real menu (needs a display and xdotool)
 npm run test:ui:ytradio # YouTube radio: visible player, pauses when hidden (needs a display and ImageMagick)
 npm run test:ui:updates # update check, update bot, Settings > UPDATES, sidebar hover switch (needs a display)
+npm run test:ui:railclose # closing tabs from the shrunk sidebar with hover-to-expand off (needs a display)
 ```
 
 **Packages:**
@@ -106,7 +107,7 @@ Then connect to `127.0.0.1:8081` in Settings → NULL DRIVE with any token.
 | `packaging/aur/` | hand-maintained AUR `PKGBUILD` + `.SRCINFO` for `nullgrid-browser-bin` |
 | `packaging/flathub/` | hand-maintained Flathub submission manifest, `.desktop` file, and AppStream metainfo |
 | `tools/mock-drive.js` | a stand-in Null Drive server for the three account states, used by tests and for trying Drive by hand |
-| `tests/` | `drive.test.js` (backend, no Electron), `ui-drive.test.js`, `ui-pipdock.test.js`, `ui-masking.test.js`, `ui-ytradio.test.js` and `ui-updates.test.js` (live in the app, via Playwright) |
+| `tests/` | `drive.test.js` (backend, no Electron), `ui-drive.test.js`, `ui-pipdock.test.js`, `ui-masking.test.js`, `ui-ytradio.test.js`, `ui-updates.test.js` and `ui-railclose.test.js` (live in the app, via Playwright) |
 | `pipdock.html` / `pipdock.js` / `pipdock-preload.js` | the tiny restore/close bar drawn over a tab docked in the sidebar's PiP strip |
 | `updatebot.html` / `updatebot.js` / `updatebot-preload.js` | the update bot: a see-through overlay where a pixel robot announces a new version |
 | `docs/HISTORY.md` | technical history, phase by phase |

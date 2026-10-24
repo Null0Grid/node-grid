@@ -119,6 +119,10 @@ body.peek #sidebar { box-shadow: 4px 0 18px rgba(0, 229, 255, .12); }
 .fav .icon { display: grid; place-items: center; }
 .fav .fav-x { display: none; color: var(--pink); }
 .fav .fav-x svg { width: 14px; height: 14px; }
+/* shrunk sidebar, hover-to-expand off: rest on the icon and it becomes a close X */
+.fav.x-on { cursor: pointer; border-color: rgba(255, 46, 136, .55); box-shadow: 0 0 6px rgba(255, 46, 136, .35); }
+.fav.x-on .icon { display: none; }
+.fav.x-on .fav-x { display: grid; place-items: center; }
 
 .fav img { width: 16px; height: 16px; }
 .fav .dot { width: 8px; height: 8px; border: 1px solid var(--cyan); }

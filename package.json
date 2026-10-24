@@ -16,7 +16,8 @@
     "dist:linux:snap": "electron-builder --linux snap --x64 --arm64 --publish never",
     "test:ui:masking": "node tests/ui-masking.test.js",
     "test:ui:ytradio": "node tests/ui-ytradio.test.js",
-    "test:ui:updates": "node tests/ui-updates.test.js"
+    "test:ui:updates": "node tests/ui-updates.test.js",
+    "test:ui:railclose": "node tests/ui-railclose.test.js"
   },
   "devDependencies": {
     "@electron/packager": "^18.3.0",
