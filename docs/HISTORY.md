@@ -50,7 +50,7 @@ Two more formats are hand-maintained rather than built by electron-builder, sinc
 - **AUR**: `packaging/aur/PKGBUILD` (a `-bin` package, `nullgrid-browser-bin`, that downloads the released `.tar.gz`/`-arm64.tar.gz` rather than compiling) and `packaging/aur/.SRCINFO` (generated from it with a real `makepkg --printsrcinfo`, not hand-typed). The icon ships as a local file next to the PKGBUILD (`dev.nullgrid.nodegrid.png`, copied from `home/icon-512.png`) because the app's actual icon lives inside `app.asar` and isn't a loose file in the release tarball to install from directly. Verified end-to-end: `makepkg -d --nodeps` against the real locally-built 5.0.0 x64 tarball successfully produced a package with the binary at `/opt/nullgrid-browser/node-grid`, a `/usr/bin/node-grid` symlink, the `chrome-sandbox` helper with its setuid bit intact (`chmod 4755`, needed for Chromium's sandboxing to work when installed outside a user's home directory), the `.desktop` file, and the icon all in the right places.
 - **Flathub submission manifest**: `packaging/flathub/dev.nullgrid.nodegrid.yml`, `.desktop`, and `.metainfo.xml` — the manifest a `github.com/flathub/dev.nullgrid.nodegrid` submission actually needs, which is a from-source build against the Freedesktop/Electron2 base app, not the same thing as the electron-builder `.flatpak` target above (that one just repackages the release build for direct download). Validated with `appstreamcli validate --no-net` (passed) and `desktop-file-validate` (passed) — both tools installed and run in this pass, not just inspected by eye. The manifest pins to a GitHub release tag for its source and leaves a placeholder checksum (`REPLACE_WITH_SHA256_OF_SOURCE_TARBALL_FOR_THIS_TAG`) to be filled in against the actual tagged source archive at submission time, since that hash can't be computed before the tag exists.
 
-## Next release: Masking, menus, Electron 45, updates, YouTube radio
+## 5.1.1 (continued): Masking, menus, Electron 45, updates, YouTube radio
 
 ### Masking
 
@@ -79,11 +79,11 @@ YouTube stations used to play in a hidden 1×1 player, which YouTube's terms don
 - Settings › FEATURES › "Expand the shrunk sidebar when you hover over it" (on by default).
 - The settings icon is now an 8-tooth cog.
 
-## Next release: closing tabs from the shrunk sidebar
+## 5.1.2: closing tabs from the shrunk sidebar, pinned tabs fixed
 
 With the sidebar shrunk and Settings › FEATURES › "Expand the shrunk sidebar when you hover over it" off, the tabs' close buttons are hidden and the sidebar never expands. Resting the mouse on a tab's icon for 350 ms now turns it into a pink close X; clicking it closes the tab. A quick click on the icon still switches to the tab (it used to do nothing: the icon was excluded from the tab's click handler, a leftover from when it was a close button). That same leftover made **pinned tabs impossible to open** in 5.1.1: a pinned tab is little more than its icon, so clicks on it went nowhere. Fixed by the same change; `tests/ui-pinned.test.js` pins a tab through the real right-click menu and opens it (fails on 5.1.1, passes now). With hover-to-expand on, nothing changes. Tested live (`tests/ui-railclose.test.js`).
 
-## Next release: Settings tidied
+## 5.1.2: Settings tidied
 
 - Sections in order of use: Start page search, Appearance + language, Tabs, AI side panel, Features, Privacy + blocking, Site permissions + devices, Saved logins, Null Drive, Updates, About. The jump bar uses each section's own short name (it used to cut names to their first word: START, NULL, SITE, SAVED).
 - FEATURES grouped (Browsing, Tabs + sidebar, Media, Tools, and Developer only in developer mode), each switch a short name with a one-line hint, so the tiles are the same height.
