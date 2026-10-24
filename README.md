@@ -36,7 +36,7 @@
   sudo rpm -i nullgrid-browser-5.1.2.x86_64.rpm   # or .aarch64.rpm
   ```
 - **Arch (AUR):** [`nullgrid-browser-bin`](packaging/aur/) — `yay -S nullgrid-browser-bin` (or your AUR helper of choice; `aarch64` is listed too). The PKGBUILD/`.SRCINFO` live in this repo; a maintainer pushes them to the actual AUR package repo.
-- **Flatpak / Snap (x64 or arm64):** if a release built them, grab the `.flatpak` or `.snap` from [Releases](../../releases) and install with `flatpak install` / `snap install --dangerous`. Both build in best-effort CI jobs — see [Build from source](#build-from-source) if a given release doesn't have them and you want to build locally. A submission-ready Flathub manifest is at [`packaging/flathub/dev.nullgrid.nodegrid.yml`](packaging/flathub/dev.nullgrid.nodegrid.yml) for getting onto Flathub proper.
+- **Flatpak / Snap (x64):** if a release built them, grab the `.flatpak` or `.snap` from [Releases](../../releases) and install with `flatpak install` / `snap install --dangerous`. Both build in best-effort CI jobs — see [Build from source](#build-from-source) if a given release doesn't have them and you want to build locally. A submission-ready Flathub manifest is at [`packaging/flathub/dev.nullgrid.nodegrid.yml`](packaging/flathub/dev.nullgrid.nodegrid.yml) for getting onto Flathub proper.
 - **Any other Linux:** download the `.tar.gz` for your architecture from [Releases](../../releases), unpack it, and run the `node-grid` binary inside.
 
 ## Make it your default browser

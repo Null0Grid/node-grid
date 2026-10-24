@@ -27,8 +27,8 @@ pkgbase = nullgrid-browser-bin
 	source = dev.nullgrid.nodegrid.png
 	sha256sums = f304828ddc49b946dbc2f4c28329a8318f546ac423b92c649a4b0e489fcf38a8
 	source_x86_64 = nullgrid-browser-5.1.2.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/5.1.2/nullgrid-browser-5.1.2.tar.gz
-	sha256sums_x86_64 = FILL_IN_FROM_THE_5.1.2_RELEASE_x86_64_TARBALL
+	sha256sums_x86_64 = b2f2db9457d6dcf6aec3faa7baa9ec8a7781ede24a92db6e3bcaff6a11f98b86
 	source_aarch64 = nullgrid-browser-5.1.2-arm64.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/5.1.2/nullgrid-browser-5.1.2-arm64.tar.gz
-	sha256sums_aarch64 = FILL_IN_FROM_THE_5.1.2_RELEASE_arm64_TARBALL
+	sha256sums_aarch64 = 8edc7f99f6ff83100aef77d183a07508a5fa14e88286a119e0de182b29069928
 
 pkgname = nullgrid-browser-bin

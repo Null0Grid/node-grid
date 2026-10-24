@@ -12,10 +12,10 @@
 # https://github.com/flathub/flathub/wiki/App-Submission for the full process.)
 id: dev.nullgrid.nodegrid
 runtime: org.freedesktop.Platform
-runtime-version: "23.08"
+runtime-version: "25.08"
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
-base-version: "23.08"
+base-version: "25.08"
 command: node-grid
 
 finish-args:
@@ -48,7 +48,7 @@ modules:
         # submission or update — Flathub requires a versioned, checksummed
         # source, never a moving branch reference.
         url: https://github.com/Null0Grid/node-grid/archive/refs/tags/5.1.2.tar.gz
-        sha256: FILL_IN_FROM_THE_5.1.2_SOURCE_TARBALL
+        sha256: 13cba12a798ae8ca4bba35b161148a528854a7e6e547892372de614fd29db05f
         x-checker-data:
           type: anitya
           url: https://github.com/Null0Grid/node-grid/releases
