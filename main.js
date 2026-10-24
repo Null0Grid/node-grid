@@ -1861,7 +1861,7 @@ function openSettings() {
 ipcMain.on('settings:open', (e) => { if (e.sender === win.webContents) openSettings(); });
 function settingsModel() {
   return {
-    version: APP_VERSION, dataDir: app.getPath('userData'), devMode,
+    version: APP_VERSION, dataDir: app.getPath('userData'), devMode, platform: process.platform,
     search: settings.searchPrefs || { engine: 'duckduckgo', vault: true },
     historyCount: history.length,
     adblock: { on: !settings.adblockOff, ready: !!blocker, paused: settings.adblockPaused || [] },

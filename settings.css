@@ -11,7 +11,7 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; back
 h1 { font-family: 'Silkscreen', monospace; font-weight: normal; font-size: 24px; letter-spacing: 4px; color: #e6f6ff; }
 .ver { color: var(--dim); }
 .jump { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 0; background: var(--bg); border-bottom: 1px solid var(--line); margin-bottom: 14px; }
-.jump a { font-family: 'Silkscreen', monospace; font-size: 9px; letter-spacing: 1px; color: var(--dim); text-decoration: none; border: 1px solid var(--line); padding: 5px 8px; }
+.jump a { font-family: 'Silkscreen', monospace; font-size: 9px; letter-spacing: .5px; color: var(--dim); text-decoration: none; border: 1px solid var(--line); padding: 5px 6px; }
 .jump a:hover { color: var(--cyan); border-color: var(--cyan); }
 .card { border: 1px solid var(--line); background: var(--panel); padding: 14px 16px 16px; margin-bottom: 14px; }
 h2 { font-family: 'Silkscreen', monospace; font-weight: normal; font-size: 11px; letter-spacing: 2px; color: var(--pink); margin-bottom: 6px; }
@@ -52,9 +52,10 @@ select { max-width: 280px; }
 
 /* FEATURES grid */
 .fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; margin-top: 6px; }
-.fitem { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--line); }
-.flabel { flex: 1; min-width: 0; color: #e6f6ff; }
-.fitem.devoff { opacity: .55; }
+.fitem { display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-height: 58px; background: var(--panel-2); border: 1px solid var(--line); }
+.ftext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.flabel { color: #e6f6ff; }
+.fhint { color: var(--dim); font-size: 14px; line-height: 1.15; }
 .devtag { margin-left: 8px; font-family: 'Silkscreen', monospace; font-size: 8px; letter-spacing: 1px; color: var(--green); border: 1px solid var(--green); padding: 1px 4px; vertical-align: middle; }
 
 /* Null Drive */

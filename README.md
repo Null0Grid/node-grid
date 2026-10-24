@@ -65,6 +65,7 @@ npm run test:ui:masking # right-click > Masking, through the real menu (needs a 
 npm run test:ui:ytradio # YouTube radio: visible player, pauses when hidden (needs a display and ImageMagick)
 npm run test:ui:updates # update check, update bot, Settings > UPDATES, sidebar hover switch (needs a display)
 npm run test:ui:railclose # closing tabs from the shrunk sidebar with hover-to-expand off (needs a display)
+npm run test:ui:pinned # pin a tab through the right-click menu and open it (needs a display and xdotool)
 ```
 
 **Packages:**

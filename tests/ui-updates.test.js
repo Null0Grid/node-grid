@@ -106,7 +106,7 @@ async function waitFor(fn, timeoutMs = 10000) {
 
     // 5. hover-to-expand switch
     const hoverToggle = async () => settings.evaluate(() => {
-      const item = [...document.querySelectorAll('.fitem')].find((i) => /hover over it/.test(i.textContent));
+      const item = [...document.querySelectorAll('.fitem')].find((i) => /Expand sidebar on hover/.test(i.textContent));
       item.querySelector('.tgl').click();
     });
     const peekAfterHover = async () => {

@@ -81,5 +81,12 @@ YouTube stations used to play in a hidden 1×1 player, which YouTube's terms don
 
 ## Next release: closing tabs from the shrunk sidebar
 
-With the sidebar shrunk and Settings › FEATURES › "Expand the shrunk sidebar when you hover over it" off, the tabs' close buttons are hidden and the sidebar never expands. Resting the mouse on a tab's icon for 350 ms now turns it into a pink close X; clicking it closes the tab. A quick click on the icon still switches to the tab (it used to do nothing: the icon was excluded from the tab's click handler, a leftover from when it was a close button). With hover-to-expand on, nothing changes. Tested live (`tests/ui-railclose.test.js`).
+With the sidebar shrunk and Settings › FEATURES › "Expand the shrunk sidebar when you hover over it" off, the tabs' close buttons are hidden and the sidebar never expands. Resting the mouse on a tab's icon for 350 ms now turns it into a pink close X; clicking it closes the tab. A quick click on the icon still switches to the tab (it used to do nothing: the icon was excluded from the tab's click handler, a leftover from when it was a close button). That same leftover made **pinned tabs impossible to open** in 5.1.1: a pinned tab is little more than its icon, so clicks on it went nowhere. Fixed by the same change; `tests/ui-pinned.test.js` pins a tab through the real right-click menu and opens it (fails on 5.1.1, passes now). With hover-to-expand on, nothing changes. Tested live (`tests/ui-railclose.test.js`).
+
+## Next release: Settings tidied
+
+- Sections in order of use: Start page search, Appearance + language, Tabs, AI side panel, Features, Privacy + blocking, Site permissions + devices, Saved logins, Null Drive, Updates, About. The jump bar uses each section's own short name (it used to cut names to their first word: START, NULL, SITE, SAVED).
+- FEATURES grouped (Browsing, Tabs + sidebar, Media, Tools, and Developer only in developer mode), each switch a short name with a one-line hint, so the tiles are the same height.
+- "Wipe burner tabs" moved from Privacy to Tabs.
+- Wording that said Windows on every system now matches the system (saved logins' encryption, the footer, the Drive token error). "SAVED LOGINS (KEY BUTTON)" is "SAVED LOGINS", with the key button named in its description. PIN boxes no longer cut off their placeholder.
 

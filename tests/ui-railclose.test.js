@@ -53,7 +53,7 @@ async function waitFor(fn, timeoutMs = 10000) {
     await shell.evaluate(() => window.shell.openSettings());
     const settings = await waitFor(() => app.windows().find((w) => /settings\.html/.test(w.url())), 8000);
     await settings.waitForSelector('.fitem');
-    await settings.evaluate(() => [...document.querySelectorAll('.fitem')].find((i) => /hover over it/.test(i.textContent)).querySelector('.tgl').click());
+    await settings.evaluate(() => [...document.querySelectorAll('.fitem')].find((i) => /Expand sidebar on hover/.test(i.textContent)).querySelector('.tgl').click());
     await wait(600);
     await shell.evaluate(() => [...document.querySelectorAll('#tabs .tab .close')].pop().click());   // close the Settings tab
     await waitFor(async () => (await count()) === 3);
@@ -83,7 +83,7 @@ async function waitFor(fn, timeoutMs = 10000) {
     await shell.evaluate(() => window.shell.openSettings());
     const s2 = await waitFor(() => app.windows().find((w) => /settings\.html/.test(w.url())), 8000);
     await s2.waitForSelector('.fitem');
-    await s2.evaluate(() => [...document.querySelectorAll('.fitem')].find((i) => /hover over it/.test(i.textContent)).querySelector('.tgl').click());
+    await s2.evaluate(() => [...document.querySelectorAll('.fitem')].find((i) => /Expand sidebar on hover/.test(i.textContent)).querySelector('.tgl').click());
     await wait(600);
     await check('with hover-to-expand on, the icon never turns into an X', async () => {
       assert.ok(!(await shell.evaluate(() => document.body.classList.contains('nofeat-hoverpeek'))));
