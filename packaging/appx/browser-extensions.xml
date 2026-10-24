@@ -1,0 +1,27 @@
+
+          <!-- NODE_GRID as a web browser: Windows lists it under Settings > Apps >
+               Default apps for web links and web files (the person picks it there;
+               Store apps can't make themselves the default). Same approach as
+               Firefox's Store package. Windows passes the link or file as the
+               first argument; main.js opens it in a tab. -->
+          <uap3:Extension Category="windows.protocol">
+            <uap3:Protocol Name="http" Parameters="&quot;%1&quot;">
+              <uap:DisplayName>Web link</uap:DisplayName>
+            </uap3:Protocol>
+          </uap3:Extension>
+          <uap3:Extension Category="windows.protocol">
+            <uap3:Protocol Name="https" Parameters="&quot;%1&quot;">
+              <uap:DisplayName>Secure web link</uap:DisplayName>
+            </uap3:Protocol>
+          </uap3:Extension>
+          <uap3:Extension Category="windows.fileTypeAssociation">
+            <uap3:FileTypeAssociation Name="webpage" Parameters="&quot;%1&quot;">
+              <uap:DisplayName>Web page</uap:DisplayName>
+              <uap:SupportedFileTypes>
+                <uap:FileType>.htm</uap:FileType>
+                <uap:FileType>.html</uap:FileType>
+                <uap:FileType>.xhtml</uap:FileType>
+                <uap:FileType>.shtml</uap:FileType>
+              </uap:SupportedFileTypes>
+            </uap3:FileTypeAssociation>
+          </uap3:Extension>

@@ -34,10 +34,39 @@ const SIM_PARTITION = 'persist:nodegrid-sim';
 const SIM_URL = 'nodegrid://doom/index.html';
 const isSimUrl = (u) => /^nodegrid:\/\/doom(\/|$)/i.test(u || '');
 
-// Only one copy at a time: clicking the taskbar icon again focuses the open window.
+// Links handed to NODE_GRID: as the default browser (Windows Default apps, xdg on
+// Linux / Omarchy), by another app, or a web file opened with it. They arrive on
+// the command line: at launch, or (since only one copy runs) through
+// 'second-instance' when NODE_GRID is already open.
+const WEB_FILE = /\.(x?html?|shtml|svg|pdf|xht|webp|avif)$/i;
+function linksFrom(argv, cwd) {
+  const out = [];
+  for (const raw of argv || []) {
+    const a = String(raw || '').trim().replace(/^"(.*)"$/, '$1');
+    if (!a || a.startsWith('-')) continue;
+    if (/^https?:\/\//i.test(a)) { try { out.push(new URL(a).href); } catch {} continue; }
+    if (/^file:\/\//i.test(a) && WEB_FILE.test(a)) { out.push(a); continue; }
+    if (WEB_FILE.test(a)) {
+      const p = path.resolve(cwd || process.cwd(), a);
+      try { if (require('fs').statSync(p).isFile()) out.push(require('url').pathToFileURL(p).href); } catch {}
+    }
+  }
+  return out.slice(0, 20);
+}
+let pendingLinks = linksFrom(process.argv.slice(1));
+let shellReady = false;                 // set once the window's first tabs are open
+function openLinks(links) {
+  if (!links.length) return;
+  if (!shellReady || !win || win.isDestroyed()) { pendingLinks.push(...links); return; }   // opened with the first tabs
+  for (const u of links) newTab(u);
+}
+
+// Only one copy at a time: clicking the taskbar icon again focuses the open window,
+// and any link it was given opens in a new tab.
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
-app.on('second-instance', () => {
+app.on('second-instance', (_e, argv, cwd) => {
+  openLinks(linksFrom(argv.slice(1), cwd));
   if (!win) return;
   if (win.isMinimized()) win.restore();
   win.focus();
@@ -87,7 +116,10 @@ function createWindow() {
   win.webContents.on('before-input-event', handleKeys);
   win.webContents.once('did-finish-load', () => {
     if (featureOn('pinned')) for (const u of (settings.pinned || []).filter((x) => /^https?:\/\//i.test(x)).slice(0, 20)) newTab(u, { pinned: true });
-    newTab(HOME);
+    const links = pendingLinks; pendingLinks = [];
+    if (links.length) for (const u of links) newTab(u);   // opened with a link: show it, not the start page
+    else newTab(HOME);
+    shellReady = true;
   });
 
   // Mouse side button "back" (Windows)
@@ -168,9 +200,12 @@ function newTab(url = HOME, opts = {}) {
   wc.setWindowOpenHandler(({ url }) => { newTab(url, { peek, burner }); return { action: 'deny' }; });   // burner links stay burner
 
   wc.on('page-title-updated', (_e, title) => { if (tab.sleeping) return; tab.title = title; pushState(); });
-  wc.on('page-favicon-updated', (_e, icons) => {
+  wc.on('page-favicon-updated', async (_e, icons) => {
     if (tab.sleeping) return;
-    tab.favicon = icons[0] || null;
+    const gen = tab.iconGen = (tab.iconGen || 0) + 1;      // a newer page's icon wins over one still loading
+    const icon = await siteIcon(wc.session, icons);
+    if (gen !== tab.iconGen || tab.sleeping) return;
+    tab.favicon = icon;
     const f = findFav(tab.url);
     if (f && tab.favicon && f.favicon !== tab.favicon) { f.favicon = tab.favicon; saveFavs(); }
     pushState();
@@ -389,6 +424,38 @@ function home() {
 // The one thing the app keeps on disk: pages you starred on purpose.
 // Saved as JSON in the app's own folder; browsing history is still never stored.
 const fs = require('fs');
+// ---------- site icons ----------
+// The sidebar is NODE_GRID's own page, so a site icon served with
+// Cross-Origin-Resource-Policy: same-origin/same-site (GitHub's are) won't load
+// there. So the main process fetches the icon through the tab's own session
+// (its cookies, ad blocking and certificate trust) and hands the sidebar a
+// data: URL. The sidebar never contacts websites itself.
+const iconCache = new Map();      // icon URL -> data: URL, or null if it didn't load
+const ICON_MAX = 256 * 1024;
+const ICON_TYPES = { ico: 'image/x-icon', png: 'image/png', svg: 'image/svg+xml', gif: 'image/gif', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
+async function iconData(ses, url) {
+  if (/^data:image\//i.test(url)) return url.length < ICON_MAX * 1.4 ? url : null;
+  if (!/^https?:\/\//i.test(url)) return null;
+  if (iconCache.has(url)) return iconCache.get(url);
+  let out = null;
+  try {
+    const res = await ses.fetch(url, { signal: AbortSignal.timeout(8000) });
+    let type = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (!type.startsWith('image/')) type = ICON_TYPES[(new URL(url).pathname.split('.').pop() || '').toLowerCase()] || '';
+    if (res.ok && type.startsWith('image/')) {
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length && buf.length <= ICON_MAX) out = `data:${type};base64,${buf.toString('base64')}`;
+    }
+  } catch {}
+  iconCache.set(url, out);
+  if (iconCache.size > 400) iconCache.delete(iconCache.keys().next().value);
+  return out;
+}
+async function siteIcon(ses, icons) {
+  for (const u of (icons || []).slice(0, 4)) { const d = await iconData(ses, u); if (d) return d; }
+  return null;
+}
+
 let favs = [];            // { id, url, title, favicon }
 let favFile = null;
 let nextFavId = 1;
@@ -729,6 +796,60 @@ function placeGear() {
   win.contentView.addChildView(gearView);
 }
 ipcMain.on('gear:open', (e) => { if (gearView && e.sender === gearView.webContents) openSettings(); });
+
+// ---------- default browser ----------
+// Settings > DEFAULT BROWSER. Linux (incl. Omarchy): the .deb/.rpm already install
+// node-grid.desktop, which declares http/https/html; an AppImage or .tar.gz writes
+// that same launcher entry for this user first. Then xdg-settings/xdg-mime make it
+// the default. Windows only lets the person choose, so there it opens Default apps.
+// Flatpak and Snap have their own sandboxed rules, so they're left out.
+const DESKTOP_ID = 'node-grid.desktop';
+const WEB_MIME = ['x-scheme-handler/http', 'x-scheme-handler/https', 'text/html', 'application/xhtml+xml'];
+const runCmd = (cmd, args) => new Promise((resolve) => {
+  try { require('child_process').execFile(cmd, args, { timeout: 8000 }, (err, out) => resolve(err ? null : String(out || '').trim())); }
+  catch { resolve(null); }
+});
+const sandboxed = () => !!(process.env.FLATPAK_ID || process.env.SNAP);
+function systemDesktopFile() {
+  const dirs = (process.env.XDG_DATA_DIRS || '/usr/local/share:/usr/share').split(':').map((d) => path.join(d, 'applications'));
+  return dirs.map((d) => path.join(d, DESKTOP_ID)).find((f) => { try { return fs.statSync(f).isFile(); } catch { return false; } }) || null;
+}
+function writeUserDesktopFile() {
+  const home = app.getPath('home');
+  const appsDir = path.join(process.env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'applications');
+  const iconDir = path.join(process.env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'icons', 'hicolor', '512x512', 'apps');
+  fs.mkdirSync(appsDir, { recursive: true }); fs.mkdirSync(iconDir, { recursive: true });
+  try { fs.copyFileSync(path.join(__dirname, 'home', 'icon-512.png'), path.join(iconDir, 'node-grid.png')); } catch {}
+  const q = (s) => '"' + String(s).replace(/(["`$\\])/g, '\\$1') + '"';
+  const exec = process.env.APPIMAGE ? q(process.env.APPIMAGE) : app.isPackaged ? q(process.execPath) : q(process.execPath) + ' ' + q(app.getAppPath());
+  const file = path.join(appsDir, DESKTOP_ID);
+  fs.writeFileSync(file, [
+    '[Desktop Entry]', 'Name=NODE_GRID', 'GenericName=Web Browser', 'Comment=Null Grid web browser',
+    'Exec=' + exec + ' %U', 'Terminal=false', 'Type=Application', 'Icon=node-grid', 'StartupWMClass=node-grid',
+    'StartupNotify=true', 'Categories=Network;WebBrowser;', 'MimeType=' + WEB_MIME.join(';') + ';', ''
+  ].join('\n'));
+  runCmd('update-desktop-database', [appsDir]);
+  return file;
+}
+async function defaultBrowserInfo() {
+  if (process.platform === 'win32') return { platform: 'win32', state: 'unknown', store: IS_STORE };
+  if (process.platform !== 'linux') return { platform: process.platform, state: 'unsupported' };
+  if (sandboxed()) return { platform: 'linux', state: 'sandboxed' };
+  const cur = await runCmd('xdg-settings', ['get', 'default-web-browser']);
+  return { platform: 'linux', state: cur == null ? 'unknown' : cur === DESKTOP_ID ? 'yes' : 'no', current: cur || '' };
+}
+async function makeDefaultBrowser() {
+  if (process.platform === 'win32') {
+    await eshell.openExternal('ms-settings:defaultapps').catch(() => {});
+    return { ok: true, opened: true };
+  }
+  if (process.platform !== 'linux' || sandboxed()) return { ok: false, reason: 'unsupported' };
+  if (!systemDesktopFile()) writeUserDesktopFile();       // AppImage / .tar.gz: register this copy first
+  const set = await runCmd('xdg-settings', ['set', 'default-web-browser', DESKTOP_ID]);
+  await runCmd('xdg-mime', ['default', DESKTOP_ID, ...WEB_MIME]);
+  const now = await runCmd('xdg-settings', ['get', 'default-web-browser']);
+  return now === DESKTOP_ID ? { ok: true } : { ok: false, reason: set == null ? 'xdg' : 'notset' };
+}
 
 // ---------- updates ----------
 // Asks GitHub for the newest NODE_GRID release (api.github.com, public, no login)
@@ -1875,10 +1996,16 @@ function settingsModel() {
     sleep: { after: sleepAfter(), choices: SLEEP_CHOICES },
     drive: drive.status(),
     update: updateInfo(),
+    browser: settingsBrowser,
     features: Object.entries(FEATURES).filter(([key]) => key !== 'sim' || SIM_AVAILABLE).map(([key, label]) => ({ key, label, on: featureOn(key) }))
   };
 }
-ipcMain.handle('settings:get', (e) => (isSettingsPage(e.sender) ? settingsModel() : null));
+let settingsBrowser = { state: 'unknown' };       // last default-browser check, refreshed when Settings asks
+ipcMain.handle('settings:get', async (e) => {
+  if (!isSettingsPage(e.sender)) return null;
+  settingsBrowser = await defaultBrowserInfo();
+  return settingsModel();
+});
 ipcMain.handle('settings:do', async (e, action, a, b) => {
   if (!isSettingsPage(e.sender)) return { ok: false };
   const ok = (extra) => { pushState(); return { ok: true, ...extra, model: settingsModel() }; };
@@ -1911,6 +2038,7 @@ ipcMain.handle('settings:do', async (e, action, a, b) => {
     case 'drive-disconnect': drive.disconnect(); return ok();
     case 'open-data': eshell.openPath(app.getPath('userData')); return ok();
     case 'update-check': await checkUpdates({ manual: true }); return ok();
+    case 'default-browser': { const r = await makeDefaultBrowser(); settingsBrowser = await defaultBrowserInfo(); return r.ok ? ok({ opened: !!r.opened }) : { ok: false, reason: r.reason, model: settingsModel() }; }
     case 'update-get': getUpdate(); return ok();
     case 'update-notes': if (update.url) newTab(update.url); return ok();
     default: return { ok: false };

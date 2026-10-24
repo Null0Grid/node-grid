@@ -90,3 +90,13 @@ With the sidebar shrunk and Settings › FEATURES › "Expand the shrunk sidebar
 - "Wipe burner tabs" moved from Privacy to Tabs.
 - Wording that said Windows on every system now matches the system (saved logins' encryption, the footer, the Drive token error). "SAVED LOGINS (KEY BUTTON)" is "SAVED LOGINS", with the key button named in its description. PIN boxes no longer cut off their placeholder.
 
+## 5.1.2: site icons that wouldn't show
+
+Some sites serve their tab icon with `Cross-Origin-Resource-Policy: same-origin` or `same-site` (GitHub's asset site, `github.githubassets.com`, among them). The sidebar is NODE_GRID's own page, so Chromium refused to load those icons there and the tab showed the empty-square placeholder. The main process now fetches each tab's icon through that tab's own session (its cookies, ad blocking and certificate trust; 8 s timeout, 256 KB cap, first of up to four declared icons that loads, cached) and passes the sidebar a `data:` URL, so the sidebar never contacts websites itself. Tested live (`tests/ui-favicons.test.js`): PNG/SVG, same-site and separate asset site, script-swapped icons, and both CORP variants all show their icon; a page without one shows the placeholder.
+
+## 5.1.2: NODE_GRID as your default browser
+
+- **Opens the links it's handed.** A link or web file on the command line (how Windows, `xdg-open` and Omarchy hand links to the default browser) opens in a tab: at launch instead of the start page, or, when NODE_GRID is already open, in a new tab of the running window (`second-instance`). Flags are never taken for links. Tested live (`tests/ui-openlinks.test.js`).
+- **Linux.** The `.deb`/`.rpm` launcher entry is `node-grid.desktop` (`desktopName` + `linux.syncDesktopName`, so it also matches the window's app id on Wayland/Hyprland), in `Network;WebBrowser`, declaring `x-scheme-handler/http`, `x-scheme-handler/https`, `text/html` and `application/xhtml+xml`. Settings › DEFAULT BROWSER › MAKE DEFAULT sets it with `xdg-settings` / `xdg-mime`; an AppImage or `.tar.gz` copy first writes the same launcher entry for the user. Flatpak and Snap are left to the desktop's own settings. Tested live in a throwaway home folder (`tests/ui-defaultbrowser.test.js`).
+- **Windows Store.** `build/appx-manifest.xml` (electron-builder's template plus the `uap3` namespace) and `packaging/appx/browser-extensions.xml` register `http`, `https` and `.htm`/`.html`/`.xhtml`/`.shtml`, the way Firefox's Store package does, so NODE_GRID appears in Settings › Apps › Default apps. Store apps can't make themselves the default; Settings › DEFAULT BROWSER opens Default apps so the person picks it. Minimum Windows version is now 10.0.17763 (1809).
+

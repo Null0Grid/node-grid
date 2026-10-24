@@ -18,7 +18,10 @@
     "test:ui:ytradio": "node tests/ui-ytradio.test.js",
     "test:ui:updates": "node tests/ui-updates.test.js",
     "test:ui:railclose": "node tests/ui-railclose.test.js",
-    "test:ui:pinned": "node tests/ui-pinned.test.js"
+    "test:ui:pinned": "node tests/ui-pinned.test.js",
+    "test:ui:favicons": "node tests/ui-favicons.test.js",
+    "test:ui:openlinks": "node tests/ui-openlinks.test.js",
+    "test:ui:defaultbrowser": "node tests/ui-defaultbrowser.test.js"
   },
   "devDependencies": {
     "@electron/packager": "^18.3.0",
@@ -71,7 +74,10 @@
       "languages": [
         "en-US"
       ],
-      "showNameOnTiles": false
+      "showNameOnTiles": false,
+      "customManifestPath": "appx-manifest.xml",
+      "customExtensionsPath": "packaging/appx/browser-extensions.xml",
+      "minVersion": "10.0.17763.0"
     },
     "linux": {
       "target": [
@@ -119,10 +125,23 @@
         }
       ],
       "icon": "home/icon-512.png",
-      "category": "Network",
+      "category": "Network;WebBrowser",
       "synopsis": "NODE_GRID: vertical tab sidebar browser with ad blocking and a login vault.",
       "maintainer": "NODE_GRID <support@nullgrid.dev>",
-      "executableName": "node-grid"
+      "executableName": "node-grid",
+      "syncDesktopName": true,
+      "mimeTypes": [
+        "x-scheme-handler/http",
+        "x-scheme-handler/https",
+        "text/html",
+        "application/xhtml+xml"
+      ],
+      "desktop": {
+        "entry": {
+          "GenericName": "Web Browser",
+          "StartupNotify": "true"
+        }
+      }
     },
     "deb": {
       "depends": [
@@ -187,5 +206,6 @@
     }
   },
   "author": "NODE_GRID",
-  "homepage": "https://search.nullgrid.dev"
+  "homepage": "https://search.nullgrid.dev",
+  "desktopName": "node-grid.desktop"
 }

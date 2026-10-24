@@ -77,7 +77,7 @@
     sim: ['NODE_GRID SIM', 'The mini-game'],
   };
   // Order of the sections, most-used first.
-  const ORDER = ['search', 'look', 'tabs', 'ai', 'features', 'privacy', 'sites', 'logins', 'drive', 'updates', 'about'];
+  const ORDER = ['search', 'look', 'tabs', 'browser', 'ai', 'features', 'privacy', 'sites', 'logins', 'drive', 'updates', 'about'];
   const KEYRING = { win32: 'encrypted by Windows', darwin: 'encrypted with your Mac keychain', linux: "encrypted with your system's keyring" };
 
   const ENGINES = [['duckduckgo', 'DuckDuckGo'], ['brave', 'Brave'], ['google', 'Google'], ['startpage', 'Startpage']];
@@ -244,6 +244,34 @@
       select(M.sleep.choices.map((x) => [x, fmtSec(x)]), M.sleep.after, (v) => act('sleep', Number(v), null, 'Saved'))));
     s7.append(row('Wipe burner tabs', 'Closes and wipes a burner tab group after this long', select(M.burnerChoices.map((m) => [m, `After ${m} minutes`]), M.burnerMinutes, (v) => act('burner', Number(v), null, 'Saved'))));
     out.push(s7);
+
+    // DEFAULT BROWSER: open web links from other apps in NODE_GRID
+    const B = M.browser || {};
+    const sb = section('browser', 'DEFAULT BROWSER', 'Open web links from other apps (mail, chat, the terminal) in NODE_GRID.', 'DEFAULT');
+    if (B.platform === 'win32') {
+      sb.append(row('Make NODE_GRID your default browser', 'Windows asks you to choose: in Default apps, pick NODE_GRID, then set it for HTTP, HTTPS and .html.',
+        button('OPEN DEFAULT APPS', () => act('default-browser', null, null, 'Opened Windows Default apps'), 'primary')));
+    } else if (B.platform === 'linux' && B.state !== 'sandboxed') {
+      const bst = el('div', 'dstat ' + (B.state === 'yes' ? 'ok' : B.state === 'no' ? 'warn' : ''));
+      bst.id = 'browserstat';
+      bst.append(el('span', 'ddot'), el('span', null, B.state === 'yes' ? 'NODE_GRID is your default browser.'
+        : B.state === 'no' ? 'Another browser is the default' + (B.current ? ` (${B.current.replace(/\.desktop$/, '')})` : '') + '.'
+        : "Couldn't check. Is xdg-utils installed?"));
+      sb.append(bst);
+      if (B.state !== 'yes') {
+        const mk = button('MAKE DEFAULT', async () => {
+          const r = await S.do('default-browser');
+          if (r && r.model) { M = r.model; render(); }
+          toast(r && r.ok ? 'NODE_GRID is now your default browser' : "Couldn't set it. Try: xdg-settings set default-web-browser node-grid.desktop", !(r && r.ok));
+        }, 'primary');
+        mk.id = 'browsermake';
+        const br = el('div', 'drow'); br.append(mk); sb.append(br);
+      }
+      sb.append(el('p', 'hint', 'Uses your system settings (xdg-settings), the same ones Omarchy and other desktops read. A copy run from an AppImage or .tar.gz is registered for your user first.'));
+    } else {
+      sb.append(el('p', 'hint', B.state === 'sandboxed' ? 'Flatpak and Snap builds are set as the default from your desktop\'s own settings.' : 'Set NODE_GRID as the default from your system settings.'));
+    }
+    out.push(sb);
 
     // UPDATES: ask GitHub whether a newer NODE_GRID is out
     const U = M.update;

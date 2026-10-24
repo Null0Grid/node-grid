@@ -39,6 +39,11 @@
 - **Flatpak / Snap (x64 or arm64):** if a release built them, grab the `.flatpak` or `.snap` from [Releases](../../releases) and install with `flatpak install` / `snap install --dangerous`. Both build in best-effort CI jobs — see [Build from source](#build-from-source) if a given release doesn't have them and you want to build locally. A submission-ready Flathub manifest is at [`packaging/flathub/dev.nullgrid.nodegrid.yml`](packaging/flathub/dev.nullgrid.nodegrid.yml) for getting onto Flathub proper.
 - **Any other Linux:** download the `.tar.gz` for your architecture from [Releases](../../releases), unpack it, and run the `node-grid` binary inside.
 
+## Make it your default browser
+
+- **Linux (incl. Omarchy):** Settings → DEFAULT BROWSER → **MAKE DEFAULT**. Or by hand: `xdg-settings set default-web-browser node-grid.desktop`
+- **Windows (Microsoft Store version):** Settings → DEFAULT BROWSER → **OPEN DEFAULT APPS**, pick NODE_GRID, and set it for HTTP, HTTPS and .html. (Windows only lets you choose this yourself.)
+
 ## How it connects to Null Grid
 
 NODE_GRID's main process is the only thing that ever talks to Null Drive — never the web page, and never Null Search's own server. `null-drive.js` does the handshake (`GET /api/v1/me`), search, view and download; `window.nodegridDrive`, exposed by `tab-preload.js`, is the one bridge a page can call, and only when it's running inside a NODE_GRID tab on the configured search origin.
@@ -66,6 +71,9 @@ npm run test:ui:ytradio # YouTube radio: visible player, pauses when hidden (nee
 npm run test:ui:updates # update check, update bot, Settings > UPDATES, sidebar hover switch (needs a display)
 npm run test:ui:railclose # closing tabs from the shrunk sidebar with hover-to-expand off (needs a display)
 npm run test:ui:pinned # pin a tab through the right-click menu and open it (needs a display and xdotool)
+npm run test:ui:favicons # site icons served every way, including the ones sites lock to their own pages (needs a display)
+npm run test:ui:openlinks # links and .html files handed to NODE_GRID open in tabs (needs a display)
+npm run test:ui:defaultbrowser # Settings > DEFAULT BROWSER on Linux, in a throwaway home folder (needs a display and xdg-utils)
 ```
 
 **Packages:**
