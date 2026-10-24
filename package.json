@@ -13,7 +13,8 @@
     "store": "electron-builder --win appx --x64 --publish never",
     "dist:linux": "electron-builder --linux deb rpm AppImage tar.gz --x64 --arm64 --publish never",
     "dist:linux:flatpak": "electron-builder --linux flatpak --x64 --arm64 --publish never",
-    "dist:linux:snap": "electron-builder --linux snap --x64 --arm64 --publish never"
+    "dist:linux:snap": "electron-builder --linux snap --x64 --arm64 --publish never",
+    "test:ui:masking": "node tests/ui-masking.test.js"
   },
   "devDependencies": {
     "@electron/packager": "^18.3.0",

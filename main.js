@@ -2124,11 +2124,65 @@ async function setMobile(t, on) {
   } else {
     t.mobile = false;
     try { if (d.isAttached()) d.detach(); } catch {}                   // detaching drops every override
+    if (t.masked) await applyMask(t);                                  // ...so put the Chrome mask back
   }
   t.view.setBounds(tabBounds(t));
   if (/^https?:/i.test(wc.getURL())) wc.reload();                      // sites pick their mobile layout on load
   pushState();
 }
+
+// ---------- masking ----------
+// Right-click > Masking (one tab at a time). That tab tells sites it is the
+// current Google Chrome -- no "Electron" or "nullgrid-browser" in the
+// User-Agent header or navigator.userAgent, and "Google Chrome" in the
+// navigator.userAgentData brands -- for sites such as WhatsApp Web that turn
+// away browsers they don't recognise. Every other tab is untouched. Off again
+// from the same menu. Mobile view, when on, wins over the mask.
+//
+// Chrome 156 reached Stable on 2026-10-20 and Chrome now ships a new major
+// every two weeks, so the version is worked out from today's date and keeps
+// up by itself. The OS part uses Chrome's own frozen ("reduced") strings.
+const CHROME_STABLE = { major: 156, date: Date.UTC(2026, 9, 20) };
+const chromeMajor = () => CHROME_STABLE.major + Math.max(0, Math.floor((Date.now() - CHROME_STABLE.date) / (14 * 864e5)));
+function maskIdentity() {
+  const v = String(chromeMajor());
+  const os = process.platform === 'win32' ? { ua: 'Windows NT 10.0; Win64; x64', platform: 'Windows', version: '15.0.0', nav: 'Win32' }
+    : process.platform === 'darwin' ? { ua: 'Macintosh; Intel Mac OS X 10_15_7', platform: 'macOS', version: '15.0.0', nav: 'MacIntel' }
+    : { ua: 'X11; Linux x86_64', platform: 'Linux', version: '', nav: 'Linux x86_64' };
+  const ua = `Mozilla/5.0 (${os.ua}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${v}.0.0.0 Safari/537.36`;
+  const brands = [{ brand: 'Google Chrome', version: v }, { brand: 'Chromium', version: v }, { brand: 'Not_A Brand', version: '24' }];
+  return {
+    ua,
+    override: { userAgent: ua, platform: os.nav, userAgentMetadata: {
+      brands, fullVersionList: brands.map((b) => ({ brand: b.brand, version: b.version + '.0.0.0' })), fullVersion: v + '.0.0.0',
+      platform: os.platform, platformVersion: os.version, architecture: process.arch === 'arm64' ? 'arm' : 'x86', bitness: '64',
+      model: '', mobile: false, wow64: false } },
+  };
+}
+async function applyMask(t) {
+  const wc = t.view.webContents, d = wc.debugger;
+  if (wc.isDestroyed()) return;
+  if (t.mobile) { wc.setUserAgent(t.masked ? maskIdentity().ua : wc.session.getUserAgent()); return; }   // phone identity stays on top
+  if (t.masked) {
+    const m = maskIdentity();
+    wc.setUserAgent(m.ua);                                           // header + navigator.userAgent
+    try { if (!d.isAttached()) d.attach('1.3'); } catch { return; }  // brands need the debugger (busy if Inspect is open)
+    await d.sendCommand('Emulation.setUserAgentOverride', m.override).catch(() => {});
+  } else {
+    wc.setUserAgent(wc.session.getUserAgent());
+    try { if (d.isAttached()) d.detach(); } catch {}
+  }
+}
+async function setMasked(t, on) {
+  if (!t || t.peek || t.sim || t.settingsTab) return;
+  t.masked = !!on;
+  await applyMask(t);
+  const wc = t.view.webContents;
+  if (!wc.isDestroyed() && /^https?:/i.test(wc.getURL())) wc.reload();   // sites check who you are on load
+  pushState();
+}
+const maskable = (t) => t && !t.peek && !t.sim && !t.settingsTab;
+const maskItem = (t) => ({ label: 'Masking', type: 'checkbox', checked: !!t.masked, click: () => setMasked(t, !t.masked) });
 
 // ---------- dark pages ----------
 // Turns bright websites dark by inverting them (pictures and video are flipped back so
@@ -2647,6 +2701,7 @@ function pageMenu(tab, p) {
   if (!tab.sim && !tab.settingsTab) items.push({ label: 'Print…', accelerator: 'CmdOrCtrl+P', click: () => printTab(tab) },
     { label: 'Save as PDF…', click: () => savePdf(tab) });
   if (!tab.sim && featureOn('trail')) items.push({ label: 'Packet trail', click: () => { activate(tab.id); win.webContents.send('trail-open'); } });
+  if (maskable(tab)) items.push(SEP, maskItem(tab));
   if (devMode && !tab.peek && !tab.sim) {
     items.push(SEP);
     if (/^https?:/i.test(tab.url || '') && featureOn('recon')) items.push({ label: 'Recon', click: () => { activate(tab.id); openRecon(tab); } });
@@ -2668,6 +2723,7 @@ function tabMenu(id) {
     { label: 'Duplicate tab', click: () => newTab(url, { peek: t.peek, burner: t.burner }) },
     ...(featureOn('pinned') && !t.peek && !t.burner && !t.sim && !t.settingsTab ? [{ label: t.pinned ? 'Unpin tab' : 'Pin tab', click: () => setPinned(t, !t.pinned) }] : []),
     ...(featureOn('qr') && /^https?:/i.test(url) ? [{ label: 'Send to phone (QR code)', click: () => { activate(id); openQr(t); } }] : []),
+    ...(maskable(t) ? [maskItem(t)] : []),
 
     { label: 'Copy page address', click: () => clipboard.writeText(url) },
     starrable(url)
