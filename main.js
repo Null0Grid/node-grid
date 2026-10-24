@@ -2672,39 +2672,43 @@ function pageMenu(tab, p) {
     );
   }
 
-  // Plain page background
-  if (!p.isEditable && !p.linkURL && !selection && p.mediaType !== 'image') {
-    items.push(
-      { label: 'Back', accelerator: 'Alt+Left', enabled: canGoBack(wc), click: () => { activate(tab.id); back(); } },
-      { label: 'Forward', accelerator: 'Alt+Right', enabled: canGoForward(wc), click: () => { activate(tab.id); forward(); } },
-      { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => { activate(tab.id); reload(); } },
-      SEP,
-      { label: 'Select all', accelerator: 'CmdOrCtrl+A', click: () => wc.selectAll() },
-      untranslate(tab.url) ? { label: 'Show original (untranslated)', click: () => { activate(tab.id); translateTab(tab); } }
-        : translatable(tab) ? { label: `Translate to ${langName(targetLang())}`, click: () => { activate(tab.id); translateTab(tab); } } : SEP,
-      { label: 'Copy page address', click: () => clipboard.writeText(tab.url || wc.getURL()) },
-      starrable(tab.url)
-        ? { label: findFav(tab.url) ? 'Remove from favorites' : 'Add to favorites', accelerator: 'CmdOrCtrl+D', click: () => toggleFavForTab(tab) }
-        : SEP,
-      SEP
-    );
-  }
+  // The rest is grouped into fixed sections: navigate / this page / keep & share /
+  // identity / developer. Empty sections and doubled separators are dropped by popup().
+  const plain = !p.isEditable && !p.linkURL && !selection && p.mediaType !== 'image';
+  const web = /^https?:/i.test(tab.url || '');
 
-  if (starrable(tab.url) && !p.isEditable && !p.linkURL) {
-    items.push(SEP, { label: 'View page source', accelerator: 'CmdOrCtrl+U', click: () => openPeek(tab.url, { source: true }) });
-  }
+  // Navigate
+  if (plain) items.push(
+    { label: 'Back', accelerator: 'Alt+Left', enabled: canGoBack(wc), click: () => { activate(tab.id); back(); } },
+    { label: 'Forward', accelerator: 'Alt+Right', enabled: canGoForward(wc), click: () => { activate(tab.id); forward(); } },
+    { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => { activate(tab.id); reload(); } },
+    SEP);
+
+  // This page
+  if (plain && untranslate(tab.url)) items.push({ label: 'Show original (untranslated)', click: () => { activate(tab.id); translateTab(tab); } });
+  else if (plain && translatable(tab)) items.push({ label: `Translate to ${langName(targetLang())}`, click: () => { activate(tab.id); translateTab(tab); } });
+  if (featureOn('reader') && (tab.readerable || tab.reader)) items.push({ label: tab.reader ? 'Exit reader mode' : 'Reader mode', click: () => { activate(tab.id); toggleReader(tab); } });
+  if (p.mediaType === 'video' && featureOn('pip')) items.push({ label: 'Picture in picture', click: () => togglePip(tab) });
+  if (plain) items.push({ label: 'Select all', accelerator: 'CmdOrCtrl+A', click: () => wc.selectAll() });
   items.push(SEP);
-  if (p.mediaType === 'video' && featureOn('pip')) items.push(SEP, { label: 'Picture in picture', click: () => togglePip(tab) });
-  if (featureOn('reader') && (tab.readerable || tab.reader)) items.push(SEP, { label: tab.reader ? 'Exit reader mode' : 'Reader mode', click: () => { activate(tab.id); toggleReader(tab); } });
-  if (featureOn('qr') && /^https?:/i.test(tab.url || '')) items.push({ label: 'Send to phone (QR code)', click: () => { activate(tab.id); openQr(tab); } });
-  if (savable(tab) && featureOn('saved')) items.push(SEP, { label: 'Save to Vault', accelerator: 'CmdOrCtrl+S', click: () => saveToVault(tab) });
+
+  // Keep & share
+  if (plain && starrable(tab.url)) items.push({ label: findFav(tab.url) ? 'Remove from favorites' : 'Add to favorites', accelerator: 'CmdOrCtrl+D', click: () => toggleFavForTab(tab) });
+  if (plain) items.push({ label: 'Copy page address', click: () => clipboard.writeText(tab.url || wc.getURL()) });
+  if (savable(tab) && featureOn('saved')) items.push({ label: 'Save to Vault', accelerator: 'CmdOrCtrl+S', click: () => saveToVault(tab) });
+  if (featureOn('qr') && web) items.push({ label: 'Send to phone (QR code)', click: () => { activate(tab.id); openQr(tab); } });
   if (!tab.sim && !tab.settingsTab) items.push({ label: 'Print…', accelerator: 'CmdOrCtrl+P', click: () => printTab(tab) },
     { label: 'Save as PDF…', click: () => savePdf(tab) });
+  items.push(SEP);
+
+  // Identity
+  if (maskable(tab)) items.push(maskItem(tab), SEP);
+
+  // Developer
+  if (starrable(tab.url) && !p.isEditable && !p.linkURL) items.push({ label: 'View page source', accelerator: 'CmdOrCtrl+U', click: () => openPeek(tab.url, { source: true }) });
   if (!tab.sim && featureOn('trail')) items.push({ label: 'Packet trail', click: () => { activate(tab.id); win.webContents.send('trail-open'); } });
-  if (maskable(tab)) items.push(SEP, maskItem(tab));
   if (devMode && !tab.peek && !tab.sim) {
-    items.push(SEP);
-    if (/^https?:/i.test(tab.url || '') && featureOn('recon')) items.push({ label: 'Recon', click: () => { activate(tab.id); openRecon(tab); } });
+    if (web && featureOn('recon')) items.push({ label: 'Recon', click: () => { activate(tab.id); openRecon(tab); } });
     if (featureOn('mobile')) items.push({ label: 'Mobile view', type: 'checkbox', checked: !!tab.mobile, click: () => setMobile(tab, !tab.mobile) });
   }
   items.push({ label: 'Inspect', accelerator: 'CmdOrCtrl+Shift+I', click: () => wc.inspectElement(p.x, p.y) });
@@ -2716,29 +2720,31 @@ function tabMenu(id) {
   if (!t) return;
   const idx = tabs.indexOf(t);
   const url = t.url || t.view.webContents.getURL() || HOME;   // t.url is the real address, even on the error page
+  const canPin = featureOn('pinned') && !t.peek && !t.burner && !t.sim && !t.settingsTab;
   return popup([
+    // New
     { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => newTab() },
-    SEP,
-    { label: 'Reload tab', click: () => { activate(id); reload(); } },
     { label: 'Duplicate tab', click: () => newTab(url, { peek: t.peek, burner: t.burner }) },
-    ...(featureOn('pinned') && !t.peek && !t.burner && !t.sim && !t.settingsTab ? [{ label: t.pinned ? 'Unpin tab' : 'Pin tab', click: () => setPinned(t, !t.pinned) }] : []),
-    ...(featureOn('qr') && /^https?:/i.test(url) ? [{ label: 'Send to phone (QR code)', click: () => { activate(id); openQr(t); } }] : []),
-    ...(maskable(t) ? [maskItem(t)] : []),
-
-    { label: 'Copy page address', click: () => clipboard.writeText(url) },
-    starrable(url)
-      ? { label: findFav(url) ? 'Remove from favorites' : 'Add to favorites', click: () => toggleFavForTab(t) }
-      : SEP,
     SEP,
-    ...(t.burner ? [
-      { label: 'Burner: +15 minutes', click: () => extendBurner(t.burner.part, 15) },
-      { label: 'Burn now (close + wipe)', click: () => burnGroup(t.burner.part, false) },
-      SEP] : []),
+    // This page
+    { label: 'Reload tab', click: () => { activate(id); reload(); } },
+    ...(starrable(url) ? [{ label: findFav(url) ? 'Remove from favorites' : 'Add to favorites', click: () => toggleFavForTab(t) }] : []),
+    { label: 'Copy page address', click: () => clipboard.writeText(url) },
+    ...(featureOn('qr') && /^https?:/i.test(url) ? [{ label: 'Send to phone (QR code)', click: () => { activate(id); openQr(t); } }] : []),
+    ...(maskable(t) ? [SEP, maskItem(t)] : []),
+    SEP,
+    // Keep or rest the tab
+    ...(canPin ? [{ label: t.pinned ? 'Unpin tab' : 'Pin tab', click: () => setPinned(t, !t.pinned) }] : []),
     t.sleeping ? { label: 'Wake tab', click: () => activate(id) }
       : { label: 'Put tab to sleep', enabled: canSleep(t, true), click: () => sleepTab(t, true) },
     { label: 'Put other tabs to sleep', enabled: tabs.some((x) => x.id !== id && !x.sleeping && canSleep(x, true)),
       click: () => tabs.filter((x) => x.id !== id).forEach((x) => { if (canSleep(x, true)) sleepTab(x, true); }) },
+    ...(t.burner ? [
+      SEP,
+      { label: 'Burner: +15 minutes', click: () => extendBurner(t.burner.part, 15) },
+      { label: 'Burn now (close + wipe)', click: () => burnGroup(t.burner.part, false) }] : []),
     SEP,
+    // Close
     { label: 'Close tab', accelerator: 'CmdOrCtrl+W', click: () => closeTab(id) },
     { label: 'Close other tabs', enabled: tabs.length > 1,
       click: () => { activate(id); tabs.filter((x) => x.id !== id).map((x) => x.id).forEach(closeTab); } },

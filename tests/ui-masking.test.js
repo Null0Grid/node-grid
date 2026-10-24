@@ -56,15 +56,15 @@ async function identity(tab) {
   }));
 }
 // Right-click the middle of the page, optionally screenshot the open menu, then
-// pick "Masking": it sits just above "Inspect", the last item, so Up wraps to
-// Inspect and a second Up lands on Masking. (Developer mode is off here, so
-// nothing else sits between them.)
+// pick "Masking". The menu ends with the developer section -- View page source,
+// Packet trail, Inspect (developer mode is off here, so no Recon/Mobile view) --
+// and Masking sits just above it, so Up wraps to Inspect and the 4th Up lands
+// on Masking (GTK skips separators).
 async function pickMasking(tab, shotName) {
   await tab.mouse.click(420, 260, { button: 'right' });
   await wait(900);
   if (shotName) shot(shotName);
-  xdo('key', 'Up'); await wait(120);
-  xdo('key', 'Up'); await wait(120);
+  for (let i = 0; i < 4; i++) { xdo('key', 'Up'); await wait(120); }
   xdo('key', 'Return');
   await wait(1800);   // Masking reloads the page
 }
