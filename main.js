@@ -802,6 +802,13 @@ let pixelView = null;
 // button there has to float above them). Sits just inside the corner, clear of the
 // fsociety pixel.
 let gearView = null;
+// Small always-on views (gear, Packet's bubble, docked-video controls) can end up
+// with keyboard focus when they load. They pass every key to the shortcut handler,
+// and hand focus straight back to the page if they took it on load.
+function passKeys(wc) {
+  wc.on('before-input-event', handleKeys);
+  wc.on('did-finish-load', () => { if (!wc.isDestroyed() && wc.isFocused()) focusPage(); });
+}
 const GEAR = 32;
 function placeGear() {
   if (!win || win.isDestroyed()) return;
@@ -809,6 +816,7 @@ function placeGear() {
   if (!gearView) {
     gearView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'gear-preload.js'), contextIsolation: true, sandbox: true } });
     gearView.setBackgroundColor('#00000000');
+    passKeys(gearView.webContents);
     gearView.webContents.loadFile(path.join(__dirname, 'gear.html'));
   }
   gearView.setBounds({ x: Math.round(viewport.x + viewport.width - GEAR - 22), y: Math.round(viewport.y + viewport.height - GEAR - 14), width: GEAR, height: GEAR });
@@ -975,6 +983,7 @@ function showUpdateBot() {
   if (updateBot) { pushUpdate(); placeUpdateBot(); return; }
   updateBot = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'updatebot-preload.js'), contextIsolation: true, sandbox: true } });
   updateBot.setBackgroundColor('#00000000');
+  passKeys(updateBot.webContents);
   updateBot.webContents.loadFile(path.join(__dirname, 'updatebot.html'));
   placeUpdateBot();
 }
@@ -998,6 +1007,7 @@ function placePixel() {
   if (!pixelView) {
     pixelView = new WebContentsView({ webPreferences: { javascript: false, sandbox: true } });
     pixelView.setBackgroundColor('#8a1219');            // dark red: easy to miss
+    pixelView.webContents.on('before-input-event', handleKeys);
   }
   pixelView.setBounds({ x: viewport.x + viewport.width - 3, y: viewport.y + viewport.height - 3, width: 2, height: 2 });
   win.contentView.addChildView(pixelView);              // (re)added last = always on top
@@ -2275,6 +2285,7 @@ function placePipControls() {
   if (!pipControlsView) {
     pipControlsView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'pipdock-preload.js'), contextIsolation: true, sandbox: true } });
     pipControlsView.setBackgroundColor('#00000000');
+    passKeys(pipControlsView.webContents);
     pipControlsView.webContents.loadFile(path.join(__dirname, 'pipdock.html'));
   }
   const BAR = 22;

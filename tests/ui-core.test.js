@@ -66,6 +66,13 @@ const ARTICLE = '<!doctype html><title>Field notes</title><body style="backgroun
     const n0 = (await tabs()).length;
     key('ctrl+t');
     await check('Ctrl+T opens a new tab', async () => assert.ok(await waitFor(async () => (await tabs()).length === n0 + 1)));
+    if (process.env.NG_DIAG && (await tabs()).length !== n0 + 1) {
+      const x = (a) => { try { return execFileSync('xdotool', a).toString().trim(); } catch (e) { return 'ERR ' + e.message.split('\n')[0]; } };
+      console.log('DIAG focus=' + x(['getwindowfocus']) + ' name=' + x(['getwindowfocus', 'getwindowname']) + ' mouse=' + x(['getmouselocation']));
+      console.log('DIAG app windows=' + x(['search', '--pid', String(app.process().pid)]).replace(/\n/g, ','));
+      console.log('DIAG electron=' + JSON.stringify(await app.evaluate(({ BrowserWindow, webContents }) => ({ wins: BrowserWindow.getAllWindows().map((w) => ({ t: w.getTitle(), f: w.isFocused(), v: w.isVisible(), b: w.getBounds() })), focusedWc: (webContents.getFocusedWebContents() || { getURL: () => 'none' }).getURL() }))));
+      console.log('DIAG shell focus=' + await shell.evaluate(() => document.hasFocus() + ' ' + (document.activeElement && document.activeElement.id)));
+    }
     await wait(400);
     key('ctrl+l'); await wait(250); type(base + '/one'); key('Return');
     await check('Ctrl+L, type an address, Enter: the page loads', async () => assert.ok(await waitFor(async () => (await active()).title === 'page /one')));
