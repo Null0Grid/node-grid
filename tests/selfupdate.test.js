@@ -36,7 +36,8 @@ async function waitFor(fn, timeoutMs = 10000) {
   return null;
 }
 let failed = false;
-const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + label); } catch (e) { failed = true; console.log('[FAIL] ' + label + ': ' + e.message); } };
+const note = (msg) => { if (process.env.GITHUB_ACTIONS) console.log('::error title=self-update::' + String(msg).replace(/\r?\n/g, ' ').slice(0, 900)); };
+const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + label); } catch (e) { failed = true; console.log('[FAIL] ' + label + ': ' + e.message); note(label + ': ' + e.message); } };
 const versionIn = (dir) => JSON.parse(asar.extractFile(path.join(dir, 'resources', 'app.asar'), 'package.json').toString()).version;
 const readSettings = (ud) => { try { return JSON.parse(fs.readFileSync(path.join(ud, 'settings.json'), 'utf8')); } catch { return {}; } };
 function killAll(dir) {
@@ -116,7 +117,7 @@ const running = (dir) => {
     const exited = new Promise((res) => r.app.process().once('exit', res));
     await r.s.evaluate(() => { window.ngSettings.do('update-restart'); });
     await check('RESTART TO UPDATE closes NODE_GRID', async () => assert.ok(await Promise.race([exited.then(() => true), wait(30000).then(() => false)])));
-  } catch (e) { failed = true; console.log('[FAIL] ' + e.message); await r.app.close().catch(() => {}); }
+  } catch (e) { failed = true; console.log('[FAIL] ' + e.message); note(e.message); await r.app.close().catch(() => {}); }
   await check(`the new version (${NEWV}) is in place`, async () => assert.ok(await waitFor(() => versionIn(A.appDir) === NEWV, 60000), 'still ' + versionIn(A.appDir)));
   await check('the helper says it copied everything', async () => assert.ok(await waitFor(() => fs.readFileSync(path.join(A.ud, 'updates', 'last-update.log'), 'utf8').trim() === 'ok', 20000)));
   await check('NODE_GRID started again by itself, on the new version, and noticed the update', async () => {
@@ -151,4 +152,4 @@ const running = (dir) => {
   if (failed) { console.log('SELF-UPDATE TEST FAILED'); process.exit(1); }
   console.log('ALL SELF-UPDATE TESTS PASS');
   process.exit(0);
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => { console.error(e); note('crashed: ' + (e && e.stack || e)); process.exit(1); });
