@@ -124,6 +124,13 @@ const running = (dir) => {
     let listing = ''; try { listing = fs.readdirSync(d).join(', '); } catch (e) { listing = 'no updates folder'; }
     let log = ''; try { log = fs.readFileSync(path.join(d, 'last-update.log'), 'utf8'); } catch { log = 'no log'; }
     note('diagnostics: updates folder = [' + listing + '], helper log = ' + log + ', app still running = ' + running(A.appDir));
+    if (WIN && fs.existsSync(path.join(d, 'apply-update.ps1'))) {      // run the helper by hand: does the script itself work?
+      let out = '';
+      try { out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(d, 'apply-update.ps1'), path.join(d, 'apply-update.json')], { timeout: 120000 }).toString(); }
+      catch (e) { out = 'exit ' + e.status + ' ' + String(e.stderr || '') + String(e.stdout || ''); }
+      let log2 = ''; try { log2 = fs.readFileSync(path.join(d, 'last-update.log'), 'utf8'); } catch { log2 = 'no log'; }
+      note('diagnostics, helper run by hand: output = ' + out.slice(0, 400) + ' | log = ' + log2 + ' | version now ' + versionIn(A.appDir));
+    }
   }
   await check('the helper says it copied everything', async () => assert.ok(await waitFor(() => fs.readFileSync(path.join(A.ud, 'updates', 'last-update.log'), 'utf8').trim() === 'ok', 20000)));
   await check('NODE_GRID started again by itself, on the new version, and noticed the update', async () => {
