@@ -24,16 +24,16 @@
 - **Windows:** [Microsoft Store](https://apps.microsoft.com/detail/9PL3D6SNHMLS), or the portable build from [Releases](../../releases).
 - **Linux, any distro, no install needed:** download the `.AppImage` for your architecture from [Releases](../../releases), then
   ```
-  chmod +x NODE_GRID-5.1.3.AppImage          # or NODE_GRID-5.1.3-arm64.AppImage
-  ./NODE_GRID-5.1.3.AppImage
+  chmod +x NODE_GRID-5.1.4.AppImage          # or NODE_GRID-5.1.4-arm64.AppImage
+  ./NODE_GRID-5.1.4.AppImage
   ```
 - **Ubuntu 24.04+ / Debian 13+ (x64 or arm64):** download the `.deb` from [Releases](../../releases), then
   ```
-  sudo apt install ./nullgrid-browser_5.1.3_amd64.deb   # or _arm64.deb
+  sudo apt install ./nullgrid-browser_5.1.4_amd64.deb   # or _arm64.deb
   ```
 - **Fedora / openSUSE / RHEL (x64 or arm64):** download the `.rpm` from [Releases](../../releases), then
   ```
-  sudo rpm -i nullgrid-browser-5.1.3.x86_64.rpm   # or .aarch64.rpm
+  sudo rpm -i nullgrid-browser-5.1.4.x86_64.rpm   # or .aarch64.rpm
   ```
 - **Arch (AUR):** [`nullgrid-browser-bin`](packaging/aur/) — `yay -S nullgrid-browser-bin` (or your AUR helper of choice; `aarch64` is listed too). The PKGBUILD/`.SRCINFO` live in this repo; a maintainer pushes them to the actual AUR package repo.
 - **Flatpak / Snap (x64):** if a release built them, grab the `.flatpak` or `.snap` from [Releases](../../releases) and install with `flatpak install` / `snap install --dangerous`. Both build in best-effort CI jobs — see [Build from source](#build-from-source) if a given release doesn't have them and you want to build locally. A submission-ready Flathub manifest is at [`packaging/flathub/dev.nullgrid.nodegrid.yml`](packaging/flathub/dev.nullgrid.nodegrid.yml) for getting onto Flathub proper.
