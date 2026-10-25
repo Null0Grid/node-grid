@@ -114,6 +114,7 @@ function createWindow() {
 
   win.loadFile('shell.html');
   win.webContents.on('before-input-event', handleKeys);
+  win.webContents.on('focus', () => dlpopFocusElsewhere());
   win.webContents.once('did-finish-load', () => {
     if (featureOn('pinned')) for (const u of (settings.pinned || []).filter((x) => /^https?:\/\//i.test(x)).slice(0, 20)) newTab(u, { pinned: true });
     const links = pendingLinks; pendingLinks = [];
@@ -291,6 +292,7 @@ function newTab(url = HOME, opts = {}) {
     tab.mediaPlaying = true; mediaTabId = tab.id; readMediaMeta(tab); win.webContents.send('media-started'); pushState(); });
   wc.on('media-paused', () => { tab.mediaPlaying = false; pushState(); });
   wc.on('page-title-updated', () => { if (tab.id === mediaTabId) readMediaMeta(tab); });
+  wc.on('focus', () => dlpopFocusElsewhere());      // clicking into a page closes the downloads list
   // The game needs Ctrl (fire), Alt (strafe), W, Tab... so app shortcuts are off in its tab.
   if (!sim) wc.on('before-input-event', handleKeys);
   else wc.on('will-navigate', (e, u) => { if (!isSimUrl(u)) { e.preventDefault(); newTab(u); } });   // the web never loads in the sim's storage
@@ -1140,7 +1142,7 @@ ipcMain.handle('egg:ping', async () => {
 // ---------- small overlay windows (permission prompt, password vault) ----------
 // Page views sit above the app's frame, so anything that floats over a page is its
 // own tiny transparent view, kept on top of the tabs.
-const overlays = { perm: null, vault: null, recon: null, qr: null };
+const overlays = { perm: null, vault: null, recon: null, qr: null, dlpop: null };
 
 function makeOverlay(file, preload) {
   const v = new WebContentsView({
@@ -1163,7 +1165,7 @@ function dropOverlay(name) {
 }
 function raiseOverlays() {
   if (!win || win.isDestroyed()) return;
-  for (const v of [overlays.recon, overlays.qr, overlays.vault, overlays.perm]) if (v) win.contentView.addChildView(v);
+  for (const v of [overlays.recon, overlays.qr, overlays.vault, overlays.dlpop, overlays.perm]) if (v) win.contentView.addChildView(v);
   placePixel();
 }
 const isOverlay = (wc, name) => !!overlays[name] && overlays[name].webContents === wc;
@@ -2733,10 +2735,16 @@ function uniqueName(dir, name) {
   return `${base}-${Date.now()}${ext}`;
 }
 const dlView = () => downloads.map(({ id, name, received, total, state }) => ({ id, name, received, total, state }));
+function sendDownloads() {
+  if (!win || win.isDestroyed()) return;
+  const list = dlView();
+  win.webContents.send('downloads', list);
+  if (overlays.dlpop) { overlays.dlpop.webContents.send('dlpop-list', list); overlays.dlpop.setBounds(dlpopBounds()); }
+}
 function pushDownloads(now) {
   if (!win || win.isDestroyed()) return;
-  if (now) { clearTimeout(dlPushTimer); dlPushTimer = null; win.webContents.send('downloads', dlView()); return; }
-  if (!dlPushTimer) dlPushTimer = setTimeout(() => { dlPushTimer = null; if (win && !win.isDestroyed()) win.webContents.send('downloads', dlView()); }, 250);
+  if (now) { clearTimeout(dlPushTimer); dlPushTimer = null; sendDownloads(); return; }
+  if (!dlPushTimer) dlPushTimer = setTimeout(() => { dlPushTimer = null; sendDownloads(); }, 250);
 }
 function setupDownloads(ses, { peek = false } = {}) {
   ses.on('will-download', (_e, item, srcWc) => {
@@ -2775,6 +2783,49 @@ ipcMain.on('dl:clear', (e) => {
   for (let i = downloads.length - 1; i >= 0; i--) if (downloads[i].state !== 'progressing') downloads.splice(i, 1);
   pushDownloads(true);
 });
+
+// The toolbar's download button (shown once something has been downloaded, like
+// Firefox's) opens this pop-over: the same list, newest first; click a file to open it.
+let dlpopAnchor = null, dlpopClosedAt = 0, dlpopOpenedAt = 0;
+// Clicking anywhere else (a page, the sidebar, the toolbar) closes it, like Firefox.
+function dlpopFocusElsewhere() {
+  if (!overlays.dlpop || Date.now() - dlpopOpenedAt < 500) return;
+  dropOverlay('dlpop'); dlpopClosedAt = Date.now();
+}
+function dlpopBounds() {
+  const w = 380, n = Math.max(1, Math.min(downloads.length, 7));
+  const h = Math.min(Math.max(160, 104 + n * 56), Math.max(160, viewport.height - 16));
+  const right = dlpopAnchor ? dlpopAnchor.right + 6 : viewport.x + viewport.width - 10;
+  return { x: Math.round(Math.max(viewport.x + 6, Math.min(right, viewport.x + viewport.width - 6) - w)), y: Math.round(viewport.y + 6), width: w, height: Math.round(h) };
+}
+function toggleDlPop(anchor) {
+  if (overlays.dlpop) { dropOverlay('dlpop'); return; }
+  if (Date.now() - dlpopClosedAt < 350) return;        // the click on the button is what just closed it (focus left)
+  dlpopAnchor = anchor || null;
+  dlpopOpenedAt = Date.now();
+  overlays.dlpop = makeOverlay('dlpop.html', 'dlpop-preload.js');
+  overlays.dlpop.setBounds(dlpopBounds());
+  raiseOverlays();
+}
+const fromDlPop = (e) => isOverlay(e.sender, 'dlpop');
+ipcMain.on('dlpop:toggle', (e, anchor) => { if (e.sender === win.webContents) toggleDlPop(anchor); });
+ipcMain.on('dlpop:ready', (e) => { if (fromDlPop(e)) { e.sender.send('dlpop-list', dlView()); e.sender.focus(); } });
+ipcMain.on('dlpop:focus', (e) => { if (fromDlPop(e)) e.sender.focus(); });
+ipcMain.on('dlpop:close', (e, blur) => { if (fromDlPop(e)) { dropOverlay('dlpop'); if (blur) dlpopClosedAt = Date.now(); else focusPage(); } });   // clicked elsewhere: leave focus where it went
+ipcMain.on('dlpop:open', (e, id) => { const d = dlById(id); if (fromDlPop(e) && d && d.state === 'completed') { eshell.openPath(d.path).then((err) => { if (err) toast("Couldn't open " + d.name + ': ' + err); }); dropOverlay('dlpop'); } });
+ipcMain.on('dlpop:show', (e, id) => { const d = dlById(id); if (fromDlPop(e) && d && d.state === 'completed') eshell.showItemInFolder(d.path); });
+ipcMain.on('dlpop:cancel', (e, id) => { const d = dlById(id); if (fromDlPop(e) && d && d.item) d.item.cancel(); });
+ipcMain.on('dlpop:remove', (e, id) => {
+  if (!fromDlPop(e)) return;
+  const i = downloads.findIndex((d) => d.id === id);
+  if (i >= 0 && downloads[i].state !== 'progressing') { downloads.splice(i, 1); pushDownloads(true); }
+});
+ipcMain.on('dlpop:clear', (e) => {
+  if (!fromDlPop(e)) return;
+  for (let i = downloads.length - 1; i >= 0; i--) if (downloads[i].state !== 'progressing') downloads.splice(i, 1);
+  pushDownloads(true);
+});
+ipcMain.on('dlpop:folder', (e) => { if (fromDlPop(e)) eshell.openPath(process.env.NODEGRID_DOWNLOADS || app.getPath('downloads')); });
 
 // ---------- 7. password vault (key icon) ----------
 // Logins are encrypted with the OS (Windows DPAPI via safeStorage), tied to the Windows
@@ -3237,6 +3288,7 @@ ipcMain.on('viewport', (_e, r) => {
   if (peekUI) peekUI.setBounds(viewport);              // the frame re-reports its size, which moves the preview
   if (overlays.perm) overlays.perm.setBounds(permBounds());
   if (overlays.vault) overlays.vault.setBounds(vaultBounds());
+  if (overlays.dlpop) overlays.dlpop.setBounds(dlpopBounds());
   if (overlays.recon) overlays.recon.setBounds(reconBounds());
   if (overlays.qr) overlays.qr.setBounds(qrBounds());
   placePixel();

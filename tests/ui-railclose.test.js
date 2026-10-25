@@ -2,9 +2,11 @@
 // End-to-end check of closing tabs from the shrunk sidebar, through the real app:
 // with the sidebar shrunk and Settings > FEATURES > "Expand the shrunk sidebar
 // when you hover over it" switched OFF, a tab's own close button is hidden, so
-//   1. a quick click on a tab's icon still switches to that tab (never closes it)
-//   2. resting the mouse on the icon turns it into a close X, and clicking closes the tab
-//   3. with hover-to-expand ON, the icon never turns into an X (the sidebar expands instead)
+//   1. a click on a tab's icon switches to that tab (never closes it)
+//   2. hovering a tab for under 2 s shows nothing; after 2 s a small close X shows
+//      on the icon's top-right corner, and the icon stays
+//   3. clicking the icon with the X showing still switches tabs; clicking the X closes
+//   4. with hover-to-expand ON, the X never shows (the sidebar expands instead)
 // Needs an X display (xvfb-run). Set RAIL_SHOTS=<dir> to save a screenshot of the X.
 //
 //   xvfb-run -a -s "-screen 0 1400x900x24" node tests/ui-railclose.test.js
@@ -61,32 +63,34 @@ async function waitFor(fn, timeoutMs = 10000) {
     await wait(500);
     await check('hover-to-expand is off and the sidebar is shrunk', async () => assert.ok(await shell.evaluate(() => document.body.classList.contains('collapsed') && document.body.classList.contains('nofeat-hoverpeek'))));
 
-    // 1. quick click on tab 2's icon switches to it
+    // 1. click on tab 2's icon switches to it
     const fav = async (i) => (await tabs())[i].$('.fav');
     await (await fav(1)).click();
     await wait(400);
-    await check('a quick click on an icon switches to that tab', async () => { assert.strictEqual(await active(), 1); assert.strictEqual(await count(), 3); });
+    await check('a click on an icon switches to that tab', async () => { assert.strictEqual(await active(), 1); assert.strictEqual(await count(), 3); });
 
-    // 2. rest on tab 3's icon -> X, click -> closed
+    // 2. hover tab 3: nothing at 1 s, the corner X at 2 s, icon still there
+    const xState = (i) => shell.evaluate((i) => {
+      const f = [...document.querySelectorAll('#tabs .tab .fav')][i], x = f.querySelector('.fav-x'), ic = f.querySelector('.icon');
+      const fb = f.getBoundingClientRect(), xb = x.getBoundingClientRect();
+      return { on: f.classList.contains('x-on'), xShown: getComputedStyle(x).display !== 'none', iconShown: getComputedStyle(ic).display !== 'none', corner: xb.left > fb.left + fb.width / 2 && xb.top < fb.top + fb.height / 2 };
+    }, i);
     await shell.mouse.move(0, 0);
     await (await fav(2)).hover();
-    await wait(600);
-    await check('resting on the icon turns it into a close X', async () => assert.ok(await shell.evaluate(() => {
-      const f = [...document.querySelectorAll('#tabs .tab .fav')][2];
-      return f.classList.contains('x-on') && getComputedStyle(f.querySelector('.fav-x')).display !== 'none' && getComputedStyle(f.querySelector('.icon')).display === 'none';
-    })));
+    await wait(1000);
+    await check('hovering for 1 second shows no X yet', async () => assert.strictEqual((await xState(2)).xShown, false));
+    await wait(1400);
+    await check('after 2 seconds a small X shows on the top-right corner, and the icon stays', async () => { const x = await xState(2); assert.ok(x.xShown && x.iconShown && x.corner, JSON.stringify(x)); });
     if (SHOTS) execFileSync('import', ['-window', 'root', path.join(SHOTS, 'rail-close-x.png')]);
-    // a press that starts before the X shows (held past the delay) is a normal click, not a close
-    await shell.mouse.move(0, 0);
-    const b1 = await (await fav(1)).boundingBox();
-    await shell.mouse.move(b1.x + b1.width / 2, b1.y + b1.height / 2); await wait(100);
-    await shell.mouse.down(); await wait(500); await shell.mouse.up(); await wait(400);
-    await check('a slow press that began before the X appeared does not close the tab', async () => { assert.strictEqual(await count(), 3); assert.strictEqual(await active(), 1); });
-    await shell.mouse.move(0, 0);
-    await (await fav(2)).hover();
-    await wait(600);
-    await (await fav(2)).click();
-    await check('clicking the X closes that tab', async () => assert.ok(await waitFor(async () => (await count()) === 2, 4000)));
+    // 3. the icon still switches; the X closes
+    const fb = await (await fav(2)).boundingBox();
+    await shell.mouse.click(fb.x + fb.width * 0.35, fb.y + fb.height * 0.65);
+    await wait(400);
+    await check('with the X showing, clicking the icon itself switches to the tab (no close)', async () => { assert.strictEqual(await count(), 3); assert.strictEqual(await active(), 2); });
+    await waitFor(async () => (await xState(2)).xShown, 3000) || (await (await fav(2)).hover(), await wait(2300));
+    const xb = await (await (await tabs())[2].$('.fav-x')).boundingBox();
+    await shell.mouse.click(xb.x + xb.width / 2, xb.y + xb.height / 2);
+    await check('clicking the corner X closes that tab', async () => assert.ok(await waitFor(async () => (await count()) === 2, 4000)));
 
     // 3. hover-to-expand back on: no X on the rail
     await shell.evaluate(() => window.shell.openSettings());
@@ -97,7 +101,7 @@ async function waitFor(fn, timeoutMs = 10000) {
     await check('with hover-to-expand on, the icon never turns into an X', async () => {
       assert.ok(!(await shell.evaluate(() => document.body.classList.contains('nofeat-hoverpeek'))));
       await shell.mouse.move(0, 0);
-      await (await fav(1)).hover(); await wait(600);
+      await (await fav(1)).hover(); await wait(2400);
       assert.ok(!(await shell.evaluate(() => [...document.querySelectorAll('#tabs .tab .fav')][1].classList.contains('x-on'))));
     });
   } finally {

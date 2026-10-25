@@ -83,7 +83,7 @@ function selectTab(id) {
 
 // Shrunk sidebar that stays shrunk (Settings > FEATURES > hover-to-expand off):
 // the tabs' own close buttons are hidden there, so the site icon doubles as one.
-const RAIL_X_DELAY = 350;   // ms of hovering before the icon turns into an X
+const RAIL_X_DELAY = 2000;  // ms of hovering before the little close X shows on the icon's corner
 const railX = () => isCollapsed() && body.classList.contains('nofeat-hoverpeek') && !body.classList.contains('peek');
 
 function createTab(id) {
@@ -92,8 +92,9 @@ function createTab(id) {
 
   // Site icon. Normally just an icon (closing is the X on the right). On the
   // shrunk sidebar with hover-to-expand switched off, that X is hidden, so
-  // resting the mouse on the icon for a moment turns it into a close X (see
-  // railX below). A quick click still switches to the tab.
+  // hovering a tab for 2 seconds shows a small close X on the icon's top-right
+  // corner (see railX below). The icon itself always switches to the tab; only
+  // the corner X closes it.
   const fav = document.createElement('span');
   fav.className = 'fav';
   const icon = document.createElement('span');
@@ -117,22 +118,22 @@ function createTab(id) {
 
   // Switch on mouse-down: fires immediately, no waiting for the click to finish.
   li.addEventListener('mousedown', (e) => {
-    if (e.button !== 0 || e.target.closest('.fav.x-on, .close')) return;
+    if (e.button !== 0 || e.target.closest('.fav.x-on .fav-x, .close')) return;
     selectTab(id);
   });
   const closeThis = (e) => { e.stopPropagation(); window.shell.closeTab(id); };
 
   let xTimer = null;
-  fav.addEventListener('mouseenter', () => {
+  li.addEventListener('mouseenter', () => {
     clearTimeout(xTimer);
-    if (railX()) xTimer = setTimeout(() => { if (railX()) { fav.classList.add('x-on'); fav.title = 'Close tab'; } }, RAIL_X_DELAY);
+    if (railX()) xTimer = setTimeout(() => { if (railX()) fav.classList.add('x-on'); }, RAIL_X_DELAY);
   });
-  fav.addEventListener('mouseleave', () => { clearTimeout(xTimer); fav.classList.remove('x-on'); fav.title = ''; });
-  // Only a click that *started* on the X closes the tab: a press that began
-  // before the X appeared is a normal click, even if the X shows up mid-press.
+  li.addEventListener('mouseleave', () => { clearTimeout(xTimer); fav.classList.remove('x-on'); });
+  favX.title = 'Close tab';
+  // Only a click that *started* on the corner X closes the tab.
   let pressedOnX = false;
-  fav.addEventListener('mousedown', () => { clearTimeout(xTimer); pressedOnX = fav.classList.contains('x-on'); });
-  fav.addEventListener('click', (e) => { if (pressedOnX && fav.classList.contains('x-on')) closeThis(e); pressedOnX = false; });
+  favX.addEventListener('mousedown', (e) => { pressedOnX = fav.classList.contains('x-on'); if (pressedOnX) e.stopPropagation(); });
+  favX.addEventListener('click', (e) => { if (pressedOnX && fav.classList.contains('x-on')) closeThis(e); pressedOnX = false; });
 
   close.addEventListener('click', closeThis);
   li.addEventListener('auxclick', (e) => { if (e.button === 1) window.shell.closeTab(id); }); // middle-click
@@ -685,6 +686,14 @@ window.shell.onDownloads((list) => {
     if (dlList.children[i] !== rec.li) dlList.insertBefore(rec.li, dlList.children[i] || null);
   });
   const active = list.filter((d) => d.state === 'progressing').length;
+  // toolbar download button: there once anything was downloaded, with a progress line while running
+  const top = $('dltop');
+  top.hidden = list.length === 0;
+  top.classList.toggle('busy', active > 0);
+  const run = list.filter((d) => d.state === 'progressing');
+  const tot = run.reduce((a, d) => a + (d.total || 0), 0), got = run.reduce((a, d) => a + (d.received || 0), 0);
+  top.querySelector('.dlprog span').style.width = (tot > 0 ? Math.min(100, Math.round(got * 100 / tot)) : 35) + '%';
+  top.title = active ? `Downloads: ${active} running` : 'Downloads';
   $('dlbadge').hidden = !active;
   $('dlbadge').textContent = active;
   $('dlempty').hidden = list.length > 0;
@@ -695,6 +704,7 @@ window.shell.onDownloadStarted(({ name }) => {
   if (!isCollapsed()) setDownloads(true);
 });
 window.shell.onDownloadDone(({ name, state }) => {
+  if (state === 'completed') { const t = $('dltop'); t.classList.remove('done'); void t.offsetWidth; t.classList.add('done'); }   // a little flash, like Firefox's arrow
   if (state === 'completed') shellToast(`Downloaded ${name}`, 2600);
   else if (state === 'interrupted') shellToast(`Download failed: ${name}`, 3000);
 });
@@ -706,6 +716,10 @@ $('trbtn').onclick = () => window.shell.translate();
 $('darkbtn').onclick = () => window.shell.toggleDark();
 $('darkbtn').addEventListener('contextmenu', (e) => { e.preventDefault(); window.shell.darkMenu(); });
 $('trbtn').addEventListener('contextmenu', (e) => { e.preventDefault(); window.shell.translateMenu(); });
+$('dltop').onclick = () => {
+  const r = $('dltop').getBoundingClientRect();
+  window.shell.toggleDlPop({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+};
 $('keybtn').onclick = () => {
   const r = $('keybtn').getBoundingClientRect();
   window.shell.toggleVault({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });

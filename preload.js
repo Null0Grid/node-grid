@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld('shell', {
   onFindResult:     (cb) => ipcRenderer.on('find-result', (_e, r) => cb(r)),
   // downloads (kept in memory only)
   dlOpen:      (id) => ipcRenderer.send('dl:open', id),
+  toggleDlPop: (rect) => ipcRenderer.send('dlpop:toggle', rect),
   dlShow:      (id) => ipcRenderer.send('dl:show', id),
   dlCancel:    (id) => ipcRenderer.send('dl:cancel', id),
   dlRemove:    (id) => ipcRenderer.send('dl:remove', id),

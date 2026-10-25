@@ -25,7 +25,8 @@
     "test:ui:settings": "node tests/ui-settings.test.js",
     "test:ui:core": "node tests/ui-core.test.js",
     "test:ui:fixes": "node tests/ui-fixes.test.js",
-    "test:selfupdate": "node tests/selfupdate.test.js"
+    "test:selfupdate": "node tests/selfupdate.test.js",
+    "test:ui:downloads": "node tests/ui-downloads.test.js"
   },
   "devDependencies": {
     "@electron/asar": "^3.4.1",

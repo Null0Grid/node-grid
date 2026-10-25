@@ -48,7 +48,7 @@ modules:
         # submission or update — Flathub requires a versioned, checksummed
         # source, never a moving branch reference.
         url: https://github.com/Null0Grid/node-grid/archive/refs/tags/5.1.3.tar.gz
-        sha256: f6ed85c41c23af0d180c2d26aeae4d8d687b76de260b5005be256738f563e0fa
+        sha256: 1381ce7e3a5f4f302c6853b389c0fbdcad945d9529560edb587284e1f073b000
         x-checker-data:
           type: anitya
           url: https://github.com/Null0Grid/node-grid/releases

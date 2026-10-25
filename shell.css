@@ -108,8 +108,9 @@ body.peek #sidebar { box-shadow: 4px 0 18px rgba(0, 229, 255, .12); }
   box-shadow: 0 0 8px var(--pink);
 }
 
-/* site icon — hover it and it becomes a close button */
+/* site icon (on the shrunk sidebar it can carry a small close X on its corner) */
 .fav {
+  position: relative;
   width: 22px; height: 22px;
   flex-shrink: 0;
   display: grid; place-items: center;
@@ -119,10 +120,18 @@ body.peek #sidebar { box-shadow: 4px 0 18px rgba(0, 229, 255, .12); }
 .fav .icon { display: grid; place-items: center; }
 .fav .fav-x { display: none; color: var(--pink); }
 .fav .fav-x svg { width: 14px; height: 14px; }
-/* shrunk sidebar, hover-to-expand off: rest on the icon and it becomes a close X */
-.fav.x-on { cursor: pointer; border-color: rgba(255, 46, 136, .55); box-shadow: 0 0 6px rgba(255, 46, 136, .35); }
-.fav.x-on .icon { display: none; }
-.fav.x-on .fav-x { display: grid; place-items: center; }
+/* shrunk sidebar, hover-to-expand off: hover a tab for 2 s and a small close X
+   shows on the icon's top-right corner; the icon keeps switching tabs */
+.fav.x-on .fav-x {
+  display: grid; place-items: center;
+  position: absolute; top: -6px; right: -7px; z-index: 2;
+  width: 13px; height: 13px;
+  background: var(--bg, #0a0a0f); border: 1px solid var(--pink); border-radius: 2px;
+  box-shadow: 0 0 6px rgba(255, 46, 136, .45);
+  cursor: pointer;
+}
+.fav.x-on .fav-x svg { width: 9px; height: 9px; }
+.fav.x-on .fav-x:hover { background: var(--pink); color: #0a0a0f; }
 
 .fav img { width: 16px; height: 16px; }
 .fav .dot { width: 8px; height: 8px; border: 1px solid var(--cyan); }
@@ -730,3 +739,13 @@ body.nofeat-saved #savedbtn,
 body.nofeat-sim #simbtn,
 body.nofeat-pinned #pins { display: none !important; }
 body.nofeat-ai #aidock { display: none !important; }
+
+/* toolbar download button (shown once something was downloaded) */
+#dltop[hidden] { display: none; }
+#dltop { position: relative; }
+#dltop .dlprog { position: absolute; left: 6px; right: 6px; bottom: 3px; height: 2px; background: var(--line); display: none; overflow: hidden; }
+#dltop .dlprog span { display: block; height: 100%; width: 0; background: var(--cyan); box-shadow: 0 0 4px var(--cyan); transition: width .25s; }
+#dltop.busy { color: var(--cyan); }
+#dltop.busy .dlprog { display: block; }
+#dltop.done { animation: dldone 1.2s ease-out; }
+@keyframes dldone { 0% { color: var(--green); filter: drop-shadow(0 0 6px var(--green)); transform: translateY(-2px); } 40% { transform: none; } 100% { filter: none; } }

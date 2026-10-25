@@ -243,3 +243,40 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 /* the QR's own drawing: undo the icon styles (thick strokes would blot out the code) */
 .qrbox svg { fill: initial; stroke: none; stroke-width: 1; stroke-linecap: butt; stroke-linejoin: miter; }
 .qrbox svg path[stroke] { stroke-width: 1; }
+
+/* ---------- downloads pop-over (toolbar download button) ---------- */
+.dlpop .panel {
+  position: relative; height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line); border-top: 2px solid var(--cyan);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .65), 0 0 16px rgba(0, 229, 255, .12);
+  animation: drop .14s ease-out;
+}
+.dlpop header { display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px 12px; border-bottom: 1px solid var(--line); }
+.dlpop .title { flex: 1; font-family: 'Silkscreen', monospace; font-size: 11px; letter-spacing: 2px; color: var(--cyan); }
+.dlpop .x { width: 24px; height: 24px; display: grid; place-items: center; background: none; border: 1px solid transparent; color: var(--dim); cursor: pointer; }
+.dlpop .x svg { width: 14px; height: 14px; }
+.dlpop .x:hover { color: var(--pink); border-color: var(--pink); }
+.dlpop #list { list-style: none; flex: 1; overflow-y: auto; padding: 4px; }
+.dlpop .dl { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border: 1px solid transparent; }
+.dlpop .dl.completed { cursor: pointer; }
+.dlpop .dl.completed:hover, .dlpop .dl.completed:focus-visible { background: var(--panel-2); border-color: var(--line); outline: none; }
+.dlpop .dl .ico { color: var(--cyan); display: grid; place-items: center; }
+.dlpop .dl.cancelled .ico, .dlpop .dl.interrupted .ico { color: var(--dim); }
+.dlpop .txt { flex: 1; min-width: 0; }
+.dlpop .name { color: #e6f6ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; }
+.dlpop .dl.cancelled .name, .dlpop .dl.interrupted .name { color: var(--dim); text-decoration: line-through; }
+.dlpop .info { color: var(--dim); font-size: 15px; line-height: 1.1; }
+.dlpop .dl.interrupted .info { color: var(--pink); }
+.dlpop .bar { height: 3px; margin-top: 4px; background: var(--line); overflow: hidden; }
+.dlpop .bar span { display: block; height: 100%; background: var(--cyan); box-shadow: 0 0 6px var(--cyan); transition: width .2s; }
+.dlpop .bar.indeterminate span { animation: dlslide 1.1s linear infinite; }
+@keyframes dlslide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.dlpop .acts { display: flex; gap: 2px; }
+.dlpop .act { width: 26px; height: 26px; display: grid; place-items: center; background: none; border: 1px solid transparent; color: var(--dim); cursor: pointer; }
+.dlpop .act svg { width: 15px; height: 15px; }
+.dlpop .act:hover { color: var(--cyan); border-color: var(--line); }
+.dlpop .act.stop:hover { color: var(--pink); border-color: var(--pink); }
+.dlpop .empty { padding: 18px 12px; color: var(--dim); text-align: center; }
+.dlpop footer { display: flex; gap: 6px; justify-content: space-between; padding: 8px; border-top: 1px solid var(--line); }
+.dlpop footer .btn { font-size: 9px; }

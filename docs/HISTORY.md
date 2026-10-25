@@ -125,3 +125,11 @@ Every setting and feature re-checked, plus two independent code reviews (main pr
 The copy you have before 5.1.3 doesn't have this yet, so 5.1.3 itself installs the usual way; updates after it install themselves.
 
 New tests: `ui-settings` (every section, switch and dropdown, saved and applied), `ui-core` (keyboard shortcuts, dark pages, reader, QR) and `ui-fixes` (a check per fix above, which fails on 5.1.2). All 14 suites pass.
+
+## Next release: shrunk-sidebar close X moved to the corner
+
+The 5.1.2 shrunk-sidebar close turned the whole icon into an X after 350 ms, so the usual hover-then-click closed tabs you meant to switch to. Now the icon always switches tabs; hovering a tab for 2 seconds shows a small close X on the icon's top-right corner, and only that closes it. Tested live (`tests/ui-railclose.test.js`).
+
+## Next release: download button in the toolbar
+
+Like Firefox: once something has been downloaded, a download arrow appears in the toolbar (next to the key), with a thin progress line under it while downloads run and a short flash when one finishes. Clicking it opens a list of this session's downloads, newest first, with size and state. Click a finished file to open it; the folder icon shows it in its folder; a running one can be cancelled; CLEAR empties the list (the files stay) and the button goes away again. Escape, or clicking anywhere else, closes the list. The sidebar's Downloads panel is still there. Tested live (`tests/ui-downloads.test.js`).
