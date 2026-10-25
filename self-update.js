@@ -130,7 +130,11 @@ async function unpack(kind, file, dir) {
   return { stage, src };
 }
 
-const PS_HELPER = `param($ProcId, $Src, $Dst, $Stage, $Log, $Exe, $Relaunch, $ArgLine)
+// Its settings come from a JSON file next to it: PowerShell would read a
+// command-line value starting with "-" (like --user-data-dir=...) as a switch.
+const PS_HELPER = `param($ConfigPath)
+$c = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+$ProcId = [int]$c.pid; $Src = $c.src; $Dst = $c.dst; $Stage = $c.stage; $Log = $c.log; $Exe = $c.exe; $Relaunch = $c.relaunch; $ArgLine = $c.argLine
 function Say($m) { Add-Content -LiteralPath $Log -Value $m }
 try {
   Set-Content -LiteralPath $Log -Value 'waiting'
@@ -174,10 +178,12 @@ function applyNow(kind, ready, { dir, relaunch }) {
   if (kind === 'zip' || kind === 'tar') {
     const exe = process.execPath, dst = exeDir();
     if (kind === 'zip') {
-      const ps1 = path.join(dir, 'apply-update.ps1');
+      const ps1 = path.join(dir, 'apply-update.ps1'), cfg = path.join(dir, 'apply-update.json');
       fs.writeFileSync(ps1, PS_HELPER);
-      spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ps1,
-        String(process.pid), ready.src, dst, ready.stage, log, exe, relaunch ? '1' : '0', relaunchArgs().map((a) => '"' + a.replace(/"/g, '') + '"').join(' ')], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      fs.writeFileSync(cfg, JSON.stringify({ pid: process.pid, src: ready.src, dst, stage: ready.stage, log, exe, relaunch: relaunch ? '1' : '0',
+        argLine: relaunchArgs().map((a) => '"' + a.replace(/"/g, '') + '"').join(' ') }));
+      spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ps1, cfg],
+        { detached: true, stdio: 'ignore', windowsHide: true }).unref();
     } else {
       const sh = path.join(dir, 'apply-update.sh');
       fs.writeFileSync(sh, SH_HELPER, { mode: 0o755 });
@@ -210,6 +216,6 @@ function applyNow(kind, ready, { dir, relaunch }) {
 }
 
 function lastLog(dir) { try { return fs.readFileSync(path.join(dir, 'last-update.log'), 'utf8').trim(); } catch { return ''; } }
-function cleanup(dir) { for (const f of ['stage', 'apply-update.ps1', 'apply-update.sh']) rmrf(path.join(dir, f)); try { for (const f of fs.readdirSync(dir)) if (/\.(part|zip|gz|AppImage|deb|rpm)$/i.test(f)) rmrf(path.join(dir, f)); } catch {} }
+function cleanup(dir) { for (const f of ['stage', 'apply-update.ps1', 'apply-update.json', 'apply-update.sh']) rmrf(path.join(dir, f)); try { for (const f of fs.readdirSync(dir)) if (/\.(part|zip|gz|AppImage|deb|rpm)$/i.test(f)) rmrf(path.join(dir, f)); } catch {} }
 
 module.exports = { SELF, installKind, pickAsset, download, unpack, applyNow, lastLog, cleanup };
