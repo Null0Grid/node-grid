@@ -113,7 +113,7 @@ const running = (dir) => {
     await r.s.evaluate(() => window.ngSettings.do('update-get'));
     const ready = await waitFor(async () => ((await r.model()).update.state === 'ready'), 120000);
     await check('UPDATE downloads, checks and unpacks it (state: ready)', () => assert.ok(ready, 'never got ready'));
-    await check('...and Settings offers RESTART TO UPDATE', async () => assert.ok(await r.s.$('#updrestart')));
+    await check('...and Settings offers RESTART TO UPDATE', async () => assert.ok(await waitFor(() => r.s.$('#updrestart'), 8000)));
     const exited = new Promise((res) => r.app.process().once('exit', res));
     await r.s.evaluate(() => { window.ngSettings.do('update-restart'); });
     await check('RESTART TO UPDATE closes NODE_GRID', async () => assert.ok(await Promise.race([exited.then(() => true), wait(30000).then(() => false)])));
