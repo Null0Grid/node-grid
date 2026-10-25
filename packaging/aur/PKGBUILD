@@ -6,7 +6,7 @@
 # checksums against the new release assets with `updpkgsums` (or
 # `makepkg -g >> PKGBUILD` and move the new sha256sums_* lines into place).
 pkgname=nullgrid-browser-bin
-pkgver=5.1.2
+pkgver=5.1.3
 pkgrel=1
 pkgdesc="NODE_GRID: vertical tab sidebar browser with ad blocking, hostname-only history, and a login vault (part of Null Grid)"
 arch=('x86_64' 'aarch64')
@@ -26,11 +26,11 @@ source_x86_64=("${pkgname%-bin}-${pkgver}.tar.gz::https://github.com/Null0Grid/n
 source_aarch64=("${pkgname%-bin}-${pkgver}-arm64.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/${pkgver}/nullgrid-browser-${pkgver}-arm64.tar.gz")
 
 # Checksums: the icon file next to this PKGBUILD, and the two tarballs as
-# published on the 5.1.2 GitHub release. On the next release, run `updpkgsums`
+# published on the 5.1.3 GitHub release. On the next release, run `updpkgsums`
 # against the new release assets and regenerate .SRCINFO.
 sha256sums=('f304828ddc49b946dbc2f4c28329a8318f546ac423b92c649a4b0e489fcf38a8')
-sha256sums_x86_64=('b2f2db9457d6dcf6aec3faa7baa9ec8a7781ede24a92db6e3bcaff6a11f98b86')
-sha256sums_aarch64=('8edc7f99f6ff83100aef77d183a07508a5fa14e88286a119e0de182b29069928')
+sha256sums_x86_64=('FILL_IN_FROM_THE_5.1.3_RELEASE_x86_64_TARBALL')
+sha256sums_aarch64=('FILL_IN_FROM_THE_5.1.3_RELEASE_arm64_TARBALL')
 
 package() {
   local _instdir="${pkgdir}/opt/${pkgname%-bin}"

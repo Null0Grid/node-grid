@@ -100,7 +100,19 @@ Some sites serve their tab icon with `Cross-Origin-Resource-Policy: same-origin`
 - **Linux.** The `.deb`/`.rpm` launcher entry is `node-grid.desktop` (`desktopName` + `linux.syncDesktopName`, so it also matches the window's app id on Wayland/Hyprland), in `Network;WebBrowser`, declaring `x-scheme-handler/http`, `x-scheme-handler/https`, `text/html` and `application/xhtml+xml`. Settings › DEFAULT BROWSER › MAKE DEFAULT sets it with `xdg-settings` / `xdg-mime`; an AppImage or `.tar.gz` copy first writes the same launcher entry for the user. Flatpak and Snap are left to the desktop's own settings. Tested live in a throwaway home folder (`tests/ui-defaultbrowser.test.js`).
 - **Windows Store.** `build/appx-manifest.xml` (electron-builder's template plus the `uap3` namespace) and `packaging/appx/browser-extensions.xml` register `http`, `https` and `.htm`/`.html`/`.xhtml`/`.shtml`, the way Firefox's Store package does, so NODE_GRID appears in Settings › Apps › Default apps. Store apps can't make themselves the default; Settings › DEFAULT BROWSER opens Default apps so the person picks it. Minimum Windows version is now 10.0.17763 (1809).
 
-## Next release: Flatpak and Snap builds fixed
+## 5.1.3: Flatpak and Snap builds fixed
 
 Both best-effort jobs had failed on every release. Flatpak stopped at setup: `flatpak remote-add` ran without `--user` on a non-root runner. Now Flathub is added per user and the runtimes are installed explicitly, on **25.08** (23.08 is end-of-life; the Flathub manifest moves to 25.08 too). Both jobs also tried arm64 on an x64 runner, which needs emulation they didn't have; Flatpak and Snap now build for x64 only (the .deb/.rpm/AppImage/.tar.gz stay x64 + arm64). The x64 snap builds cleanly without snapcraft (electron-builder's template), checked locally; Flatpak can only be checked on the next release run, since Flathub isn't reachable from the test machine.
 
+
+## 5.1.3: full check, 25 bugs fixed
+
+Every setting and feature re-checked, plus two independent code reviews (main process; pages and UI). Fixed:
+
+- **Security.** Null Drive checked the server certificate only after sending the token; the TLS handshake and certificate check now happen first, and an untrusted server receives nothing. Tab icons from `file://` are read only for local pages (never `file://host/` network shares). Right-click open link / image / search from a burner tab stays burner, and only web links open. Every PIN check (unlock, change, remove) shares the 5-tries / 30-second lockout.
+- **Data.** Loadout "Swap" no longer closes (and forgets) pinned tabs. Settings are written to a temp file and renamed, so a crash mid-save can't wipe them.
+- **Features.** "Get it" downloads updates even with a Peek or burner tab in front. A docked video's tab never sleeps. A new custom AI address shows in the open panel. "sudo …" searches on the start page are searched (a bare "sudo" is still the joke). Clearing the local AI chat mid-answer starts clean. Small built-in views (gear, Packet's bubble, docked-video controls) could take keyboard focus on load so shortcuts did nothing until a click; they pass keys through now.
+- **UI.** Reader and picture-in-picture buttons hide on pages without an article or video. Logins popup: Enter on a row's button no longer fills the page; an expired unlock shows the lock screen. The Dark pages switch shows the saved value. Settings refreshes when developer mode changes. A press on a shrunk-sidebar icon that started before the close X appeared no longer closes the tab. A slow icon from the previous page can't land on the next one; local pages show their own icons. Encryption wording no longer says "Windows" on Linux and macOS.
+- **Default browser.** The portable Windows zip says it can't be listed (install from the Store); the Linux launcher entry escapes unusual install paths per the Desktop Entry spec and reports a failed write.
+
+New tests: `ui-settings` (every section, switch and dropdown, saved and applied), `ui-core` (keyboard shortcuts, dark pages, reader, QR) and `ui-fixes` (a check per fix above, which fails on 5.1.2). All 14 suites pass.
