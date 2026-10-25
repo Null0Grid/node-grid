@@ -182,8 +182,17 @@ function applyNow(kind, ready, { dir, relaunch }) {
       fs.writeFileSync(ps1, PS_HELPER);
       fs.writeFileSync(cfg, JSON.stringify({ pid: process.pid, src: ready.src, dst, stage: ready.stage, log, exe, relaunch: relaunch ? '1' : '0',
         argLine: relaunchArgs().map((a) => '"' + a.replace(/"/g, '') + '"').join(' ') }));
-      spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ps1, cfg],
-        { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      // Started through WMI (Win32_Process.Create), so the helper isn't a child of
+      // NODE_GRID and isn't closed along with it; a plain detached child as fallback.
+      const cmd = `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "${ps1}" "${cfg}"`;
+      try {
+        execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+          '$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $env:NG_UPDATE_CMD }; if ($r.ReturnValue -ne 0) { exit 1 }'],
+          { env: { ...process.env, NG_UPDATE_CMD: cmd }, stdio: 'ignore', windowsHide: true, timeout: 30000 });
+      } catch {
+        spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ps1, cfg],
+          { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      }
     } else {
       const sh = path.join(dir, 'apply-update.sh');
       fs.writeFileSync(sh, SH_HELPER, { mode: 0o755 });
