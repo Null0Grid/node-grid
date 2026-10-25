@@ -102,7 +102,7 @@ Some sites serve their tab icon with `Cross-Origin-Resource-Policy: same-origin`
 
 ## 5.1.3: Flatpak and Snap builds fixed
 
-Both best-effort jobs had failed on every release. Flatpak stopped at setup: `flatpak remote-add` ran without `--user` on a non-root runner. Now Flathub is added per user and the runtimes are installed explicitly, on **25.08** (23.08 is end-of-life; the Flathub manifest moves to 25.08 too). Both jobs also tried arm64 on an x64 runner, which needs emulation they didn't have; Flatpak and Snap now build for x64 only (the .deb/.rpm/AppImage/.tar.gz stay x64 + arm64). The x64 snap builds cleanly without snapcraft (electron-builder's template), checked locally; Flatpak can only be checked on the next release run, since Flathub isn't reachable from the test machine.
+Both best-effort jobs had failed on every release. Flatpak stopped at setup: `flatpak remote-add` ran without `--user` on a non-root runner. Now Flathub is added per user and the runtimes are installed explicitly, on **25.08** (23.08 is end-of-life; the Flathub manifest moves to 25.08 too). Both jobs also tried arm64 on an x64 runner, which needs emulation they didn't have; Flatpak and Snap now build for x64 only (the .deb/.rpm/AppImage/.tar.gz stay x64 + arm64). The x64 snap builds cleanly without snapcraft (electron-builder's template), checked locally; Confirmed on the 5.1.3 release run: the .flatpak and .snap both built and are attached to the release.
 
 
 ## 5.1.3: full check, 25 bugs fixed
