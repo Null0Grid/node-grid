@@ -190,6 +190,9 @@
     const s2 = section('privacy', 'PRIVACY + BLOCKING', null, 'PRIVACY');
     s2.append(row('History', `${M.historyCount} site name${M.historyCount === 1 ? '' : 's'} kept (no pages, no searches; last 100 sites / 7 days)`,
       button('CLEAR HISTORY', () => act('history-clear', null, null, 'History cleared'), 'danger')));
+    s2.append(el('h3', null, 'Stay signed in on'));
+    s2.append(el('p', 'hint', 'These sites keep their sign-in and site data when NODE_GRID closes. Every other site is wiped, as always. Add one with right-click > "Keep me signed in on this site", or when you save a login.'));
+    s2.append(list(M.keepSignedIn, 'No sites yet.', (h) => li(h, null, 'SIGN OUT + REMOVE', () => act('keep-remove', h, null, h + ' removed and signed out'))));
     s2.append(row('Ad + tracker blocking', M.adblock.ready ? 'Blocks ads and trackers on every site' : 'Block lists are still loading', toggle(M.adblock.on, (on) => act('adblock', on, null, on ? 'Ad blocking on' : 'Ad blocking off'))));
     s2.append(el('h3', null, 'Sites where ad blocking is paused'));
     s2.append(list(M.adblock.paused, 'None. (Click the shield on a site to pause it there.)', (h) => li(h, null, 'BLOCK AGAIN', () => act('adblock-resume', h, null, 'Blocking again on ' + h))));
@@ -222,10 +225,15 @@
       rem.onclick = () => act('pin-clear', o.value, null, 'PIN removed');
       s4.append(f);
     }
+    s4.append(row('Offer to save logins', 'When you sign in to a site, ask whether to save the login', toggle(M.loginOffer, (on) => act('login-offer', on, null, on ? 'NODE_GRID will offer to save logins' : "NODE_GRID won't offer to save logins"))));
+    s4.append(row('Fill in logins automatically', "A site's saved login goes into its sign-in form when it opens (not while logins are locked)", toggle(M.loginAutofill, (on) => act('login-autofill', on, null, on ? 'Auto-fill on' : 'Auto-fill off'))));
+    if (M.loginNever.length) { s4.append(el('h3', null, 'Never offer to save on')); s4.append(list(M.loginNever, '', (h) => li(h, null, 'REMOVE', () => act('login-never-remove', h, null, 'Removed')))); }
     out.push(s4);
 
     // LOOK
     const s5 = section('look', 'APPEARANCE + LANGUAGE', null, 'APPEARANCE');
+    s5.append(row('Theme', 'How NODE_GRID itself looks. Match my computer follows your system light or dark mode', select([['dark', 'Dark'], ['light', 'Light'], ['system', 'Match my computer']], M.theme, (v) => act('theme', v, null, 'Theme: ' + ({ dark: 'Dark', light: 'Light', system: 'Match my computer' })[v]))));
+    s5.append(row('Sidebar size', 'Bigger tab icons and text in the sidebar, easier to see', select([['normal', 'Normal'], ['large', 'Large'], ['xl', 'Extra large']], M.uiSize, (v) => act('ui-size', v, null, 'Sidebar size: ' + ({ normal: 'Normal', large: 'Large', xl: 'Extra large' })[v]))));
     s5.append(row('Dark pages', 'Turns bright websites dark (the moon button)', toggle(M.dark.on, (on) => act('dark', on, null, on ? 'Dark pages on' : 'Dark pages off'))));
     if (M.dark.except.length) { s5.append(el('h3', null, 'Kept as they are')); s5.append(list(M.dark.except, '', (h) => li(h, null, 'DARKEN', () => act('dark-unexcept', h, null, 'Saved')))); }
     s5.append(row('Translate pages to', 'Used by the translate button', select([['', `System language (${M.translate.system})`], ...M.translate.langs], M.translate.lang, (v) => act('translate', v, null, 'Saved'))));
@@ -330,6 +338,9 @@
     // ABOUT
     const s8 = section('about', 'ABOUT');
     s8.append(row('Version', null, el('span', 'state', 'v' + M.version)));
+    const ab = el('div', 'drow');
+    ab.append(button("WHAT'S NEW", () => act('whats-new')), ...(M.hasTour ? [button('WATCH THE WALKTHROUGH', () => act('tour'))] : []));
+    s8.append(ab);
     s8.append(row('Your data folder', M.dataDir, button('OPEN', () => act('open-data'))));
     out.push(s8);
 

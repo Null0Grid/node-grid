@@ -1,0 +1,33 @@
+{
+  "5.1.5": {
+    "title": "Easier on the eyes, and you stay signed in",
+    "new": [
+      "Theme: Dark, Light, or Match my computer (Settings > Appearance).",
+      "Sidebar size: Large and Extra large make tab icons and text bigger, easier to see.",
+      "Save logins as you sign in: NODE_GRID asks Save, Not now, or Never for this site, then fills the login in next time.",
+      "Stay signed in on sites you choose (WhatsApp, GitHub...): they keep their sign-in when NODE_GRID closes, every other site is still wiped. Right-click a page > Keep me signed in.",
+      "Pinned tabs remember Masking.",
+      "This What's new card after every update, and a walkthrough with Packet the first time you open NODE_GRID."
+    ],
+    "fixed": [
+      "A pinned tab with Masking on no longer gets stuck loading at startup."
+    ]
+  },
+  "5.1.4": {
+    "title": "Downloads in the toolbar",
+    "new": [
+      "A download arrow in the toolbar (like Firefox): click it for your downloads, click a file to open it.",
+      "Shrunk sidebar: the icon always switches tabs; hover 2 seconds for a small close X on its corner."
+    ],
+    "fixed": []
+  },
+  "5.1.3": {
+    "title": "Updates install themselves",
+    "new": [
+      "UPDATE downloads the new version, checks it against GitHub's checksum, and installs it when you restart or close NODE_GRID."
+    ],
+    "fixed": [
+      "25 fixes, including the Null Drive token being sent before its certificate was checked, burner tabs leaking into history from the right-click menu, and keyboard shortcuts sometimes not working until a click."
+    ]
+  }
+}

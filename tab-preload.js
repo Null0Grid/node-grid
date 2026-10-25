@@ -16,6 +16,47 @@ window.addEventListener('mousemove', (e) => {
 }, { passive: true, capture: true });
 
 // ===================================================================================
+//  SIGN-INS: when you sign in to a website, the app may offer to save the login
+//  (the app decides: never in burner tabs, never for sites you said "never" to).
+//  Only the username and password you just submitted are passed on, to NODE_GRID
+//  itself, never to any website.
+// ===================================================================================
+(() => {
+  if (!/^https?:$/.test(location.protocol)) return;
+  const isText = (el) => el && el.tagName === 'INPUT' && /^(text|email|tel|)$/i.test(el.getAttribute('type') || '');
+  const shown = (el) => el.getClientRects().length > 0;
+  const looksLikeUser = (el) => /user|email|login|account|ident|phone|name/i.test([el.name, el.id, el.autocomplete, el.getAttribute('type')].join(' '));
+  let sentFor = '';
+  function capture(origin) {
+    const pws = [...document.querySelectorAll('input[type=password]')].filter((p) => p.value && shown(p));
+    if (!pws.length) {                      // a username-only step (Google, Microsoft): remember the name for the next page
+      const scope = (origin && origin.closest && origin.closest('form')) || document;
+      const u = [...scope.querySelectorAll('input')].find((el) => isText(el) && el.value && shown(el) && looksLikeUser(el));
+      if (u) ipcRenderer.send('login:user', u.value.trim().slice(0, 200));
+      return;
+    }
+    const pw = pws[0];
+    const scope = pw.form || document;
+    let user = '';
+    for (const el of scope.querySelectorAll('input')) {
+      if (isText(el) && el.value && shown(el) && (el.compareDocumentPosition(pw) & Node.DOCUMENT_POSITION_FOLLOWING)) user = el.value;
+    }
+    const key = user + '\u0000' + pw.value;
+    if (key === sentFor) return;
+    sentFor = key;
+    ipcRenderer.send('login:submitted', { user: user.trim().slice(0, 200), pass: pw.value.slice(0, 500) });
+  }
+  window.addEventListener('submit', (e) => capture(e.target), true);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') setTimeout(() => capture(e.target), 0); }, true);
+  window.addEventListener('click', (e) => {          // sign-in buttons that aren't real form submits (most single-page apps)
+    const b = e.target && e.target.closest && e.target.closest('button, input[type=submit], [role=button]');
+    if (!b) return;
+    const label = (b.value || b.textContent || b.getAttribute('aria-label') || '').trim();
+    if (b.type === 'submit' || /\b(sign ?in|log ?in|next|continue|submit|verify)\b/i.test(label)) capture(b);
+  }, true);
+})();
+
+// ===================================================================================
 //  EASTER EGGS (NODE_GRID start page only)
 // ===================================================================================
 let cfg = null;

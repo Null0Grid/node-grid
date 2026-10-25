@@ -133,3 +133,17 @@ The 5.1.2 shrunk-sidebar close turned the whole icon into an X after 350 ms, so 
 ## 5.1.4: download button in the toolbar
 
 Like Firefox: once something has been downloaded, a download arrow appears in the toolbar (next to the key), with a thin progress line under it while downloads run and a short flash when one finishes. Clicking it opens a list of this session's downloads, newest first, with size and state. Click a finished file to open it; the folder icon shows it in its folder; a running one can be cancelled; CLEAR empties the list (the files stay) and the button goes away again. Escape, or clicking anywhere else, closes the list. The sidebar's Downloads panel is still there. Tested live (`tests/ui-downloads.test.js`).
+
+## 5.1.5: easier on the eyes, and you stay signed in
+
+- **Theme:** Settings › APPEARANCE › Theme: Dark (as before), Light, or Match my computer (follows the system light/dark mode, live). NODE_GRID's own pages (sidebar, toolbar, Settings, pop-overs, start page, error page) get `data-theme` from the main process as they load and whenever it changes; their CSS has a light palette. Native menus and websites' light/dark preference follow through `nativeTheme`. The window's title-bar buttons are recoloured too.
+- **Sidebar size:** Normal, Large, Extra large: bigger tab icons, text, buttons and a wider sidebar, for easier reading.
+- **Save logins as you sign in:** when you sign in to a site (a form submit, Enter, or a sign-in button, including username-first logins like Google's), a prompt by the key icon asks SAVE / NOT NOW / NEVER FOR THIS SITE (UPDATE when the password changed). Saved logins go into the encrypted vault. Never in burner tabs or Peek. Settings › SAVED LOGINS: switches for offering and for auto-fill, and the never-list.
+- **Auto-fill:** when a site with exactly one saved login shows its sign-in form, the login is filled in (never over what you typed; not while logins are PIN-locked).
+- **Stay signed in on sites you choose:** right-click a page › "Keep me signed in on …", or the box on the save prompt. Normal tabs stay in the in-memory session until you keep a site; from then on they use a session on disk (`persist:nullgrid-kept`) that is wiped of every site you didn't keep at each start and each quit (`session.clearData({ excludeOrigins })`; cookies are kept per site, storage like WhatsApp's per exact origin). A tab you keep is reopened in that session with its cookies carried over. Settings › PRIVACY lists the sites, with SIGN OUT + REMOVE.
+- **Pinned tabs remember Masking** (`settings.pinnedMasked`), applied before the first request at launch.
+- **What's new:** after an update, the first time the start page shows, a card lists what's new and fixed for every version since the one you had (`whats-new.json`, bundled). Settings › ABOUT › WHAT'S NEW shows it any time.
+- **Packet's walkthrough:** a 78-second video (12 scenes, original lo-fi jazz bed, all synthesised in `walkthrough/src/lofi.py`) plays the first time NODE_GRID is opened; SKIP closes it, Settings › ABOUT replays it. Rendered from `walkthrough/src/tour.html` by `walkthrough/src/render.js` (Playwright + ffmpeg), so it can be re-rendered as features change.
+- Fixed: a pinned tab with Masking on could get stuck loading at startup.
+
+Tests: `ui-515` (save prompt, auto-fill, never, kept vs. wiped across a restart, pinned Masking, theme and size) and `ui-whatsnew` (card after an update, not again, About, first start plays the walkthrough).

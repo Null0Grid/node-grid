@@ -44,7 +44,7 @@ const ARTICLE = '<!doctype html><title>Field notes</title><body style="backgroun
   const app = await pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'node-grid-ci-core-' + Date.now())],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/' },
+    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1' },   // no first-start walkthrough over the keys
   });
   const mainErrors = [];
   app.process().stderr.on('data', (d) => { const s = String(d); if (/Uncaught|TypeError|ReferenceError|UnhandledPromiseRejection/.test(s)) mainErrors.push(s.trim().slice(0, 300)); });

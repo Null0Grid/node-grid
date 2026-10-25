@@ -1,6 +1,6 @@
 @font-face { font-family: 'VT323'; src: url('fonts/vt323.woff2') format('woff2'); }
 @font-face { font-family: 'Silkscreen'; src: url('fonts/silkscreen.woff2') format('woff2'); }
-:root { --bg: #0a0a0f; --panel: #10131b; --panel-2: #161b26; --line: #1f2a3a; --cyan: #00e5ff; --pink: #ff2e88; --green: #39ff88; --amber: #ffb000; --text: #b8c7d9; --dim: #5a6b80; }
+:root { --bg: #0a0a0f; --panel: #10131b; --panel-2: #161b26; --line: #1f2a3a; --cyan: #00e5ff; --pink: #ff2e88; --green: #39ff88; --amber: #ffb000; --text: #b8c7d9; --dim: #5a6b80; --hi: #e6f6ff; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; scroll-padding-top: 60px; }
 body { background: var(--bg); color: var(--text); font-family: 'VT323', Consolas, monospace; font-size: 19px; }
@@ -8,7 +8,7 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; back
 .wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 60px; }
 .top { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
 .logo { font-family: 'Silkscreen', monospace; font-size: 34px; letter-spacing: -4px; color: var(--cyan); text-shadow: 3px 0 var(--pink), 0 0 12px rgba(0, 229, 255, .6); }
-h1 { font-family: 'Silkscreen', monospace; font-weight: normal; font-size: 24px; letter-spacing: 4px; color: #e6f6ff; }
+h1 { font-family: 'Silkscreen', monospace; font-weight: normal; font-size: 24px; letter-spacing: 4px; color: var(--hi); }
 .ver { color: var(--dim); }
 .jump { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 0; background: var(--bg); border-bottom: 1px solid var(--line); margin-bottom: 14px; }
 .jump a { font-family: 'Silkscreen', monospace; font-size: 9px; letter-spacing: .5px; color: var(--dim); text-decoration: none; border: 1px solid var(--line); padding: 5px 6px; }
@@ -20,9 +20,9 @@ h3 { font-family: 'Silkscreen', monospace; font-weight: normal; font-size: 9px; 
 .row { display: flex; align-items: center; gap: 14px; padding: 9px 0; border-top: 1px dashed var(--line); }
 .row:first-of-type { border-top: none; }
 .rl { flex: 1; min-width: 0; }
-.label { color: #e6f6ff; }
+.label { color: var(--hi); }
 .hint { color: var(--dim); font-size: 16px; line-height: 1.1; overflow-wrap: anywhere; }
-select, input { height: 30px; background: var(--bg); color: #e6f6ff; border: 1px solid var(--line); font: inherit; font-size: 17px; padding: 0 8px; outline: none; }
+select, input { height: 30px; background: var(--bg); color: var(--hi); border: 1px solid var(--line); font: inherit; font-size: 17px; padding: 0 8px; outline: none; }
 select:focus, input:focus { border-color: var(--cyan); }
 select { max-width: 280px; }
 .btn { background: var(--panel-2); color: var(--cyan); border: 1px solid var(--line); font-family: 'Silkscreen', monospace; font-size: 9px; letter-spacing: 1px; padding: 8px 11px; cursor: pointer; white-space: nowrap; }
@@ -54,7 +54,7 @@ select { max-width: 280px; }
 .fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; margin-top: 6px; }
 .fitem { display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-height: 58px; background: var(--panel-2); border: 1px solid var(--line); }
 .ftext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.flabel { color: #e6f6ff; }
+.flabel { color: var(--hi); }
 .fhint { color: var(--dim); font-size: 14px; line-height: 1.15; }
 .devtag { margin-left: 8px; font-family: 'Silkscreen', monospace; font-size: 8px; letter-spacing: 1px; color: var(--green); border: 1px solid var(--green); padding: 1px 4px; vertical-align: middle; }
 
@@ -71,3 +71,6 @@ select { max-width: 280px; }
 .dfield input { width: 100%; }
 .dwarn { color: var(--amber); margin-bottom: 6px; }
 .drow { display: flex; gap: 6px; margin-top: 10px; }
+
+/* ---------- light theme (Settings > APPEARANCE > Theme) ---------- */
+:root[data-theme="light"] { --bg: #f3f5f9; --panel: #ffffff; --panel-2: #e8edf4; --line: #c9d3e1; --cyan: #007f9e; --pink: #c8186a; --green: #0f8a55; --amber: #a86b00; --text: #2b3647; --dim: #66768c; --hi: #0b1424; color-scheme: light; }

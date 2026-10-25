@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'">
+  <title>Save login</title>
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body class="loginsave">
+  <div class="panel">
+    <header>
+      <span class="key-ico"><svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><line x1="10.7" y1="12.3" x2="20" y2="3"/><line x1="16" y1="7" x2="19" y2="10"/><line x1="18" y1="5" x2="21" y2="8"/></svg></span>
+      <span class="title" id="title">SAVE LOGIN?</span>
+      <button class="x" id="close" title="Not now (Esc)"><svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    </header>
+    <div class="body">
+      <div class="site" id="site"></div>
+      <div class="who"><span id="user"></span> <span class="dots">••••••••</span></div>
+      <label class="keep" id="keeprow"><input type="checkbox" id="keep" checked> Keep me signed in on <b id="keephost"></b></label>
+      <div class="btns">
+        <button class="btn primary" id="save">SAVE</button>
+        <button class="btn" id="later">NOT NOW</button>
+        <button class="btn" id="never">NEVER FOR THIS SITE</button>
+      </div>
+    </div>
+  </div>
+  <script src="loginsave.js"></script>
+</body>
+</html>

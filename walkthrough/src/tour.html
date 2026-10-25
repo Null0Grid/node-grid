@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Packet's NODE_GRID walkthrough (source)</title>
+<!--
+  The source of walkthrough/packet-tour.webm. render.js opens this page, calls
+  window.drawFrame(t) for every frame (30 per second) and pipes the screenshots
+  into ffmpeg. Everything is drawn from t alone, so a render is always the same.
+  Packet follows his character sheet (project doc mascot-packet.md): 12x14 pixel
+  grid, whole-step scale, his colours, mood only through visor and antenna, no
+  mouth, one Packet on screen, dark background.
+-->
+<style>
+  @font-face { font-family: 'Silkscreen'; src: url('../../fonts/silkscreen.woff2') format('woff2'); }
+  @font-face { font-family: 'VT323'; src: url('../../fonts/vt323.woff2') format('woff2'); }
+  html, body { margin: 0; background: #0a0a0f; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1280" height="720"></canvas>
+<script>
+(() => {
+  const W = 1280, H = 720;
+  const cv = document.getElementById('c'), g = cv.getContext('2d');
+  const C = { bg: '#0a0a0f', panel: '#10131b', panel2: '#161b26', line: '#1f2a3a', cyan: '#00e5ff', pink: '#ff2e88', green: '#39ff88',
+    amber: '#ffb000', text: '#b8c7d9', dim: '#5a6b80', hi: '#e6f6ff',
+    body: '#323c54', trim: '#4a5677', visor: '#0b0e15', stem: '#8b92a8' };
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const ease = (x) => { x = clamp(x); return x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; };
+  const lerp = (a, b, p) => a + (b - a) * p;
+
+  // ---------- scenes: [start, length, caption, draw(localTime, progress)] ----------
+  const SCENES = [];
+  let T0 = 0;
+  const scene = (dur, caption, fn) => { SCENES.push({ start: T0, dur, caption, fn }); T0 += dur; };
+
+  // ---------- drawing helpers ----------
+  function txt(s, x, y, size, color, font = 'VT323', align = 'left') {
+    g.font = `${size}px '${font}'`; g.fillStyle = color; g.textAlign = align; g.textBaseline = 'alphabetic'; g.fillText(s, x, y);
+  }
+  function box(x, y, w, h, fill = C.panel, stroke = C.line, top) {
+    g.fillStyle = fill; g.fillRect(x, y, w, h);
+    g.strokeStyle = stroke; g.lineWidth = 1; g.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    if (top) { g.fillStyle = top; g.fillRect(x, y, w, 2); }
+  }
+  function glow(color, blur, fn) { g.save(); g.shadowColor = color; g.shadowBlur = blur; fn(); g.restore(); }
+  function line(pts, color, w = 3) { g.strokeStyle = color; g.lineWidth = w; g.lineCap = 'square'; g.lineJoin = 'miter'; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); }
+  // little icons in the app's own line style, drawn in a 24x24 box at (x, y) scaled by s
+  const ICON = {
+    star: (c) => line([[12, 3], [14.6, 9], [21, 9.5], [16, 13.8], [17.6, 20.5], [12, 17], [6.4, 20.5], [8, 13.8], [3, 9.5], [9.4, 9], [12, 3]], c, 2),
+    key: (c) => { g.strokeStyle = c; g.lineWidth = 2; g.beginPath(); g.arc(7.5, 15.5, 4.5, 0, Math.PI * 2); g.stroke(); line([[10.7, 12.3], [20, 3]], c, 2); line([[16, 7], [19, 10]], c, 2); line([[18, 5], [21, 8]], c, 2); },
+    down: (c) => { line([[12, 3], [12, 14]], c, 2); line([[7, 10], [12, 15], [17, 10]], c, 2); line([[4, 17], [4, 21], [20, 21], [20, 17]], c, 2); },
+    flame: (c) => line([[12, 3], [16, 9], [18, 13], [17, 18], [12, 21], [7, 18], [6, 13], [9, 9], [10, 12], [12, 3]], c, 2),
+    moon: (c) => { g.strokeStyle = c; g.lineWidth = 2; g.beginPath(); g.arc(12, 12, 8, Math.PI * .35, Math.PI * 1.65); g.arc(15, 9, 6.5, Math.PI * 1.45, Math.PI * .55, true); g.stroke(); },
+    lock: (c) => { g.strokeStyle = c; g.lineWidth = 2; g.strokeRect(4, 10, 16, 11); g.beginPath(); g.arc(12, 10, 5, Math.PI, 0); g.stroke(); line([[12, 14], [12, 17]], c, 2); },
+    gear: (c) => { g.strokeStyle = c; g.lineWidth = 2; g.beginPath(); g.arc(12, 12, 3, 0, Math.PI * 2); g.stroke(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; line([[12 + Math.cos(a) * 6, 12 + Math.sin(a) * 6], [12 + Math.cos(a) * 9, 12 + Math.sin(a) * 9]], c, 2.4); } g.beginPath(); g.arc(12, 12, 6, 0, Math.PI * 2); g.stroke(); },
+    mask: (c) => { line([[3, 9], [21, 9], [20, 14], [15, 16], [12, 13], [9, 16], [4, 14], [3, 9]], c, 2); line([[7, 11.5], [10, 11.5]], c, 2); line([[14, 11.5], [17, 11.5]], c, 2); },
+    plus: (c) => { line([[12, 5], [12, 19]], c, 2); line([[5, 12], [19, 12]], c, 2); },
+    x: (c) => { line([[6, 6], [18, 18]], c, 2); line([[18, 6], [6, 18]], c, 2); },
+    sidebar: (c) => { g.strokeStyle = c; g.lineWidth = 2; g.strokeRect(3, 4, 18, 16); line([[9, 4], [9, 20]], c, 2); },
+    search: (c) => { g.strokeStyle = c; g.lineWidth = 2; g.beginPath(); g.arc(10, 10, 6, 0, Math.PI * 2); g.stroke(); line([[14.5, 14.5], [20, 20]], c, 2); },
+  };
+  function icon(name, x, y, s, color) { g.save(); g.translate(x, y); g.scale(s, s); ICON[name](color); g.restore(); }
+
+  // ---------- Packet ----------
+  const S = 10;                              // whole-step scale: 1 sprite pixel = 10 screen pixels
+  const P = { x: 120, y: 420, dir: 1, mood: 'calm', antenna: C.pink, walk: false, wave: false, hop: 0, step: 0, blink: false };
+  function px(x, y, w, h, c) {
+    const sx = P.dir > 0 ? x : 12 - x - w;
+    g.fillStyle = c; g.fillRect(Math.round(P.x + sx * S), Math.round(P.y + (y - P.hop) * S), Math.round(w * S), Math.round(h * S));
+  }
+  function eyes(mood) {
+    if (P.blink && mood === 'calm') { px(4, 4.5, 1, .5, C.cyan); px(7, 4.5, 1, .5, C.cyan); return; }
+    if (mood === 'happy') { for (const [x, y] of [[3.5, 4.5], [4, 4], [4.5, 4], [5, 4.5], [6.5, 4.5], [7, 4], [7.5, 4], [8, 4.5]]) px(x, y, .5, .5, C.cyan); return; }
+    if (mood === 'surprised') { px(3.75, 3.5, 1.5, 1.75, C.cyan); px(4.25, 4, .5, .75, C.visor); px(6.75, 3.5, 1.5, 1.75, C.cyan); px(7.25, 4, .5, .75, C.visor); return; }
+    if (mood === 'loading') { px(3.75, 4.25, .75, .75, C.cyan); px(5.6, 4.25, .75, .75, C.green); px(7.5, 4.25, .75, .75, C.cyan); return; }
+    px(4, 4, 1, 1, C.cyan); px(7, 4, 1, 1, C.cyan);
+  }
+  function drawPacket(t) {
+    glow('rgba(0,229,255,.45)', 18, () => {
+      px(5, 0, 2, 1, P.antenna); px(5.5, 1, 1, 1, C.stem);
+      px(2, 2, 8, 5, C.body); px(2, 2, 8, 1, C.trim);
+      px(3, 3, 6, 3, C.visor);
+      px(1, 4, 1, 2, C.trim); px(10, 4, 1, 2, C.trim);
+      eyes(P.mood);
+      px(3, 7, 6, 4, C.body);
+      px(4, 8, 1, 2, C.cyan); px(5, 8, 1, 2, C.cyan); px(6, 9, 1, 1, Math.floor(t * 1.5) % 2 ? C.green : C.body);
+      px(2, 8, 1, 2, C.trim);
+      if (P.wave) { const up = Math.floor(t * 5) % 2; px(9, 7, 1, 1, C.trim); px(9.5 + (up ? .5 : 0), 5.5, 1, 1.5, C.trim); }
+      else if (P.hop > .5) { px(9, 7, 1, 1, C.trim); px(9.5, 5.5, 1, 1.5, C.trim); px(2, 7, 1, 1, C.trim); px(1.5, 5.5, 1, 1.5, C.trim); }
+      else px(9, 8, 1, 2, C.trim);
+      const [la, lb] = P.walk ? (P.step ? [4, 8] : [3, 7]) : [4, 7];
+      px(la, 11, 1, 2, C.trim); px(lb, 11, 1, 2, C.trim);
+      px(la - 1, 13, 2, 1, C.cyan); px(lb, 13, 2, 1, C.cyan);
+    });
+  }
+  function resetPacket(t) {
+    Object.assign(P, { x: 120, y: 420, dir: 1, mood: 'calm', antenna: Math.floor(t * 1.2) % 2 ? C.pink : C.trim, walk: false, wave: false, hop: 0, step: 0 });
+    P.blink = (t % 3.7) < .12;
+  }
+  const hopAt = (lt, at, len = .6, height = 5) => (lt > at && lt < at + len ? Math.sin(Math.PI * (lt - at) / len) * height : 0);
+
+  // ---------- caption (typed out) ----------
+  function caption(s, lt, title) {
+    const n = Math.floor(clamp(lt / 1.4) * s.length);
+    box(60, 594, W - 120, 92, 'rgba(16,19,27,.96)', C.line, C.cyan);
+    if (title) txt(title, 84, 624, 13, C.pink, 'Silkscreen');
+    let size = 34;                                  // shrink to fit the box
+    g.font = `${size}px 'VT323'`;
+    while (size > 24 && g.measureText(s).width > W - 170) { size -= 1; g.font = `${size}px 'VT323'`; }
+    txt(s.slice(0, n) + (n < s.length && Math.floor(lt * 6) % 2 ? '_' : ''), 84, title ? 664 : 650, size, C.hi);
+  }
+  // a mock NODE_GRID window on the right, for the scene to point at
+  function mockWindow(x, y, w, h, opts = {}) {
+    const light = !!opts.light;
+    const bg = light ? '#f3f5f9' : C.bg, panel = light ? '#ffffff' : C.panel, line2 = light ? '#c9d3e1' : C.line, dim = light ? '#66768c' : C.dim, hi = light ? '#0b1424' : C.hi, cy = light ? '#007f9e' : C.cyan;
+    const side = opts.side || 200;
+    box(x, y, w, h, bg, line2);
+    box(x, y, side, h, panel, line2);
+    g.fillStyle = line2; g.fillRect(x + side, y + 44, w - side, 1);
+    txt('// NODE_GRID', x + 16, y + 30, 13, cy, 'Silkscreen');
+    const tabs = opts.tabs || ['NODE_GRID :: SEARCH', 'github.com', 'web.whatsapp.com'];
+    const big = opts.big ? 1.35 : 1;
+    tabs.forEach((name, i) => {
+      const ty = y + 58 + i * 44 * big, act = i === (opts.active || 0);
+      box(x + 8, ty, side - 16, 36 * big, act ? (light ? '#e8edf4' : C.panel2) : panel, act ? line2 : panel);
+      if (act) { g.fillStyle = C.pink; g.fillRect(x + 8, ty, 3, 36 * big); }
+      g.fillStyle = [cy, C.green, C.pink][i % 3]; g.fillRect(x + 20, ty + 10 * big, 16 * big, 16 * big);
+      txt(name, x + 46 * (big > 1 ? 1.15 : 1), ty + 24 * big, 21 * big, act ? hi : dim);
+    });
+    // address bar
+    txt('nodegrid://', x + side + 20, y + 29, 22, dim);
+    txt(opts.addr || 'home', x + side + 120, y + 29, 22, light ? '#0f8a55' : C.green);
+    return { x, y, w, h, side, bg, panel, line2, dim, hi, cy };
+  }
+
+  // ================= the scenes =================
+  // 0. hello
+  scene(7, "Hi, I'm Packet. Welcome to NODE_GRID: a browser that keeps your data on your grid.", (lt, t) => {
+    const p = ease(lt / 1.6);
+    P.x = lerp(-140, 560, p); P.walk = lt < 1.6; P.step = Math.floor(lt * 7) % 2;
+    P.y = 260;
+    P.hop = hopAt(lt, 1.7, .6, 6) + hopAt(lt, 2.35, .55, 4);
+    if (lt > 1.7) P.mood = 'happy';
+    if (lt > 2.9) P.wave = true;
+    glow('rgba(0,229,255,.6)', 24, () => txt('NODE_GRID', W / 2, 150, 64, C.cyan, 'Silkscreen', 'center'));
+    txt('a quick tour with Packet', W / 2, 196, 30, C.dim, 'VT323', 'center');
+  });
+  // 1. sidebar
+  scene(7, 'Your tabs live in the sidebar. Ctrl+T opens a new one, Ctrl+B shrinks it to icons.', (lt) => {
+    const m = mockWindow(380, 80, 820, 460, { active: Math.floor(lt / 1.6) % 3 });
+    glow(C.pink, 14, () => { g.strokeStyle = C.pink; g.lineWidth = 2; g.strokeRect(m.x + 4, m.y + 52, m.side - 8, 150); });
+    txt('Ctrl+T   new tab', m.x + 240, m.y + 200, 30, C.hi); txt('Ctrl+B   shrink the sidebar', m.x + 240, m.y + 240, 30, C.hi);
+    txt('Ctrl+Tab   next tab', m.x + 240, m.y + 280, 30, C.dim);
+    P.wave = true; P.mood = 'calm';
+  });
+  // 2. search
+  scene(7, 'Type in the address bar (Ctrl+L) to search, or go straight to any site.', (lt) => {
+    const m = mockWindow(380, 80, 820, 460, { addr: '' });
+    const q = 'homelab dashboard'.slice(0, Math.floor(clamp((lt - .6) / 1.6) * 17));
+    box(m.x + m.side + 14, m.y + 8, 520, 30, C.bg, C.cyan);
+    txt('> ' + q + (Math.floor(lt * 4) % 2 ? '_' : ''), m.x + m.side + 26, m.y + 30, 24, C.hi);
+    if (lt > 2.6) { ['Search DuckDuckGo', 'Your Null Drive vault', 'History: proxmox.lan'].forEach((s, i) => { box(m.x + m.side + 14, m.y + 50 + i * 40, 520, 36, i ? C.panel : C.panel2, C.line); icon('search', m.x + m.side + 24, m.y + 56 + i * 40, 1, i ? C.dim : C.cyan); txt(s, m.x + m.side + 60, m.y + 76 + i * 40, 24, i ? C.text : C.hi); }); }
+    P.mood = lt > 2.6 ? 'loading' : 'calm';
+  });
+  // 3. favorites + pins
+  scene(6, 'Ctrl+D saves a favorite. Right-click a tab to pin it to the top.', (lt) => {
+    const m = mockWindow(380, 80, 820, 460);
+    const on = lt > 1.4;
+    glow(on ? C.amber : 'transparent', on ? 16 : 0, () => icon('star', m.x + m.w - 70, m.y + 9, 1.2, on ? C.amber : C.dim));
+    if (on) txt('Added to favorites', m.x + m.w - 260, m.y + 80, 26, C.amber);
+    if (lt > 3) { box(m.x + 150, m.y + 90, 220, 150, C.panel2, C.line); ['Reload', 'Pin tab', 'Masking', 'Close tab'].forEach((s, i) => { if (i === 1) { g.fillStyle = 'rgba(0,229,255,.15)'; g.fillRect(m.x + 151, m.y + 98 + i * 34, 218, 32); } txt(s, m.x + 166, m.y + 122 + i * 34, 24, i === 1 ? C.cyan : C.text); }); }
+    P.hop = hopAt(lt, 1.4, .5, 4); if (lt > 1.4) P.mood = 'happy';
+  });
+  // 4. save logins
+  scene(7, "Sign in once and I'll ask to save it. Next time, your login is filled in for you.", (lt) => {
+    const m = mockWindow(380, 80, 820, 460, { addr: 'github.com/login', active: 1 });
+    const fx = m.x + m.side + 120, fy = m.y + 100;
+    box(fx, fy, 300, 210, C.panel, C.line);
+    txt('Sign in to GitHub', fx + 20, fy + 36, 26, C.hi);
+    const filled = lt > 4.6;
+    box(fx + 20, fy + 56, 260, 34, C.bg, filled ? C.cyan : C.line); txt(filled || lt > .8 ? 'luke' : '', fx + 30, fy + 81, 24, C.hi);
+    box(fx + 20, fy + 100, 260, 34, C.bg, filled ? C.cyan : C.line); txt(filled || lt > 1.2 ? '••••••••' : '', fx + 30, fy + 125, 24, C.hi);
+    box(fx + 20, fy + 150, 120, 36, C.panel2, C.green); txt('Sign in', fx + 42, fy + 175, 24, C.green);
+    if (lt > 1.8 && lt < 4.4) {                                // the save prompt, by the key icon
+      const px0 = m.x + m.w - 330, py0 = m.y + 54;
+      box(px0, py0, 310, 170, C.panel, C.line, C.amber);
+      icon('key', px0 + 12, py0 + 12, 1, C.amber); txt('SAVE LOGIN?', px0 + 44, py0 + 30, 12, C.amber, 'Silkscreen');
+      txt('github.com', px0 + 14, py0 + 66, 26, C.green); txt('luke  ••••••••', px0 + 14, py0 + 94, 24, C.hi);
+      [['SAVE', C.cyan], ['NOT NOW', C.text], ['NEVER', C.text]].forEach(([s, c], i) => { box(px0 + 14 + i * 98, py0 + 116, 90, 34, C.panel2, i ? C.line : C.cyan); txt(s, px0 + 59 + i * 98, py0 + 138, 11, c, 'Silkscreen', 'center'); });
+    }
+    if (filled) txt('filled in for you', fx + 20, fy + 240, 26, C.cyan);
+    if (lt > 4.6) { P.mood = 'happy'; P.hop = hopAt(lt, 4.6, .5, 4); }
+  });
+  // 5. stay signed in
+  scene(6, 'Pick sites to stay signed in on, like WhatsApp. Every other site is wiped when you close.', (lt) => {
+    const m = mockWindow(380, 80, 820, 460, { addr: 'web.whatsapp.com', active: 2 });
+    const cx = m.x + m.side + 300, cy = m.y + 220;
+    glow(C.green, 18, () => icon('lock', cx - 36, cy - 60, 3, C.green));
+    txt('Keep me signed in on web.whatsapp.com', cx, cy + 60, 28, C.hi, 'VT323', 'center');
+    g.strokeStyle = C.green; g.lineWidth = 2; g.strokeRect(cx - 250, cy + 36, 18, 18); if (lt > 1.2) line([[cx - 246, cy + 46], [cx - 241, cy + 51], [cx - 234, cy + 40]], C.green, 3);
+    if (lt > 2.6) { const k = clamp((lt - 2.6) / 1.5); ['tracker.example', 'ads.example', 'random-shop.example'].forEach((s, i) => { g.globalAlpha = 1 - k; txt(s, cx - 150 + i * 30, cy + 110 + i * 26, 22, C.dim); g.globalAlpha = 1; }); txt('everything else: wiped', cx, cy + 190, 24, C.pink, 'VT323', 'center'); }
+  });
+  // 6. burner tabs
+  scene(6, 'Burner tabs (Ctrl+Shift+N) are a private bubble that wipes itself on a timer.', (lt) => {
+    const m = mockWindow(380, 80, 820, 460, { tabs: ['NODE_GRID :: SEARCH', 'burner :: 14:59'], active: 1 });
+    glow('#ff3b3b', 20, () => icon('flame', m.x + m.side + 260, m.y + 120, 5, '#ff3b3b'));
+    const left = Math.max(0, 15 * 60 - Math.floor(lt * 40));
+    txt(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, m.x + m.side + 320, m.y + 330, 60, C.amber, 'VT323', 'center');
+    P.mood = 'surprised';
+  });
+  // 7. masking
+  scene(6, 'Right-click > Masking: a site sees an ordinary Chrome browser, for sites that are picky.', (lt) => {
+    const m = mockWindow(380, 80, 820, 460);
+    const on = lt > 1.6;
+    glow(on ? C.cyan : 'transparent', 16, () => icon('mask', m.x + m.side + 260, m.y + 110, 5, on ? C.cyan : C.dim));
+    txt(on ? 'Site sees: Google Chrome' : 'Site sees: NODE_GRID', m.x + m.side + 320, m.y + 330, 34, on ? C.cyan : C.dim, 'VT323', 'center');
+  });
+  // 8. downloads
+  scene(6, 'Downloads show up in the toolbar. Click the arrow, then a file to open it.', (lt) => {
+    const m = mockWindow(380, 80, 820, 460);
+    const prog = clamp(lt / 2.2), done = prog >= 1;
+    const bx = m.x + m.w - 120, by = m.y + 8;
+    glow(done ? C.green : C.cyan, 12, () => icon('down', bx, by, 1.2, done ? C.green : C.cyan));
+    g.fillStyle = C.line; g.fillRect(bx, by + 32, 30, 3); g.fillStyle = C.cyan; g.fillRect(bx, by + 32, 30 * prog, 3);
+    if (lt > 2.6) {
+      const px0 = m.x + m.w - 400, py0 = m.y + 54;
+      box(px0, py0, 380, 190, C.panel, C.line, C.cyan); txt('DOWNLOADS', px0 + 14, py0 + 30, 12, C.cyan, 'Silkscreen');
+      [['homelab-backup.iso', '3.0 MB · click to open'], ['notes.txt', '20 B · click to open']].forEach(([n, i2], i) => { if (i === 0 && lt > 4) { g.fillStyle = C.panel2; g.fillRect(px0 + 6, py0 + 48, 368, 56); } txt(n, px0 + 50, py0 + 76 + i * 60, 26, C.hi); txt(i2, px0 + 50, py0 + 98 + i * 60, 20, C.dim); });
+    }
+    if (done) { P.mood = 'happy'; P.hop = hopAt(lt, 2.2, .5, 4); }
+  });
+  // 9. theme + size
+  scene(7, 'Settings > Appearance: Dark, Light or match your computer, and bigger sidebar icons.', (lt) => {
+    const light = lt > 1.8 && lt < 4.6, big = lt > 4.6;
+    mockWindow(380, 80, 820, 460, { light, big, side: big ? 250 : 200 });
+    const lab = big ? 'Sidebar size: Extra large' : light ? 'Theme: Light' : 'Theme: Dark';
+    box(800, 420, 370, 50, light ? '#ffffff' : C.panel2, light ? '#c9d3e1' : C.line);
+    icon(light ? 'moon' : 'gear', 812, 432, 1.1, light ? '#007f9e' : C.cyan);
+    txt(lab, 850, 454, 28, light ? '#0b1424' : C.hi);
+  });
+  // 10. updates
+  scene(6, "When there's an update, I'll tell you. One click and it installs itself.", (lt) => {
+    const bx = 400, by = 230;
+    box(bx, by, 520, 170, 'rgba(10,10,15,.96)', C.cyan);
+    txt('// UPDATE AVAILABLE', bx + 20, by + 34, 13, C.pink, 'Silkscreen');
+    txt('NODE_GRID 5.1.6 is out.', bx + 20, by + 76, 30, C.cyan);
+    const pressed = lt > 2.2;
+    box(bx + 20, by + 104, 130, 40, pressed ? 'rgba(0,229,255,.18)' : C.panel2, C.cyan); txt(pressed ? 'RESTART NOW' : 'UPDATE', bx + 85, by + 129, 11, C.cyan, 'Silkscreen', 'center');
+    if (lt > 1.2 && lt < 2.2) { g.fillStyle = C.line; g.fillRect(bx + 170, by + 120, 300, 6); g.fillStyle = C.cyan; g.fillRect(bx + 170, by + 120, 300 * clamp((lt - 1.2) / 1), 6); }
+    P.wave = lt < 1.2; P.mood = lt > 1.2 && lt < 2.2 ? 'loading' : lt > 2.2 ? 'happy' : 'calm';
+  });
+  // 11. bye
+  scene(7, "That's the tour. You can watch it again in Settings > About. Not on my grid!", (lt) => {
+    P.x = 560; P.y = 250; P.mood = 'happy'; P.wave = lt > .4;
+    P.hop = hopAt(lt, 2.2, .6, 6) + hopAt(lt, 2.85, .55, 4);
+    glow('rgba(0,229,255,.6)', 24, () => txt('NOT ON MY GRID.', W / 2, 150, 48, C.cyan, 'Silkscreen', 'center'));
+    txt('github.com/Null0Grid/node-grid', W / 2, 196, 28, C.dim, 'VT323', 'center');
+  });
+  const TOTAL = T0;
+
+  // ---------- one frame ----------
+  function backdrop(t) {
+    g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(0,229,255,.05)'; g.lineWidth = 1;          // the grid
+    const off = (t * 12) % 40;
+    for (let x = -40 + off; x < W; x += 40) { g.beginPath(); g.moveTo(x + .5, 0); g.lineTo(x + .5, H); g.stroke(); }
+    for (let y = 0; y < H; y += 40) { g.beginPath(); g.moveTo(0, y + .5); g.lineTo(W, y + .5); g.stroke(); }
+  }
+  function scanlines() { g.fillStyle = 'rgba(255,255,255,.025)'; for (let y = 0; y < H; y += 3) g.fillRect(0, y, W, 1); }
+  window.TOUR_SECONDS = TOTAL;
+  window.drawFrame = (t) => {
+    const sc = SCENES.find((s) => t >= s.start && t < s.start + s.dur) || SCENES[SCENES.length - 1];
+    const lt = t - sc.start;
+    backdrop(t);
+    resetPacket(t);
+    sc.fn(lt, t);
+    drawPacket(t);
+    caption(sc.caption, lt, `${SCENES.indexOf(sc) + 1} / ${SCENES.length}`);
+    const fade = Math.min(clamp(lt / .25), clamp((sc.dur - lt) / .25));   // a quick fade between scenes
+    if (fade < 1) { g.fillStyle = `rgba(10,10,15,${1 - fade})`; g.fillRect(0, 0, W, H); }
+    scanlines();
+    // progress bar along the bottom
+    g.fillStyle = C.line; g.fillRect(0, H - 4, W, 4); g.fillStyle = C.cyan; g.fillRect(0, H - 4, W * t / TOTAL, 4);
+  };
+  document.fonts.ready.then(() => { window.TOUR_READY = true; window.drawFrame(0); });
+})();
+</script>
+</body>
+</html>

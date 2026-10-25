@@ -1,7 +1,7 @@
 {
   "name": "nullgrid-browser",
   "productName": "NODE_GRID",
-  "version": "5.1.4",
+  "version": "5.1.5",
   "description": "NODE_GRID browser: vertical tab sidebar, favorites, hostname-only history, ad blocking, login vault.",
   "main": "main.js",
   "scripts": {
@@ -9,7 +9,7 @@
     "test": "node tests/drive.test.js",
     "test:ui": "node tests/ui-drive.test.js",
     "test:ui:pipdock": "node tests/ui-pipdock.test.js",
-    "dist": "electron-packager . NODE_GRID --platform=win32 --arch=x64 --icon=icon.ico --out=dist --overwrite --asar --ignore=\"^/dist\" --ignore=\"^/build\" --ignore=\"^/store-dist\" --ignore=\"INSTALL\\.bat\" --ignore=\"README\\.txt\"",
+    "dist": "electron-packager . NODE_GRID --platform=win32 --arch=x64 --icon=icon.ico --out=dist --overwrite --asar --ignore=\"^/dist\" --ignore=\"^/build\" --ignore=\"^/store-dist\" --ignore=\"^/walkthrough/src\" --ignore=\"INSTALL\\.bat\" --ignore=\"README\\.txt\"",
     "store": "electron-builder --win appx --x64 --publish never",
     "dist:linux": "electron-builder --linux deb rpm AppImage tar.gz --x64 --arm64 --publish never",
     "dist:linux:flatpak": "electron-builder --linux flatpak --x64 --publish never",
@@ -26,7 +26,9 @@
     "test:ui:core": "node tests/ui-core.test.js",
     "test:ui:fixes": "node tests/ui-fixes.test.js",
     "test:selfupdate": "node tests/selfupdate.test.js",
-    "test:ui:downloads": "node tests/ui-downloads.test.js"
+    "test:ui:downloads": "node tests/ui-downloads.test.js",
+    "test:ui:515": "node tests/ui-515.test.js",
+    "test:ui:whatsnew": "node tests/ui-whatsnew.test.js"
   },
   "devDependencies": {
     "@electron/asar": "^3.4.1",
@@ -56,7 +58,8 @@
       "!README*.txt",
       "!store-identity.txt",
       "!privacy-policy.html",
-      "!store-apply.js"
+      "!store-apply.js",
+      "!walkthrough/src/**"
     ],
     "asar": true,
     "win": {

@@ -4,8 +4,7 @@
 :root {
   --bg: #0a0a0f; --panel: #10131b; --line: #1f2a3a;
   --cyan: #00e5ff; --pink: #ff2e88; --amber: #ffb000; --green: #39ff88;
-  --text: #b8c7d9; --dim: #5a6b80;
-}
+  --text: #b8c7d9; --dim: #5a6b80; --hi: #e6f6ff; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; background: transparent; overflow: hidden; }
 body { font-family: 'VT323', Consolas, monospace; font-size: 18px; color: var(--text); user-select: none; }
@@ -74,3 +73,6 @@ svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width:
 
 /* the previewed site is drawn here by the app, in its own scripts-off view */
 #frame { flex: 1; background: #fff; }
+
+/* ---------- light theme (Settings > APPEARANCE > Theme) ---------- */
+:root[data-theme="light"] { --bg: #f3f5f9; --panel: #ffffff; --panel-2: #e8edf4; --line: #c9d3e1; --cyan: #007f9e; --pink: #c8186a; --green: #0f8a55; --amber: #a86b00; --text: #2b3647; --dim: #66768c; --hi: #0b1424; color-scheme: light; }

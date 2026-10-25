@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'; media-src 'self'">
+  <title>Walkthrough</title>
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body class="tour">
+  <div class="panel">
+    <header>
+      <span class="title">WELCOME TO NODE_GRID</span>
+      <span class="hint">a quick tour with Packet</span>
+      <button class="x" id="close" title="Skip (Esc)"><svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    </header>
+    <video id="v" src="walkthrough/packet-tour.webm" autoplay controls playsinline></video>
+    <footer>
+      <span class="hint">Watch it again any time: Settings > About</span>
+      <button class="btn" id="skip">SKIP</button>
+      <button class="btn primary" id="done" hidden>LET'S GO</button>
+    </footer>
+  </div>
+  <script src="tour.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 @font-face { font-family: 'VT323'; src: url('fonts/vt323.woff2') format('woff2'); }
 @font-face { font-family: 'Silkscreen'; src: url('fonts/silkscreen.woff2') format('woff2'); }
-:root { --bg: #0a0a0f; --panel: #10131b; --panel-2: #161b26; --line: #1f2a3a; --cyan: #00e5ff; --pink: #ff2e88; --green: #39ff88; --amber: #ffb000; --text: #b8c7d9; --dim: #5a6b80; }
+:root { --bg: #0a0a0f; --panel: #10131b; --panel-2: #161b26; --line: #1f2a3a; --cyan: #00e5ff; --pink: #ff2e88; --green: #39ff88; --amber: #ffb000; --text: #b8c7d9; --dim: #5a6b80; --hi: #e6f6ff; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--text); font-family: 'VT323', Consolas, monospace; font-size: 18px; display: flex; flex-direction: column; overflow: hidden; }
@@ -11,16 +11,16 @@ header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border
 .brand { font-family: 'Silkscreen', monospace; font-size: 10px; letter-spacing: 2px; color: var(--green); }
 #model { flex: 1; min-width: 0; height: 26px; background: var(--bg); color: var(--text); border: 1px solid var(--line); font: inherit; font-size: 16px; }
 .hb, .btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); font-family: 'Silkscreen', monospace; font-size: 9px; letter-spacing: 1px; padding: 6px 9px; cursor: pointer; }
-.hb:hover, .btn:hover { border-color: var(--cyan); color: #e6f6ff; }
+.hb:hover, .btn:hover { border-color: var(--cyan); color: var(--hi); }
 .btn.primary { border-color: var(--green); color: var(--green); background: rgba(57, 255, 136, .07); }
 .btn.danger { border-color: var(--pink); color: var(--pink); }
 .btn:disabled { opacity: .4; cursor: default; }
 #setup { padding: 12px; border-bottom: 1px solid var(--line); background: var(--panel); overflow-y: auto; max-height: 60%; }
-.lead { color: #e6f6ff; margin-bottom: 10px; line-height: 1.15; }
+.lead { color: var(--hi); margin-bottom: 10px; line-height: 1.15; }
 #srvform { display: flex; flex-direction: column; gap: 8px; }
 #srvform label { display: flex; flex-direction: column; gap: 3px; font-family: 'Silkscreen', monospace; font-size: 8px; letter-spacing: 1px; color: var(--dim); }
 .opt { font-family: 'VT323', monospace; font-size: 14px; letter-spacing: 0; }
-#srvform input { height: 28px; padding: 0 8px; background: var(--bg); color: #e6f6ff; border: 1px solid var(--line); font-family: 'VT323', monospace; font-size: 17px; outline: none; }
+#srvform input { height: 28px; padding: 0 8px; background: var(--bg); color: var(--hi); border: 1px solid var(--line); font-family: 'VT323', monospace; font-size: 17px; outline: none; }
 #srvform input:focus { border-color: var(--green); }
 .row { display: flex; gap: 6px; justify-content: flex-end; }
 .help { margin-top: 12px; color: var(--dim); font-size: 15px; line-height: 1.15; }
@@ -44,7 +44,10 @@ code { color: var(--amber); }
 .attach span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .attach button { background: none; border: none; color: var(--amber); cursor: pointer; font: inherit; }
 #ask { padding: 8px 10px 10px; border-top: 1px solid var(--line); }
-#msg { width: 100%; resize: none; padding: 7px 8px; background: var(--panel); color: #e6f6ff; border: 1px solid var(--line); font: inherit; outline: none; }
+#msg { width: 100%; resize: none; padding: 7px 8px; background: var(--panel); color: var(--hi); border: 1px solid var(--line); font: inherit; outline: none; }
 #msg:focus { border-color: var(--green); }
 .askrow { display: flex; gap: 5px; margin-top: 6px; align-items: center; }
 .grow { flex: 1; }
+
+/* ---------- light theme (Settings > APPEARANCE > Theme) ---------- */
+:root[data-theme="light"] { --bg: #f3f5f9; --panel: #ffffff; --panel-2: #e8edf4; --line: #c9d3e1; --cyan: #007f9e; --pink: #c8186a; --green: #0f8a55; --amber: #a86b00; --text: #2b3647; --dim: #66768c; --hi: #0b1424; color-scheme: light; }

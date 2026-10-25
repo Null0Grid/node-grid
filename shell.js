@@ -430,6 +430,10 @@ function renderHistory(list) {
   $('histclear').hidden = list.length === 0;
 }
 
+window.shell.onState((s) => {                      // Settings > APPEARANCE > Sidebar size
+  body.classList.toggle('size-large', s.uiSize === 'large');
+  body.classList.toggle('size-xl', s.uiSize === 'xl');
+});
 window.shell.onState((s) => {
   lastFavHosts = new Set((s.favs || []).map((f) => { try { return new URL(f.url).hostname; } catch { return ''; } }));
   renderHistory(s.history || []);

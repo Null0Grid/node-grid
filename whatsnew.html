@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'">
+  <title>What's new</title>
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body class="whatsnew">
+  <div class="panel">
+    <header>
+      <span class="title">WHAT'S NEW</span>
+      <span class="ver" id="ver"></span>
+      <button class="x" id="close" title="Close (Esc)"><svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    </header>
+    <div class="scroll" id="notes"></div>
+    <footer>
+      <button class="btn" id="tour" title="Watch Packet's walkthrough">WATCH THE WALKTHROUGH</button>
+      <button class="btn primary" id="ok">GOT IT</button>
+    </footer>
+  </div>
+  <script src="whatsnew.js"></script>
+</body>
+</html>

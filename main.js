@@ -11,8 +11,29 @@ const { pathToFileURL } = require('url');
 const ERROR_PAGE = pathToFileURL(path.join(__dirname, 'error.html')).href;
 const isErrorPage = (u) => typeof u === 'string' && u.startsWith(ERROR_PAGE);
 
-// Dark native menus (right-click menus) to match the shell.
+// Theme (Settings > APPEARANCE > Theme): Dark, Light, or Match my computer.
+// NODE_GRID's own pages (shell, Settings, pop-overs, start page, error page) get
+// data-theme="light" or "dark" on <html> as they load and again whenever it
+// changes; their CSS has the light palette. Native menus and websites' light/dark
+// preference follow through nativeTheme. Dark until settings are loaded.
 nativeTheme.themeSource = 'dark';
+const THEMES = ['dark', 'light', 'system'];
+const themeChoice = () => (THEMES.includes(settings.theme) ? settings.theme : 'dark');
+const uiTheme = () => (themeChoice() === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : themeChoice());
+const APP_PAGES = pathToFileURL(__dirname).href + '/';
+const isAppPage = (u) => typeof u === 'string' && u.startsWith(APP_PAGES);
+const themePage = (wc) => { if (!wc.isDestroyed() && isAppPage(wc.getURL())) wc.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(uiTheme())}`).catch(() => {}); };
+app.on('web-contents-created', (_e, wc) => wc.on('dom-ready', () => themePage(wc)));
+function applyTheme() {
+  nativeTheme.themeSource = themeChoice();
+  for (const wc of require('electron').webContents.getAllWebContents()) themePage(wc);
+  if (win && !win.isDestroyed() && process.platform !== 'darwin') {
+    const dark = uiTheme() === 'dark';
+    try { win.setTitleBarOverlay({ color: dark ? '#0a0a0f' : '#f3f5f9', symbolColor: dark ? '#00e5ff' : '#007f9e', height: 40 }); } catch {}
+    win.setBackgroundColor(dark ? '#0a0a0f' : '#f3f5f9');
+  }
+}
+nativeTheme.on('updated', () => { if (win && !win.isDestroyed() && themeChoice() === 'system') applyTheme(); });   // the computer switched modes
 
 // The start page ships inside the app (home/index.html), so Home opens instantly and
 // offline. Searches still go to the NODE_GRID server for results.
@@ -75,6 +96,11 @@ app.on('second-instance', (_e, argv, cwd) => {
 // No "persist:" prefix = in-memory session. History, cookies, cache and storage
 // live in RAM only and vanish when the app closes. Nothing is written to disk.
 const PARTITION = 'nullgrid-ephemeral';
+// Once you "keep me signed in" on a site, normal tabs use this session instead:
+// saved to disk, but wiped of every site you didn't keep at each start and quit.
+const KEEP_PARTITION = 'persist:nullgrid-kept';
+let useKeepSession = false;
+const webPartition = () => (useKeepSession ? KEEP_PARTITION : PARTITION);
 
 let win = null;
 let tabs = [];          // { id, view, title, favicon, loading, url }
@@ -92,17 +118,18 @@ let pipControlsView = null;  // the tiny restore/close bar drawn over the docked
 // ---------- window ----------
 
 function createWindow() {
+  const darkUi = uiTheme() === 'dark';
   win = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 640,
     minHeight: 400,
-    backgroundColor: '#0a0a0f',
+    backgroundColor: darkUi ? '#0a0a0f' : '#f3f5f9',
     icon: path.join(__dirname, 'icon.png'),
     titleBarStyle: 'hidden',              // our toolbar is the title bar
     titleBarOverlay: process.platform === 'darwin' ? undefined : {
-      color: '#0a0a0f',
-      symbolColor: '#00e5ff',
+      color: darkUi ? '#0a0a0f' : '#f3f5f9',
+      symbolColor: darkUi ? '#00e5ff' : '#007f9e',
       height: 40                          // keep in sync with --bar-h in shell.css
     },
     webPreferences: {
@@ -116,7 +143,8 @@ function createWindow() {
   win.webContents.on('before-input-event', handleKeys);
   win.webContents.on('focus', () => dlpopFocusElsewhere());
   win.webContents.once('did-finish-load', () => {
-    if (featureOn('pinned')) for (const u of (settings.pinned || []).filter((x) => /^https?:\/\//i.test(x)).slice(0, 20)) newTab(u, { pinned: true });
+    const maskedPins = new Set(settings.pinnedMasked || []);
+    if (featureOn('pinned')) for (const u of (settings.pinned || []).filter((x) => /^https?:\/\//i.test(x)).slice(0, 20)) newTab(u, { pinned: true, masked: maskedPins.has(u) });   // Masking comes back the way you left it
     const links = pendingLinks; pendingLinks = [];
     const restore = Array.isArray(settings.restoreTabs) ? settings.restoreTabs.filter((u) => /^https?:\/\//i.test(u)).slice(0, 30) : [];
     if (settings.restoreTabs) { delete settings.restoreTabs; saveSettings(); }
@@ -182,7 +210,7 @@ function newTab(url = HOME, opts = {}) {
       contextIsolation: true,
       sandbox: true
     } : {
-      partition: PARTITION,
+      partition: webPartition(),
       contextIsolation: true,
       sandbox: true,
       // Only tells the shell "the mouse is over the page" so a peeked sidebar can
@@ -285,7 +313,7 @@ function newTab(url = HOME, opts = {}) {
   wc.on('did-navigate-in-page', (_e, u) => { tab.url = u; pushState(); });
   wc.on('did-start-navigation', (_e, _u, inPage, isMainFrame) => { if (isMainFrame && !inPage) { tab.darkKeys = []; tab.darkGen = (tab.darkGen || 0) + 1; } });   // new page = no CSS yet
   wc.on('dom-ready', () => applyDark(tab));
-  wc.on('did-finish-load', () => { if (!tab.sleeping) checkReaderable(tab); });
+  wc.on('did-finish-load', () => { if (!tab.sleeping) { checkReaderable(tab); autofill(tab); introOnHome(tab); } });
   // music player: remember which tab is playing sound
   wc.on('media-started-playing', () => {
     wc.executeJavaScript('!!document.querySelector("video")').then((v) => { if (v !== tab.hasVideo) { tab.hasVideo = v; pushState(); } }).catch(() => {});
@@ -298,7 +326,11 @@ function newTab(url = HOME, opts = {}) {
   else wc.on('will-navigate', (e, u) => { if (!isSimUrl(u)) { e.preventDefault(); newTab(u); } });   // the web never loads in the sim's storage
   wc.on('context-menu', (_e, params) => pageMenu(tab, params));
 
-  wc.loadURL(url);
+  if (opts.masked && !peek && !sim && !settingsTab) {        // masked before the first request (the identity header is set at once;
+    tab.masked = true;                                       // the brand override can wait for the page, so don't wait for it forever)
+    Promise.race([applyMask(tab).catch(() => {}), new Promise((r) => setTimeout(r, 400))]).finally(() => { if (!wc.isDestroyed()) wc.loadURL(url); });
+  }
+  else wc.loadURL(url);
   activate(tab.id);
   return tab;
 }
@@ -1142,7 +1174,7 @@ ipcMain.handle('egg:ping', async () => {
 // ---------- small overlay windows (permission prompt, password vault) ----------
 // Page views sit above the app's frame, so anything that floats over a page is its
 // own tiny transparent view, kept on top of the tabs.
-const overlays = { perm: null, vault: null, recon: null, qr: null, dlpop: null };
+const overlays = { perm: null, vault: null, recon: null, qr: null, dlpop: null, loginsave: null, whatsnew: null, tour: null };
 
 function makeOverlay(file, preload) {
   const v = new WebContentsView({
@@ -1165,7 +1197,7 @@ function dropOverlay(name) {
 }
 function raiseOverlays() {
   if (!win || win.isDestroyed()) return;
-  for (const v of [overlays.recon, overlays.qr, overlays.vault, overlays.dlpop, overlays.perm]) if (v) win.contentView.addChildView(v);
+  for (const v of [overlays.recon, overlays.qr, overlays.vault, overlays.dlpop, overlays.loginsave, overlays.whatsnew, overlays.tour, overlays.perm]) if (v) win.contentView.addChildView(v);
   placePixel();
 }
 const isOverlay = (wc, name) => !!overlays[name] && overlays[name].webContents === wc;
@@ -2126,7 +2158,11 @@ function settingsModel() {
     certs: Object.entries(settings.trustedCerts || {}).map(([host, c]) => ({ host, issuer: c.issuer, added: c.added })),
     burnerMinutes: burnerMinutes(), burnerChoices: BURN_CHOICES,
     pin: { set: pinSet() }, logins: vault.length,
+    hasTour: hasTour(),
+    loginOffer: loginOffer(), loginAutofill: loginAutofill(), loginNever: loginNever(), keepSignedIn: keptHosts(),
     dark: { on: !!settings.darkPages, except: settings.darkExcept || [] },
+    uiSize: ['large', 'xl'].includes(settings.uiSize) ? settings.uiSize : 'normal',
+    theme: themeChoice(),
     translate: { lang: settings.translateLang || '', system: langName(systemLang()), langs: LANGS },
     ai: { provider: aiProvider(), custom: settings.aiCustom || '', local: settings.localAi || '' },
     sleep: { after: sleepAfter(), choices: SLEEP_CHOICES },
@@ -2155,6 +2191,12 @@ ipcMain.handle('settings:do', async (e, action, a, b) => {
     case 'cert-remove': if (settings.trustedCerts) delete settings.trustedCerts[a]; saveSettings(); return ok();
     case 'burner': if (!BURN_CHOICES.includes(Number(a))) return { ok: false }; settings.burnerMinutes = Number(a); saveSettings(); return ok();
     case 'dark': settings.darkPages = !!a; saveSettings(); applyDarkAll(); return ok();
+    case 'theme': if (!THEMES.includes(a)) return { ok: false }; if (a === 'dark') delete settings.theme; else settings.theme = a; saveSettings(); applyTheme(); return ok();
+    case 'login-offer': settings.loginOffer = !!a; saveSettings(); return ok();
+    case 'login-autofill': settings.loginAutofill = !!a; saveSettings(); return ok();
+    case 'login-never-remove': settings.loginNever = loginNever().filter((h) => h !== a); saveSettings(); return ok();
+    case 'keep-remove': unkeepSite(String(a || '')); return ok();
+    case 'ui-size': if (!['normal', 'large', 'xl'].includes(a)) return { ok: false }; if (a === 'normal') delete settings.uiSize; else settings.uiSize = a; saveSettings(); return ok();
     case 'dark-unexcept': settings.darkExcept = (settings.darkExcept || []).filter((h) => h !== a); saveSettings(); applyDarkAll(); return ok();
     case 'translate': if (a && !LANGS.some(([k]) => k === a)) return { ok: false }; if (a) settings.translateLang = a; else delete settings.translateLang; saveSettings(); return ok();
     case 'ai-provider': if (!(a in AI_PROVIDERS || a === 'local' || (a === 'custom' && settings.aiCustom))) return { ok: false }; settings.aiProvider = a; saveSettings(); if (aiView) aiView.webContents.loadURL(aiUrl(a)).catch(() => {}); return ok();
@@ -2179,6 +2221,8 @@ ipcMain.handle('settings:do', async (e, action, a, b) => {
     case 'default-browser': { const r = await makeDefaultBrowser(); settingsBrowser = await defaultBrowserInfo(); return r.ok ? ok({ opened: !!r.opened }) : { ok: false, reason: r.reason, model: settingsModel() }; }
     case 'update-get': getUpdate(); return ok();
     case 'update-restart': { const r = await restartToUpdate(); return r && r.ok ? ok() : { ok: false, reason: 'update' }; }
+    case 'whats-new': showWhatsNew(true); return ok();
+    case 'tour': openTour(); return ok();
     case 'update-notes': if (update.url) newTab(update.url); return ok();
     default: return { ok: false };
   }
@@ -2220,7 +2264,9 @@ ipcMain.on('drive:show-download', (e, name) => {
 // Small icon tabs at the top of the sidebar. They never sleep and come back when the app
 // starts (their addresses are a setting you chose; nothing else is stored).
 function savePins() {
-  settings.pinned = tabs.filter((t) => t.pinned).map((t) => untranslate(t.url) || t.url).filter((u) => /^https?:\/\//i.test(u));
+  const pins = tabs.filter((t) => t.pinned).map((t) => ({ u: untranslate(t.url) || t.url, m: !!t.masked })).filter((p) => /^https?:\/\//i.test(p.u));
+  settings.pinned = pins.map((p) => p.u);
+  settings.pinnedMasked = pins.filter((p) => p.m).map((p) => p.u);
   saveSettings();
 }
 function setPinned(t, on) {
@@ -2594,6 +2640,7 @@ async function applyMask(t) {
 async function setMasked(t, on) {
   if (!t || t.peek || t.sim || t.settingsTab) return;
   t.masked = !!on;
+  if (t.pinned) savePins();                                  // a pinned tab remembers it
   await applyMask(t);
   const wc = t.view.webContents;
   if (!wc.isDestroyed() && /^https?:/i.test(wc.getURL())) wc.reload();   // sites check who you are on load
@@ -3002,6 +3049,216 @@ ipcMain.handle('vault:grab', async (e) => {
   } catch { return null; }
 });
 
+// ---------- 7b. saving logins as you sign in, filling them in, staying signed in ----------
+// tab-preload.js reports a sign-in (username + password just submitted). If it's
+// new for this site, a small prompt by the key icon asks: SAVE / NOT NOW / NEVER
+// FOR THIS SITE, with "Keep me signed in here". Saved logins are filled in
+// automatically when the site's sign-in form shows up (one saved login for the
+// site, logins unlocked). Never in burner tabs or Peek.
+const loginOffer = () => settings.loginOffer !== false;
+const loginAutofill = () => settings.loginAutofill !== false;
+const loginNever = () => (Array.isArray(settings.loginNever) ? settings.loginNever : []);
+const lastUser = new Map();            // webContents id -> { host, user, at } (a username-only step)
+let pendingLogin = null;               // { tabId, host, fullHost, user, pass, updateId }
+const tabOfWc = (wc) => tabs.find((t) => t.view.webContents === wc);
+const normalTab = (t) => t && !t.burner && !t.peek && !t.sim && !t.settingsTab;
+const fullHostOf = (u) => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.hostname.toLowerCase() : ''; } catch { return ''; } };
+ipcMain.on('login:user', (e, user) => {
+  const t = tabOfWc(e.sender);
+  if (!normalTab(t) || typeof user !== 'string' || !user) return;
+  lastUser.set(e.sender.id, { host: siteHost(t.url), user: user.slice(0, 200), at: Date.now() });
+});
+ipcMain.on('login:submitted', (e, d) => {
+  const t = tabOfWc(e.sender);
+  if (!normalTab(t) || !loginOffer() || !canEncrypt() || !d || typeof d.pass !== 'string' || !d.pass) return;
+  const host = siteHost(e.sender.getURL()), fullHost = fullHostOf(e.sender.getURL());
+  if (!host || loginNever().includes(host)) return;
+  let user = typeof d.user === 'string' ? d.user.slice(0, 200) : '';
+  const lu = lastUser.get(e.sender.id);
+  if (!user && lu && lu.host === host && Date.now() - lu.at < 10 * 60 * 1000) user = lu.user;
+  const same = vault.filter((v) => v.host === host && v.user === user);
+  let updateId = null;
+  for (const v of same) {
+    let p = null; try { p = dec(v.pass); } catch {}
+    if (p === d.pass) return;                                   // already saved
+    updateId = v.id;                                            // same login, new password: offer to update it
+  }
+  pendingLogin = { tabId: t.id, host, fullHost, user, pass: d.pass, updateId };
+  showLoginPrompt();
+});
+function loginPromptInfo() {
+  if (!pendingLogin) return null;
+  return { host: pendingLogin.host, user: pendingLogin.user, update: !!pendingLogin.updateId,
+    kept: keptHosts().includes(pendingLogin.fullHost), keepHost: pendingLogin.fullHost };
+}
+function loginPromptBounds() {
+  const w = 340, h = 214;
+  return { x: Math.round(viewport.x + viewport.width - w - 8), y: Math.round(viewport.y + 6), width: w, height: h };
+}
+function showLoginPrompt() {
+  if (!win || win.isDestroyed()) return;
+  if (overlays.loginsave) { overlays.loginsave.webContents.send('loginsave-info', loginPromptInfo()); return; }
+  overlays.loginsave = makeOverlay('loginsave.html', 'loginsave-preload.js');
+  overlays.loginsave.setBounds(loginPromptBounds());
+  raiseOverlays();
+}
+const fromLoginPrompt = (e) => isOverlay(e.sender, 'loginsave');
+ipcMain.handle('loginsave:info', (e) => (fromLoginPrompt(e) ? loginPromptInfo() : null));
+ipcMain.handle('loginsave:choose', async (e, choice, keep) => {
+  if (!fromLoginPrompt(e) || !pendingLogin) return { ok: false };
+  const p = pendingLogin; pendingLogin = null;
+  dropOverlay('loginsave');
+  if (choice === 'never') { settings.loginNever = [...new Set([...loginNever(), p.host])]; saveSettings(); toast(`NODE_GRID won't offer to save logins for ${p.host}`); return { ok: true }; }
+  if (choice !== 'save') return { ok: true };
+  if (!canEncrypt()) { toast("This computer's encryption isn't available, so the login wasn't saved"); return { ok: false }; }
+  const v = p.updateId && vault.find((x) => x.id === p.updateId);
+  if (v) v.pass = enc(p.pass); else vault.push({ id: nextVaultId++, host: p.host, user: p.user, pass: enc(p.pass) });
+  saveVault(); sendVault();
+  if (keep && p.fullHost) await keepSite(p.fullHost, getTab(p.tabId));
+  toast(v ? `Password updated for ${p.host}` : `Login saved for ${p.host}${keep ? '. You stay signed in there' : ''}`);
+  return { ok: true };
+});
+
+// Auto-fill: the site's only saved login goes into an empty sign-in form (never
+// overwriting what you typed), a few times while the page settles.
+const AUTOFILL_JS = (user, pass) => `(() => {
+  const vis = (el) => !!el && !el.disabled && !el.readOnly && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+  const setv = (el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+  const isText = (el) => /^(text|email|tel|)$/i.test(el.getAttribute('type') || '');
+  const pw = [...document.querySelectorAll('input[type=password]')].find(vis);
+  let u = null;
+  if (pw) { for (const el of (pw.form || document).querySelectorAll('input')) if (vis(el) && isText(el) && (el.compareDocumentPosition(pw) & 4)) u = el; }
+  if (!u) u = [...document.querySelectorAll('input[autocomplete~=username], input[autocomplete~=email], input[type=email], input[name*=user i], input[name*=login i], input[name*=email i], input[id*=user i], input[id*=login i], input[id*=email i]')].find((el) => vis(el) && isText(el));
+  const out = { user: false, pass: false };
+  if (u && !u.value && ${JSON.stringify(user)}) { setv(u, ${JSON.stringify(user)}); out.user = true; }
+  if (pw && !pw.value) { setv(pw, ${JSON.stringify(pass)}); out.pass = true; }
+  return out;
+})()`;
+function autofill(t) {
+  if (!normalTab(t) || !loginAutofill() || vaultLocked()) return;
+  const host = siteHost(t.url);
+  if (!host) return;
+  const matches = vault.filter((v) => v.host === host);
+  if (matches.length !== 1) return;                     // none, or several: pick one from the key icon
+  const v = matches[0];
+  const gen = t.fillGen = (t.fillGen || 0) + 1;
+  const tryFill = async () => {
+    const wc = t.view.webContents;
+    if (gen !== t.fillGen || wc.isDestroyed() || siteHost(wc.getURL()) !== host) return true;
+    let pass; try { pass = dec(v.pass); } catch { return true; }
+    try { const r = await wc.executeJavaScriptInIsolatedWorld(1013, [{ code: AUTOFILL_JS(v.user, pass) }]); return !!(r && r.pass); }
+    catch { return false; }
+  };
+  (async () => { for (const ms of [0, 1200, 3500]) { await new Promise((r) => setTimeout(r, ms)); if (await tryFill()) return; } })();
+}
+
+// Keep me signed in: sites on this list keep their cookies and site data between
+// restarts. Normal tabs use the in-memory session until you keep a site; from
+// then on they use a session saved to disk (KEEP_PARTITION) that is wiped of every
+// site you didn't keep each time NODE_GRID starts and quits.
+const keptHosts = () => (Array.isArray(settings.keepSignedIn) ? settings.keepSignedIn : []);
+async function wipeUnkept() {
+  const ses = session.fromPartition(KEEP_PARTITION);
+  const keep = keptHosts().flatMap((h) => ['https://' + h, 'http://' + h]);
+  try { if (keep.length) await ses.clearData({ excludeOrigins: keep }); else await ses.clearData(); } catch (err) { console.error('NODE_GRID: could not clear site data:', err.message); }
+}
+async function keepSite(host, t) {
+  if (!host) return;
+  if (!keptHosts().includes(host)) { settings.keepSignedIn = [...keptHosts(), host]; saveSettings(); }
+  useKeepSession = true;
+  if (!t || !normalTab(t) || t.view.webContents.session === session.fromPartition(KEEP_PARTITION)) { pushState(); return; }
+  // this tab is still in the in-memory session: bring its cookies over and reopen it in the kept one
+  const from = t.view.webContents.session, to = session.fromPartition(KEEP_PARTITION);
+  const dom = host.split('.').slice(-2).join('.');
+  try {
+    for (const c of await from.cookies.get({ domain: dom })) {
+      const url = (c.secure ? 'https://' : 'http://') + c.domain.replace(/^\./, '') + (c.path || '/');
+      await to.cookies.set({ url, name: c.name, value: c.value, domain: c.hostOnly ? undefined : c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, expirationDate: c.expirationDate || Date.now() / 1000 + 30 * 86400 }).catch(() => {});
+    }
+  } catch {}
+  reopenInKeptSession(t);
+}
+function reopenInKeptSession(t) {
+  const idx = tabs.indexOf(t), url = t.url, active = t.id === activeId;
+  const nt = newTab(url, { pinned: t.pinned, masked: t.masked });
+  tabs.splice(tabs.indexOf(nt), 1); tabs.splice(idx, 0, nt);
+  closeTab(t.id);
+  if (active) activate(nt.id); else pushState();
+}
+function unkeepSite(host) {
+  settings.keepSignedIn = keptHosts().filter((h) => h !== host); saveSettings();
+  session.fromPartition(KEEP_PARTITION).clearData({ origins: ['https://' + host, 'http://' + host] }).catch(() => {});
+  pushState();
+}
+let wipedOnQuit = false;
+app.on('will-quit', (e) => {                      // wipe what you didn't keep before closing
+  if (wipedOnQuit) return;
+  e.preventDefault(); wipedOnQuit = true;
+  Promise.race([wipeUnkept(), new Promise((r) => setTimeout(r, 4000))]).finally(() => app.quit());
+});
+
+// ---------- What's new (after an update) and Packet's walkthrough (first start) ----------
+// whats-new.json ships with the app. The first time the start page shows on a
+// newer version than you last saw, a card lists what's new and fixed for every
+// version since. A brand-new install gets Packet's walkthrough instead.
+let firstRun = false, pendingWhatsNew = false, pendingTour = false;
+const TOUR_FILE = path.join(__dirname, 'walkthrough', 'packet-tour.webm');
+const hasTour = () => { try { return fs.statSync(TOUR_FILE).size > 0; } catch { return false; } };
+let notesCache = null;
+const releaseNotes = () => { if (!notesCache) { try { notesCache = JSON.parse(fs.readFileSync(path.join(__dirname, 'whats-new.json'), 'utf8')); } catch { notesCache = {}; } } return notesCache; };
+function notesSince(seen) {
+  return Object.keys(releaseNotes())
+    .filter((v) => !newerThan(v, APP_VERSION) && (!seen || newerThan(v, seen)))
+    .sort((a, b) => (newerThan(a, b) ? -1 : 1)).slice(0, 4)
+    .map((v) => { const n = releaseNotes()[v] || {}; return { version: v, title: String(n.title || ''), new: (n.new || []).map(String), fixed: (n.fixed || []).map(String) }; });
+}
+function decideIntro() {               // called once settings are loaded
+  if (firstRun) { pendingTour = hasTour() && !process.env.NODEGRID_SKIP_INTRO; settings.seenVersion = APP_VERSION; saveSettings(); return; }   // tests that drive the keyboard skip it
+  const seen = settings.seenVersion || null;
+  if (seen === APP_VERSION) return;
+  if (notesSince(seen).length) pendingWhatsNew = true; else { settings.seenVersion = APP_VERSION; saveSettings(); }
+}
+let whatsNewSeen = null;
+function whatsNewBounds() {
+  const w = Math.min(580, Math.max(320, viewport.width - 40)), h = Math.min(540, Math.max(260, viewport.height - 40));
+  return { x: Math.round(viewport.x + (viewport.width - w) / 2), y: Math.round(viewport.y + Math.max(12, (viewport.height - h) / 2)), width: Math.round(w), height: Math.round(h) };
+}
+function showWhatsNew(all) {
+  if (!win || win.isDestroyed() || overlays.whatsnew) return;
+  whatsNewSeen = all ? null : (settings.seenVersion || null);
+  overlays.whatsnew = makeOverlay('whatsnew.html', 'whatsnew-preload.js');
+  overlays.whatsnew.setBounds(whatsNewBounds());
+  overlays.whatsnew.webContents.once('did-finish-load', () => overlays.whatsnew && overlays.whatsnew.webContents.focus());
+  raiseOverlays();
+}
+function closeWhatsNew() {
+  dropOverlay('whatsnew');
+  pendingWhatsNew = false;
+  settings.seenVersion = APP_VERSION; saveSettings();
+}
+const fromWhatsNew = (e) => isOverlay(e.sender, 'whatsnew');
+ipcMain.handle('whatsnew:info', (e) => (fromWhatsNew(e) ? { current: APP_VERSION, versions: notesSince(whatsNewSeen), hasTour: hasTour() } : null));
+ipcMain.on('whatsnew:close', (e) => { if (fromWhatsNew(e)) { closeWhatsNew(); focusPage(); } });
+ipcMain.on('whatsnew:tour', (e) => { if (fromWhatsNew(e)) { closeWhatsNew(); openTour(); } });
+function tourBounds() {
+  const w = Math.min(900, Math.max(360, viewport.width - 40)), h = Math.min(Math.round(w * 9 / 16) + 96, Math.max(260, viewport.height - 30));
+  return { x: Math.round(viewport.x + (viewport.width - w) / 2), y: Math.round(viewport.y + Math.max(10, (viewport.height - h) / 2)), width: Math.round(w), height: Math.round(h) };
+}
+function openTour() {
+  if (!win || win.isDestroyed() || overlays.tour || !hasTour()) return;
+  overlays.tour = makeOverlay('tour.html', 'tour-preload.js');
+  overlays.tour.setBounds(tourBounds());
+  overlays.tour.webContents.once('did-finish-load', () => overlays.tour && overlays.tour.webContents.focus());
+  raiseOverlays();
+}
+ipcMain.on('tour:close', (e) => { if (isOverlay(e.sender, 'tour')) { dropOverlay('tour'); focusPage(); } });
+// the start page just showed in the tab you're looking at: time for the card / the walkthrough
+function introOnHome(tab) {
+  if (!tab || tab.id !== activeId || !String(tab.view.webContents.getURL()).startsWith(HOME_FILE)) return;
+  if (pendingTour) { pendingTour = false; setTimeout(openTour, 600); return; }
+  if (pendingWhatsNew) setTimeout(() => { if (pendingWhatsNew) showWhatsNew(false); }, 600);
+}
+
 // ---------- 8. ad + tracker blocking ----------
 // Network-level blocking with Ghostery's engine (EasyList-style lists). Lists are
 // fetched once and cached for offline starts. Per-site pause is a local setting.
@@ -3169,7 +3426,11 @@ function pageMenu(tab, p) {
   items.push(SEP);
 
   // Identity
+  const kh = fullHostOf(tab.url);
+  if (kh && normalTab(tab)) items.push({ label: 'Keep me signed in on ' + kh, type: 'checkbox', checked: keptHosts().includes(kh),
+    click: () => { if (keptHosts().includes(kh)) { unkeepSite(kh); toast(`${kh} will be signed out when NODE_GRID closes`); } else { keepSite(kh, tab); toast(`You'll stay signed in on ${kh}. Sign in once more if it asks`); } } });
   if (maskable(tab)) items.push(maskItem(tab), SEP);
+  else if (kh && normalTab(tab)) items.push(SEP);
 
   // Developer
   if (starrable(tab.url) && !p.isEditable && !p.linkURL) items.push({ label: 'View page source', accelerator: 'CmdOrCtrl+U', click: () => openPeek(tab.url, { source: true }) });
@@ -3247,6 +3508,7 @@ function pushState() {
     blocked: t ? blockedByTab.get(t.view.webContents.id) || 0 : 0,
     adblockOn: !!blocker && !settings.adblockOff,
     dark: darkOn(),
+    uiSize: ['large', 'xl'].includes(settings.uiSize) ? settings.uiSize : 'normal',
     darkSkip: !!(t && darkExcluded(t.url)),
     media: featureOn('music') ? mediaState() : null,
     features: featureMap(),
@@ -3289,6 +3551,9 @@ ipcMain.on('viewport', (_e, r) => {
   if (overlays.perm) overlays.perm.setBounds(permBounds());
   if (overlays.vault) overlays.vault.setBounds(vaultBounds());
   if (overlays.dlpop) overlays.dlpop.setBounds(dlpopBounds());
+  if (overlays.loginsave) overlays.loginsave.setBounds(loginPromptBounds());
+  if (overlays.whatsnew) overlays.whatsnew.setBounds(whatsNewBounds());
+  if (overlays.tour) overlays.tour.setBounds(tourBounds());
   if (overlays.recon) overlays.recon.setBounds(reconBounds());
   if (overlays.qr) overlays.qr.setBounds(qrBounds());
   placePixel();
@@ -3334,9 +3599,15 @@ function handleKeys(e, input) {
 
 // ---------- app ----------
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (!gotLock) return;
+  firstRun = !fs.existsSync(SETTINGS_FILE());
   loadFavs(); loadHistory(); loadSettings(); loadVault();
+  decideIntro();
+  nativeTheme.themeSource = themeChoice();
+  useKeepSession = keptHosts().length > 0;
+  await Promise.race([wipeUnkept(), new Promise((r) => setTimeout(r, 4000))]);   // anything you didn't keep is gone before the first page loads
+  setupWebSession(session.fromPartition(KEEP_PARTITION));
   startUpdateChecks();
   loadSaved(); loadLoadouts();
   drive.handshake().catch(() => {});          // Null Drive: check the connection on every launch
