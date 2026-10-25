@@ -285,11 +285,15 @@
       const r = await S.feature('updates', on);
       if (r && r.ok) { M = r.model; render(); toast(on ? 'Automatic update checks on' : 'Automatic update checks off'); }
     })));
-    const ust = el('div', 'dstat ' + (U.state === 'available' ? 'warn' : U.state === 'current' ? 'ok' : U.state === 'error' ? 'bad' : ''));
+    const ust = el('div', 'dstat ' + (U.state === 'available' || U.state === 'ready' ? 'warn' : U.state === 'current' ? 'ok' : U.state === 'error' ? 'bad' : U.state === 'downloading' || U.state === 'installing' ? 'wait' : ''));
     ust.id = 'updstat';
     const when = U.checkedAt ? ' :: checked ' + new Date(U.checkedAt).toLocaleString() : '';
     ust.append(el('span', 'ddot'), el('span', null,
       U.state === 'checking' ? 'Checking GitHub…'
+        : U.state === 'downloading' ? `Downloading NODE_GRID ${U.latest}… ${U.progress || 0}%`
+        : U.state === 'ready' ? `NODE_GRID ${U.latest} is downloaded and checked${U.error ? '. ' + U.error : ''}.`
+        : U.state === 'installing' ? `Installing NODE_GRID ${U.latest}…`
+        : U.state === 'available' && U.error ? `NODE_GRID ${U.latest} is available. Couldn't update: ${U.error}.`
         : U.state === 'available' ? `NODE_GRID ${U.latest} is available. You have ${U.current}.`
         : U.state === 'current' ? `You're up to date (${U.current})${when}`
         : U.state === 'error' ? `Couldn't check: ${U.error}${when}`
@@ -299,7 +303,15 @@
     const chk = button('CHECK FOR UPDATES', async () => { chk.disabled = true; ust.className = 'dstat wait'; ust.lastChild.textContent = 'Checking GitHub…'; await act('update-check'); }, 'primary');
     chk.id = 'updcheck';
     ub.append(chk);
-    if (U.state === 'available') {
+    if (U.self && U.state === 'ready') {
+      const rs = button('RESTART TO UPDATE', async () => { rs.disabled = true; await act('update-restart'); }, 'primary');
+      rs.id = 'updrestart';
+      ub.append(rs, button("WHAT'S NEW", () => act('update-notes')));
+    } else if (U.self && U.state === 'available') {
+      const get = button(U.error ? 'TRY AGAIN' : 'UPDATE TO ' + U.latest, () => act('update-get'), 'primary');
+      get.id = 'updget';
+      ub.append(get, button("WHAT'S NEW", () => act('update-notes')));
+    } else if (U.state === 'available') {
       if (U.store) ub.append(button("WHAT'S NEW", () => act('update-notes')));
       else {
         const get = button(U.asset ? 'DOWNLOAD ' + U.latest : 'GET IT ON GITHUB', () => act('update-get', null, null, U.asset ? 'Downloading ' + U.asset.name : 'Opened the release page'), 'primary');
@@ -308,7 +320,10 @@
       }
     }
     su.append(ub);
-    if (U.state === 'available' && !U.store && U.asset) su.append(el('p', 'hint', `Downloads ${U.asset.name} to your Downloads folder. Close NODE_GRID and install it like the version you have now.`));
+    if (U.self && U.state === 'available') su.append(el('p', 'hint', `Downloads ${U.asset.name}, checks it against GitHub's checksum, then installs it when NODE_GRID restarts or closes. Your settings, logins and tabs stay.`));
+    if (U.self && U.state === 'ready') su.append(el('p', 'hint', U.needsPassword ? 'Restarting installs it with your system package manager, which asks for your password.' : 'Or just keep browsing: it installs the next time you close NODE_GRID.'));
+    if (!U.self && U.state === 'available' && !U.store && U.asset) su.append(el('p', 'hint', `Downloads ${U.asset.name} to your Downloads folder. Close NODE_GRID and install it like the version you have now.`));
+    if (U.state === 'available' && (U.kind === 'flatpak' || U.kind === 'snap')) su.append(el('p', 'hint', U.kind === 'flatpak' ? 'This is the Flatpak copy: run "flatpak update" (or your software center) to update it.' : 'This is the Snap copy: snapd updates it automatically.'));
     if (U.state === 'available' && U.store) su.append(el('p', 'hint', "The Store update usually arrives within a few days. A GitHub download would install as a second, separate NODE_GRID without your settings, so it's better to wait."));
     out.push(su);
 

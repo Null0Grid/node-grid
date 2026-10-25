@@ -107,9 +107,32 @@
     bot.dir = -1; bot.y = 0; bot.phase = 'leave';
   }
   function fill(i) {
-    if (!i || i.state !== 'available') return;
+    if (!i || !['available', 'downloading', 'ready', 'installing'].includes(i.state)) return;
     const v = document.createElement('b'); v.textContent = 'NODE_GRID ' + i.latest;
     const p = $('bx'); p.replaceChildren();
+    const h = $('bt'); if (h) h.textContent = i.state === 'downloading' ? '// DOWNLOADING' : i.state === 'ready' ? '// UPDATE READY' : i.state === 'installing' ? '// INSTALLING' : '// UPDATE AVAILABLE';
+    if (i.self) {                              // this copy updates itself
+      if (i.state === 'downloading') {
+        p.append('Downloading ', v, '… ', String(i.progress || 0) + '%');
+        $('btns').replaceChildren(btn('HIDE', () => leave(false)));
+      } else if (i.state === 'ready') {
+        p.append(v, i.needsPassword ? ' is downloaded and checked. Restart to install it (your password is needed).' : ' is downloaded and checked. Restart now, or it installs when you close NODE_GRID.');
+        if (i.error) { const e = document.createElement('span'); e.className = 'err'; e.textContent = ' ' + i.error + '.'; p.append(e); }
+        $('btns').replaceChildren(btn('RESTART NOW', () => window.updbot.restart(), true), btn('LATER', () => leave(false)));
+      } else if (i.state === 'installing') {
+        p.append('Installing ', v, '. NODE_GRID reopens in a moment, with your tabs.');
+        $('btns').replaceChildren();
+      } else {
+        p.append(v, ` is out. You're on ${i.current}.`);
+        if (i.error) { const e = document.createElement('span'); e.className = 'err'; e.textContent = " Couldn't update: " + i.error + '.'; p.append(e); }
+        $('btns').replaceChildren(
+          btn(i.error ? 'TRY AGAIN' : 'UPDATE', () => window.updbot.get(), true),
+          btn("WHAT'S NEW", () => window.updbot.notes()),
+          btn('LATER', () => leave(true)));
+      }
+      return;
+    }
+    if (i.state !== 'available') return;
     if (i.store) {
       p.append(v, ' is out on GitHub. Your Microsoft Store copy gets it through the Store soon.');
       $('btns').replaceChildren(btn("WHAT'S NEW", () => window.updbot.notes(), true), btn('OK', () => leave(true)));

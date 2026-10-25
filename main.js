@@ -117,9 +117,13 @@ function createWindow() {
   win.webContents.once('did-finish-load', () => {
     if (featureOn('pinned')) for (const u of (settings.pinned || []).filter((x) => /^https?:\/\//i.test(x)).slice(0, 20)) newTab(u, { pinned: true });
     const links = pendingLinks; pendingLinks = [];
+    const restore = Array.isArray(settings.restoreTabs) ? settings.restoreTabs.filter((u) => /^https?:\/\//i.test(u)).slice(0, 30) : [];
+    if (settings.restoreTabs) { delete settings.restoreTabs; saveSettings(); }
     if (links.length) for (const u of links) newTab(u);   // opened with a link: show it, not the start page
+    else if (restore.length) for (const u of restore) newTab(u);   // back from an update restart: the tabs you had
     else newTab(HOME);
     shellReady = true;
+    updateNotice();
   });
 
   // Mouse side button "back" (Windows)
@@ -901,7 +905,14 @@ const UPDATE_REPO = 'Null0Grid/node-grid';
 const UPDATE_URL = process.env.NODEGRID_UPDATE_URL || `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
 const UPDATE_EVERY = 24 * 3600 * 1000;
 const IS_STORE = !!(BUILD.store || process.windowsStore);
-let update = { state: 'idle', latest: null, url: null, notes: '', asset: null, checkedAt: 0, error: null };
+// Copies that can replace their own files update themselves (self-update.js):
+// UPDATE downloads + checks the file, then it's swapped in on restart or when
+// NODE_GRID closes.
+const SU = require('./self-update');
+let installKindCache = null;
+const installKind = () => installKindCache || (installKindCache = SU.installKind({ app, isStore: IS_STORE }));
+const UPDATE_DIR = () => path.join(app.getPath('userData'), 'updates');
+let update = { state: 'idle', latest: null, url: null, notes: '', asset: null, checkedAt: 0, error: null, self: false, progress: 0, ready: null };
 
 const verParts = (v) => String(v || '').replace(/^v/i, '').split(/[.+-]/).slice(0, 3).map((n) => parseInt(n, 10) || 0);
 function newerThan(a, b) {          // is version a newer than version b?
@@ -911,6 +922,9 @@ function newerThan(a, b) {          // is version a newer than version b?
 }
 // The release file that fits this computer, or null (then we open the release page).
 function pickAsset(assets) {
+  const kind = installKind();
+  if (SU.SELF.has(kind)) return SU.pickAsset(kind, assets);
+  if (kind === 'flatpak' || kind === 'snap' || kind === 'store') return null;   // updated by Flatpak / Snap / the Store
   const arm = process.arch === 'arm64';
   const by = (re) => assets.find((a) => re.test(a.name) && (arm ? /arm64|aarch64/i.test(a.name) : !/arm64|aarch64/i.test(a.name)));
   if (process.platform === 'win32') return assets.find((a) => /-win32-x64\.zip$/i.test(a.name)) || null;
@@ -921,7 +935,7 @@ function pickAsset(assets) {
   return by(/\.tar\.gz$/i);
 }
 async function checkUpdates({ manual = false } = {}) {
-  if (update.state === 'checking') return update;
+  if (['checking', 'downloading', 'ready', 'installing'].includes(update.state)) return update;   // never undo a download in progress
   update = { ...update, state: 'checking', error: null };
   pushUpdate();
   try {
@@ -931,11 +945,15 @@ async function checkUpdates({ manual = false } = {}) {
     const r = await res.json();
     const latest = String(r.tag_name || '').replace(/^v/i, '');
     if (!/^\d+\.\d+/.test(latest)) throw new Error("couldn't read the release version");
-    const assets = Array.isArray(r.assets) ? r.assets.map((a) => ({ name: String(a.name), url: String(a.browser_download_url), size: Number(a.size) || 0 })) : [];
-    const ok = (u) => /^https:\/\/github\.com\//.test(u);
+    const assets = Array.isArray(r.assets) ? r.assets.map((a) => {
+      const d = /^sha256:([0-9a-f]{64})$/i.exec(String(a.digest || ''));       // GitHub's own checksum of the file
+      return { name: String(a.name), url: String(a.browser_download_url), size: Number(a.size) || 0, sha256: d ? d[1].toLowerCase() : null };
+    }) : [];
+    const ok = (u) => /^https:\/\/github\.com\//.test(u) || (process.env.NODEGRID_UPDATE_TEST_HOST && u.startsWith(process.env.NODEGRID_UPDATE_TEST_HOST));
     const asset = IS_STORE ? null : pickAsset(assets.filter((a) => ok(a.url)));
+    const self = !!(asset && asset.sha256 && asset.size && SU.SELF.has(installKind()));
     update = { state: newerThan(latest, APP_VERSION) ? 'available' : 'current', latest, url: ok(String(r.html_url)) ? String(r.html_url) : `https://github.com/${UPDATE_REPO}/releases`,
-      notes: String(r.body || '').slice(0, 4000), asset, checkedAt: Date.now(), error: null };
+      notes: String(r.body || '').slice(0, 4000), asset, checkedAt: Date.now(), error: null, self, progress: 0, ready: null };
     settings.updateCheckedAt = update.checkedAt; saveSettings();
     if (update.state === 'available' && (manual || settings.updateDismissed !== latest)) showUpdateBot();
   } catch (err) {
@@ -946,18 +964,88 @@ async function checkUpdates({ manual = false } = {}) {
 }
 function updateInfo() {
   return { state: update.state, current: APP_VERSION, latest: update.latest, url: update.url, store: IS_STORE,
-    asset: update.asset ? { name: update.asset.name, size: update.asset.size } : null, checkedAt: update.checkedAt, error: update.error, auto: featureOn('updates') };
+    asset: update.asset ? { name: update.asset.name, size: update.asset.size } : null, checkedAt: update.checkedAt, error: update.error, auto: featureOn('updates'),
+    kind: installKind(), self: update.self, progress: update.progress, needsPassword: update.self && /^(deb|rpm)$/.test(installKind()) };
 }
 function pushUpdate() {
   if (updateBot && !updateBot.webContents.isDestroyed()) updateBot.webContents.send('updbot-info', updateInfo());
   for (const t of tabs) if (t.settingsTab && !t.view.webContents.isDestroyed()) t.view.webContents.send('settings-refresh');
 }
-// GET IT: the right file through the normal Downloads panel, or the release page.
+// GET IT: a copy that can update itself downloads + checks the new version
+// (selfUpdate); anything else gets the file through the normal Downloads panel,
+// or the release page.
 function getUpdate() {
   if (update.state !== 'available') return;
+  if (update.self) { selfUpdate(); return; }
   if (update.asset) {
     win.webContents.downloadURL(update.asset.url);      // the window's own session: works even with a Peek or burner tab open
   } else newTab(update.url);
+}
+let lastPush = 0;
+async function selfUpdate() {
+  const asset = update.asset, kind = installKind(), dir = UPDATE_DIR();
+  update = { ...update, state: 'downloading', progress: 0, error: null };
+  pushUpdate();
+  try {
+    SU.cleanup(dir);
+    const file = await SU.download(net, asset, dir, (got, total) => {
+      update.progress = total ? Math.min(99, Math.floor(got * 100 / total)) : 0;
+      if (Date.now() - lastPush > 500) { lastPush = Date.now(); pushUpdate(); }
+    });
+    let ready = { file };
+    if (kind === 'zip' || kind === 'tar') { update.progress = 100; pushUpdate(); ready = { file, ...(await SU.unpack(kind, file, dir)) }; try { fs.unlinkSync(file); } catch {} }
+    update = { ...update, state: 'ready', progress: 100, ready };
+  } catch (err) {
+    update = { ...update, state: 'available', progress: 0, ready: null, error: String((err && err.message) || err) };
+  }
+  pushUpdate();
+}
+// Before NODE_GRID goes away for an update: note what's being installed (so the
+// next start can say whether it worked) and which tabs were open (so they come back).
+function rememberForUpdate() {
+  settings.updateFrom = { from: APP_VERSION, to: update.latest };
+  settings.restoreTabs = tabs.filter((t) => !t.burner && !t.peek && !t.sim && !t.settingsTab && !(t.pinned && featureOn('pinned')))
+    .map((t) => untranslate(t.url) || t.url).filter((u) => /^https?:\/\//i.test(u)).slice(0, 30);
+  saveSettings();
+}
+let applyingUpdate = false;
+async function restartToUpdate() {
+  if (update.state !== 'ready' || applyingUpdate) return { ok: false };
+  applyingUpdate = true;
+  update = { ...update, state: 'installing', error: null }; pushUpdate();
+  const kind = installKind();
+  rememberForUpdate();
+  let r;
+  try { r = await SU.applyNow(kind, update.ready, { dir: UPDATE_DIR(), relaunch: true }); }
+  catch (err) { r = { ok: false, reason: String((err && err.message) || err) }; }
+  if (!r.ok) {
+    applyingUpdate = false;
+    delete settings.updateFrom; delete settings.restoreTabs; saveSettings();
+    const why = { cancelled: 'The install was cancelled (no password given)', 'no-pkexec': "This system can't ask for your password (pkexec is missing). Install the downloaded file yourself", install: 'The package manager refused the update' };
+    update = { ...update, state: 'ready', error: why[r.reason] || ("Couldn't install: " + r.reason) };
+    pushUpdate();
+    return r;
+  }
+  if (r.relaunchSelf) app.relaunch({ ...(r.execPath ? { execPath: r.execPath } : {}), args: r.args || [] });
+  updateQuitting = true;
+  app.quit();
+  return r;
+}
+// A downloaded update installs when NODE_GRID closes, too (except .deb/.rpm,
+// which need a password prompt, so they wait for RESTART).
+let updateQuitting = false;
+app.on('before-quit', () => {
+  if (updateQuitting || applyingUpdate || update.state !== 'ready' || !['zip', 'tar', 'appimage'].includes(installKind())) return;
+  updateQuitting = true;
+  try { settings.updateFrom = { from: APP_VERSION, to: update.latest }; saveSettings(); SU.applyNow(installKind(), update.ready, { dir: UPDATE_DIR(), relaunch: false }); } catch {}
+});
+// At start: after an update, say how it went.
+function updateNotice() {
+  const u = settings.updateFrom;
+  if (!u) return;
+  delete settings.updateFrom; saveSettings();
+  if (APP_VERSION === u.to) { toast(`Updated to NODE_GRID ${u.to}`); SU.cleanup(UPDATE_DIR()); }
+  else if (APP_VERSION === u.from) { const l = SU.lastLog(UPDATE_DIR()); toast(`The update to ${u.to} didn't install${l && l !== 'ok' ? ': ' + l : ''}. Settings > UPDATES to try again`); }
 }
 function startUpdateChecks() {             // called once the app is ready
   const delay = Number(process.env.NODEGRID_UPDATE_DELAY_MS) || 8000;
@@ -994,7 +1082,8 @@ function closeUpdateBot() {
 }
 const fromBot = (e) => updateBot && e.sender === updateBot.webContents;
 ipcMain.handle('updbot:info', (e) => (fromBot(e) ? updateInfo() : null));
-ipcMain.on('updbot:get', (e) => { if (fromBot(e)) { getUpdate(); closeUpdateBot(); } });
+ipcMain.on('updbot:get', (e) => { if (fromBot(e)) { const self = update.self; getUpdate(); if (!self) closeUpdateBot(); } });   // a self-update keeps Packet up to show progress
+ipcMain.on('updbot:restart', (e) => { if (fromBot(e)) restartToUpdate(); });
 ipcMain.on('updbot:notes', (e) => { if (fromBot(e)) newTab(update.url); });
 ipcMain.on('updbot:later', (e) => { if (fromBot(e)) { settings.updateDismissed = update.latest; saveSettings(); } });
 ipcMain.on('updbot:gone', (e) => { if (fromBot(e)) closeUpdateBot(); });
@@ -2087,6 +2176,7 @@ ipcMain.handle('settings:do', async (e, action, a, b) => {
     case 'update-check': await checkUpdates({ manual: true }); return ok();
     case 'default-browser': { const r = await makeDefaultBrowser(); settingsBrowser = await defaultBrowserInfo(); return r.ok ? ok({ opened: !!r.opened }) : { ok: false, reason: r.reason, model: settingsModel() }; }
     case 'update-get': getUpdate(); return ok();
+    case 'update-restart': { const r = await restartToUpdate(); return r && r.ok ? ok() : { ok: false, reason: 'update' }; }
     case 'update-notes': if (update.url) newTab(update.url); return ok();
     default: return { ok: false };
   }

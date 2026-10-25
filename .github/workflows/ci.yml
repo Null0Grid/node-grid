@@ -36,6 +36,14 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:updates
       - name: Picture-in-picture docking (live in the app)
         run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:pipdock
+      - name: Self-update, end to end (old .tar.gz build updates itself to a new one)
+        run: |
+          npx electron-builder --linux dir --x64 --publish never -c.directories.output="$RUNNER_TEMP/old"
+          npx electron-builder --linux dir --x64 --publish never -c.extraMetadata.version=9.9.9 -c.directories.output="$RUNNER_TEMP/new"
+          mv "$RUNNER_TEMP/new/linux-unpacked" "$RUNNER_TEMP/new/nullgrid-browser-9.9.9"
+          tar czf "$RUNNER_TEMP/nullgrid-browser-9.9.9.tar.gz" -C "$RUNNER_TEMP/new" nullgrid-browser-9.9.9
+          SU_OLD="$RUNNER_TEMP/old/linux-unpacked" SU_NEW="$RUNNER_TEMP/nullgrid-browser-9.9.9.tar.gz" SU_NEW_VERSION=9.9.9 \
+            xvfb-run -a -s "-screen 0 1400x900x24" node tests/selfupdate.test.js
 
   test-windows:
     name: Tests (Windows)
@@ -48,3 +56,14 @@ jobs:
       - run: npm ci
       - name: Drive connection tests (null-drive.js, no Electron)
         run: npm test
+      - name: Self-update, end to end (old portable build updates itself to a new .zip)
+        shell: pwsh
+        run: |
+          npm run dist
+          Move-Item dist/NODE_GRID-win32-x64 "$env:RUNNER_TEMP/old"
+          npm pkg set version=9.9.9
+          npm run dist
+          Compress-Archive -Path dist/NODE_GRID-win32-x64 -DestinationPath "$env:RUNNER_TEMP/NODE_GRID-9.9.9-win32-x64.zip"
+          git checkout -- package.json
+          $env:SU_OLD = "$env:RUNNER_TEMP/old"; $env:SU_NEW = "$env:RUNNER_TEMP/NODE_GRID-9.9.9-win32-x64.zip"; $env:SU_NEW_VERSION = "9.9.9"
+          node tests/selfupdate.test.js

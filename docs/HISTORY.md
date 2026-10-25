@@ -105,7 +105,7 @@ Some sites serve their tab icon with `Cross-Origin-Resource-Policy: same-origin`
 Both best-effort jobs had failed on every release. Flatpak stopped at setup: `flatpak remote-add` ran without `--user` on a non-root runner. Now Flathub is added per user and the runtimes are installed explicitly, on **25.08** (23.08 is end-of-life; the Flathub manifest moves to 25.08 too). Both jobs also tried arm64 on an x64 runner, which needs emulation they didn't have; Flatpak and Snap now build for x64 only (the .deb/.rpm/AppImage/.tar.gz stay x64 + arm64). The x64 snap builds cleanly without snapcraft (electron-builder's template), checked locally; Confirmed on the 5.1.3 release run: the .flatpak and .snap both built and are attached to the release.
 
 
-## 5.1.3: full check, 25 bugs fixed
+## 5.1.3: updates install themselves; full check, 25 bugs fixed
 
 Every setting and feature re-checked, plus two independent code reviews (main process; pages and UI). Fixed:
 
@@ -114,5 +114,14 @@ Every setting and feature re-checked, plus two independent code reviews (main pr
 - **Features.** "Get it" downloads updates even with a Peek or burner tab in front. A docked video's tab never sleeps. A new custom AI address shows in the open panel. "sudo …" searches on the start page are searched (a bare "sudo" is still the joke). Clearing the local AI chat mid-answer starts clean. Small built-in views (gear, Packet's bubble, docked-video controls) could take keyboard focus on load so shortcuts did nothing until a click; they pass keys through now.
 - **UI.** Reader and picture-in-picture buttons hide on pages without an article or video. Logins popup: Enter on a row's button no longer fills the page; an expired unlock shows the lock screen. The Dark pages switch shows the saved value. Settings refreshes when developer mode changes. A press on a shrunk-sidebar icon that started before the close X appeared no longer closes the tab. A slow icon from the previous page can't land on the next one; local pages show their own icons. Encryption wording no longer says "Windows" on Linux and macOS.
 - **Default browser.** The portable Windows zip says it can't be listed (install from the Store); the Linux launcher entry escapes unusual install paths per the Desktop Entry spec and reports a failed write.
+
+**Updates install themselves.** When a newer version is out, Packet's UPDATE (or Settings › UPDATES › UPDATE TO …) downloads the file that matches how this copy was installed, checks its size and the SHA-256 GitHub publishes for it (a mismatch is thrown away and nothing changes), and unpacks it next to your data. RESTART NOW swaps it in and reopens NODE_GRID with the tabs you had; or keep browsing and it installs the next time you close NODE_GRID. The next start says "Updated to NODE_GRID x" (or that it didn't install, and why). `self-update.js`:
+- **Windows portable .zip:** a small PowerShell helper waits for NODE_GRID to exit, copies the new files over the folder with robocopy (retried while files are still locked), and starts it.
+- **Linux .tar.gz:** the same with `/bin/sh`. **AppImage:** the file is replaced in place. **.deb / .rpm:** installed with `dpkg -i` / `rpm -U` through `pkexec`, which asks for your password, on RESTART only.
+- **Microsoft Store, Flatpak, Snap:** those update the app themselves, so nothing changes there; a copy in a folder you can't write to still downloads the file for you to install.
+- Settings, logins, history and favorites live in the user-data folder, never next to the program, so an update never touches them.
+- Tested end to end with two real packaged builds (`tests/selfupdate.test.js`: bad checksum refused, restart-to-update, install-on-close), on Linux and, in CI, on Windows.
+
+The copy you have before 5.1.3 doesn't have this yet, so 5.1.3 itself installs the usual way; updates after it install themselves.
 
 New tests: `ui-settings` (every section, switch and dropdown, saved and applied), `ui-core` (keyboard shortcuts, dark pages, reader, QR) and `ui-fixes` (a check per fix above, which fails on 5.1.2). All 14 suites pass.
