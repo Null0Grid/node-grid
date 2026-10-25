@@ -131,16 +131,28 @@ async function unpack(kind, file, dir) {
 }
 
 const PS_HELPER = `param($ProcId, $Src, $Dst, $Stage, $Log, $Exe, $Relaunch, $ArgLine)
-try { Wait-Process -Id $ProcId -Timeout 90 -ErrorAction SilentlyContinue } catch {}
-Start-Sleep -Milliseconds 800
-$ok = $false; $code = -1
-for ($i = 0; $i -lt 15 -and -not $ok; $i++) {
-  robocopy $Src $Dst /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
-  $code = $LASTEXITCODE
-  if ($code -lt 8) { $ok = $true } else { Start-Sleep -Seconds 1 }
-}
-if ($ok) { Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue; Set-Content -LiteralPath $Log -Value 'ok' }
-else { Set-Content -LiteralPath $Log -Value ('copy failed (robocopy ' + $code + ')') }
+function Say($m) { Add-Content -LiteralPath $Log -Value $m }
+try {
+  Set-Content -LiteralPath $Log -Value 'waiting'
+  $p = Get-Process -Id $ProcId -ErrorAction SilentlyContinue
+  if ($p) { $null = $p.WaitForExit(90000) }
+  # every NODE_GRID process from this folder (renderers, GPU, crash reporter) has to be gone too
+  $exeName = [System.IO.Path]::GetFileNameWithoutExtension($Exe)
+  for ($i = 0; $i -lt 60; $i++) {
+    $left = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($Dst, [System.StringComparison]::OrdinalIgnoreCase) })
+    if ($left.Count -eq 0) { break }
+    Start-Sleep -Milliseconds 500
+  }
+  Say 'copying'
+  $ok = $false; $code = -1
+  for ($i = 0; $i -lt 15 -and -not $ok; $i++) {
+    & robocopy.exe $Src $Dst /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+    $code = $LASTEXITCODE
+    if ($code -lt 8) { $ok = $true } else { Say ('robocopy ' + $code); Start-Sleep -Seconds 1 }
+  }
+  if ($ok) { Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue; Set-Content -LiteralPath $Log -Value 'ok' }
+  else { Set-Content -LiteralPath $Log -Value ('copy failed (robocopy ' + $code + ')') }
+} catch { Say ('error: ' + $_) }
 if ($Relaunch -eq '1') { if ($ArgLine) { Start-Process -FilePath $Exe -ArgumentList $ArgLine } else { Start-Process -FilePath $Exe } }
 `;
 const SH_HELPER = `#!/bin/sh

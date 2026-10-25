@@ -119,6 +119,12 @@ const running = (dir) => {
     await check('RESTART TO UPDATE closes NODE_GRID', async () => assert.ok(await Promise.race([exited.then(() => true), wait(30000).then(() => false)])));
   } catch (e) { failed = true; console.log('[FAIL] ' + e.message); note(e.message); await r.app.close().catch(() => {}); }
   await check(`the new version (${NEWV}) is in place`, async () => assert.ok(await waitFor(() => versionIn(A.appDir) === NEWV, 60000), 'still ' + versionIn(A.appDir)));
+  if (versionIn(A.appDir) !== NEWV) {
+    const d = path.join(A.ud, 'updates');
+    let listing = ''; try { listing = fs.readdirSync(d).join(', '); } catch (e) { listing = 'no updates folder'; }
+    let log = ''; try { log = fs.readFileSync(path.join(d, 'last-update.log'), 'utf8'); } catch { log = 'no log'; }
+    note('diagnostics: updates folder = [' + listing + '], helper log = ' + log + ', app still running = ' + running(A.appDir));
+  }
   await check('the helper says it copied everything', async () => assert.ok(await waitFor(() => fs.readFileSync(path.join(A.ud, 'updates', 'last-update.log'), 'utf8').trim() === 'ok', 20000)));
   await check('NODE_GRID started again by itself, on the new version, and noticed the update', async () => {
     assert.ok(await waitFor(() => running(A.appDir), 30000), 'not running');
