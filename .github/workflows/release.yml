@@ -38,8 +38,10 @@ on:
 env:
   TAG: ${{ inputs.tag || github.ref_name }}
 
+# Build jobs run third-party npm packages, so they only get to read; only the
+# job that attaches the files to the release can write.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   version:
@@ -208,6 +210,8 @@ jobs:
     needs: [version, linux, windows, linux-flatpak, linux-snap]
     if: always() && needs.linux.result == 'success' && needs.windows.result == 'success'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:

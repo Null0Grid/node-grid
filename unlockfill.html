@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'">
+  <title>Unlock to fill</title>
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body class="unlockfill">
+  <div class="panel">
+    <header>
+      <span class="key-ico"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+      <span class="title">UNLOCK TO FILL</span>
+      <button class="x" id="close" title="Not now (Esc)"><svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    </header>
+    <form class="body" id="f" autocomplete="off">
+      <div class="site"><span id="host"></span> <span class="user" id="user"></span></div>
+      <div class="pinrow">
+        <input id="pin" class="field" type="password" inputmode="numeric" maxlength="8" placeholder="PIN">
+        <button class="btn primary" type="submit">FILL</button>
+      </div>
+      <p class="msg" id="msg"></p>
+    </form>
+  </div>
+  <script src="unlockfill.js"></script>
+</body>
+</html>

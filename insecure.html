@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; font-src 'self'">
+  <title>Not secure</title>
+  <link rel="stylesheet" href="insecure.css">
+</head>
+<body>
+  <main>
+    <p class="tag">NODE_GRID :: CONNECTION NOT SECURE</p>
+    <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.5"/></svg></div>
+    <h1>This site isn't secure</h1>
+    <p class="addr" id="addr"></p>
+    <p class="explain">It uses plain <b>http</b>, so anything you send or see there (passwords, messages, forms)
+      travels unencrypted, and someone on the same network could read or change it.
+      Router and homelab pages on your own network often look like this, and that's usually fine.</p>
+    <div class="choices">
+      <button class="btn" id="close"><b>CLOSE</b><span>Don't go in</span></button>
+      <button class="btn warn" id="proceed"><b>PROCEED, DON'T TRUST</b><span>Open it this time. Logins are never saved or filled here.</span></button>
+      <button class="btn trust" id="trust"><b>PROCEED, I TRUST IT</b><span>Remember this site. Logins can be saved and filled here.</span></button>
+    </div>
+    <p class="note">Trusted sites are listed in Settings &gt; Privacy, where you can remove them.</p>
+  </main>
+  <script src="insecure.js"></script>
+</body>
+</html>

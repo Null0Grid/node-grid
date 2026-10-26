@@ -103,6 +103,7 @@
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
   #clock{color:var(--cyan);}
 
+  .grid-link[hidden]{display:none;}
   .grid-link{
     position:relative;
     display:inline-flex;
@@ -289,7 +290,7 @@
     <span><span class="dot"></span>NODE_GRID :: LINK ESTABLISHED</span>
     <span>
       <span id="clock">--:--:--</span>
-      <a class="grid-link" href="http://10.0.1.133/" title="Open NODE_GRID dashboard">&#9638;</a>
+      <a class="grid-link" id="gridLink" href="#" title="Open your dashboard" hidden>&#9638;</a>
     </span>
   </div>
 
@@ -383,6 +384,8 @@
   // In the NODE_GRID app the choice is saved by the app; in a normal browser, in localStorage.
   var VALID = { duckduckgo: 1, brave: 1, google: 1, startpage: 1 };
   var bridge = window.nodegridPrefs || null;
+  // the dashboard button: your own address from Settings > Start page search (none set: no button)
+  (function(){ var gl = document.getElementById('gridLink'); if (gl && bridge && /^https?:\/\//i.test(bridge.dashboard || '')) { gl.href = bridge.dashboard; gl.hidden = false; } })();
   var vaultWrap = document.getElementById('vaultWrap');
   var vaultPref = true;                       // the switch's own position, kept while other engines are picked
   function loadPrefs(){

@@ -58,7 +58,7 @@ async function runScenario(label, mode, tokenValue) {
     env: {
       ...process.env,
       NODEGRID_SEARCH: 'http://127.0.0.1:' + sitePort,
-      NODEGRID_TEST_PLAINTEXT_VAULT: '1', // Linux CI has no OS keychain
+      NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_SKIP_INTRO: '1', // Linux CI has no OS keychain
     },
   });
 

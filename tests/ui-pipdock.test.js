@@ -82,7 +82,7 @@ async function tabCount(shell) {
   const electronApp = await pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + userData],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1' },
+    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_SKIP_INTRO: '1' },
   });
 
   try {

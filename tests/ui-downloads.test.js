@@ -47,7 +47,7 @@ const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + l
   const app = await pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'node-grid-ci-dl-' + Date.now())],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_DOWNLOADS: dlDir },
+    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1', NODEGRID_DOWNLOADS: dlDir },
   });
   const errors = [];
   try {
@@ -96,7 +96,7 @@ const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + l
     await shell.click('#dltop');
     p2 = await waitFor(dlpopWin, 6000);
     await p2.waitForSelector('#list .dl');
-    await wait(300);
+    await wait(800);                                   // past the half second in which the opening click itself is ignored
     // a real mouse click on the page (simulated clicks don't move focus between views)
     const wb = await app.evaluate(({ BrowserWindow }) => { const w = BrowserWindow.getAllWindows()[0]; w.focus(); return w.getContentBounds(); });
     execFileSync('xdotool', ['mousemove', String(wb.x + 500), String(wb.y + 400), 'click', '1']);

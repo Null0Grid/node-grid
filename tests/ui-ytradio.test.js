@@ -57,7 +57,7 @@ function screenPixel(x, y) {
   const app = await pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'node-grid-ci-yt-' + Date.now())],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_YT_EMBED: base + '/embed/' },
+    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_SKIP_INTRO: '1', NODEGRID_YT_EMBED: base + '/embed/' },
   });
   let failed = false;
   const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + label); } catch (e) { failed = true; console.log('[FAIL] ' + label + ': ' + e.message); } };

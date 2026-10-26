@@ -777,3 +777,12 @@ body.size-xl .fav.x-on .fav-x svg { width: 13px; height: 13px; }
 
 /* ---------- light theme (Settings > APPEARANCE > Theme) ---------- */
 :root[data-theme="light"] { --bg: #f3f5f9; --panel: #ffffff; --panel-2: #e8edf4; --line: #c9d3e1; --cyan: #007f9e; --pink: #c8186a; --green: #0f8a55; --amber: #a86b00; --text: #2b3647; --dim: #66768c; --hi: #0b1424; color-scheme: light; }
+/* light theme: burner tabs and other spots that use fixed colours */
+:root[data-theme="light"] .tab.burner { background: rgba(200, 20, 20, .06); border-color: rgba(190, 30, 30, .35); color: #9b1c1c; }
+:root[data-theme="light"] .tab.burner .title { color: #7a1010; }
+:root[data-theme="light"] .tab.burner .title::before,
+:root[data-theme="light"] .burnbtn { color: #c41a1a; }
+:root[data-theme="light"] .burn-timer { color: #b3261e; }
+:root[data-theme="light"] .burn-timer.soon { color: #d00000; }
+:root[data-theme="light"] body.burner-active #where b { color: #b3261e; }
+:root[data-theme="light"] #where .u-rest, :root[data-theme="light"] #where:hover { color: #55657a; }

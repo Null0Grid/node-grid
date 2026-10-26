@@ -13,6 +13,8 @@
 const assert = require('assert');
 const fs = require('fs');
 const http = require('http');
+const https = require('https');
+const crypto = require('crypto');
 const os = require('os');
 const path = require('path');
 const pw = require('playwright');
@@ -33,21 +35,33 @@ const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + l
 const LOGIN = '<!doctype html><title>sign in</title><body style="background:#fff"><form action="/welcome" method="get"><input id="u" name="username" type="text" autocomplete="username"><input id="p" name="password" type="password"><button id="go" type="submit">Sign in</button></form>';
 
 (async () => {
-  const site = http.createServer((q, r) => {
+  const handler = (q, r) => {
     const u = new URL(q.url, 'http://x');
     r.setHeader('Content-Type', 'text/html');
     if (u.pathname === '/login') return r.end(LOGIN);
     if (u.pathname === '/welcome') { r.setHeader('Set-Cookie', 'session=signed-in; Max-Age=86400; Path=/'); return r.end('<!doctype html><title>welcome</title>welcome'); }
     if (u.pathname === '/me') return r.end('<!doctype html><title>' + (/(^|; )session=signed-in/.test(q.headers.cookie || '') ? 'signed in' : 'signed out') + '</title>me');
     r.end('<!doctype html><title>page</title>page');
-  });
+  };
+  // logins are only saved and filled on https: a self-signed test site, trusted
+  // the way NODE_GRID trusts homelab devices (Settings > Trusted devices)
+  const certDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ng-515-cert-'));
+  execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(certDir, 'k.pem'), '-out', path.join(certDir, 'c.pem'), '-days', '2', '-subj', '/CN=localhost'], { stdio: 'ignore' });
+  const certPem = fs.readFileSync(path.join(certDir, 'c.pem'));
+  const fingerprint = 'sha256/' + crypto.createHash('sha256').update(new crypto.X509Certificate(certPem).raw).digest('base64');
+  const site = https.createServer({ key: fs.readFileSync(path.join(certDir, 'k.pem')), cert: certPem }, handler);
+  const plain = http.createServer(handler);
   await new Promise((r) => site.listen(0, '127.0.0.1', r));
+  await new Promise((r) => plain.listen(0, '127.0.0.1', r));
   const port = site.address().port;
-  const A = 'http://127.0.0.1:' + port, B = 'http://localhost:' + port;   // A gets kept, B doesn't
+  const A = 'https://127.0.0.1:' + port, B = 'https://localhost:' + port;   // A gets kept, B doesn't
+  const H = 'http://127.0.0.1:' + plain.address().port;                       // a plain http copy of the same site
   const ud = path.join(os.tmpdir(), 'node-grid-ci-515-' + Date.now());
+  fs.mkdirSync(ud, { recursive: true });
+  fs.writeFileSync(path.join(ud, 'settings.json'), JSON.stringify({ seenVersion: require(path.join(APP_DIR, 'package.json')).version, trustedCerts: { '127.0.0.1': { fingerprint }, localhost: { fingerprint } } }));
   const launch = () => pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + ud], executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/' },
+    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1' },
   });
   const settingsFile = () => { try { return JSON.parse(fs.readFileSync(path.join(ud, 'settings.json'), 'utf8')); } catch { return {}; } };
   let app = await launch();
@@ -75,15 +89,18 @@ const LOGIN = '<!doctype html><title>sign in</title><body style="background:#fff
     const prompt = await waitFor(promptWin, 6000);
     await check('signing in brings up "Save login?" with the site and username', async () => {
       assert.ok(prompt, 'no prompt');
+      await waitFor(() => prompt.evaluate(() => document.getElementById('site').textContent !== ''), 4000);   // its text arrives a moment after it opens
       const t = await prompt.evaluate(() => ({ site: document.getElementById('site').textContent, user: document.getElementById('user').textContent, keep: !document.getElementById('keeprow').hidden }));
       assert.deepStrictEqual(t, { site: '127.0.0.1', user: 'luke', keep: true });
     });
+    await check('"Keep me signed in" starts unticked', async () => assert.strictEqual(await prompt.evaluate(() => document.getElementById('keep').checked), false));
+    await prompt.check('#keep');
     if (SHOTS) { await wait(300); execFileSync('import', ['-window', 'root', path.join(SHOTS, 'save-login.png')]); }
     await prompt.click('#save').catch(() => {});
     await check('SAVE stores the login and keeps you signed in on the site', async () => {
       assert.ok(await waitFor(() => !promptWin(), 4000), 'prompt still open');
       const st = settingsFile();
-      assert.ok((st.keepSignedIn || []).includes('127.0.0.1'), JSON.stringify(st.keepSignedIn));
+      assert.ok((st.keepSignedIn || []).includes('127.0.0.1:' + port), JSON.stringify(st.keepSignedIn));
       const vault = JSON.parse(fs.readFileSync(path.join(ud, 'vault.json'), 'utf8'));
       assert.ok(vault.some((v) => v.host === '127.0.0.1' && v.user === 'luke'));
     });
@@ -101,6 +118,22 @@ const LOGIN = '<!doctype html><title>sign in</title><body style="background:#fff
       return false;
     }, 8000)));
     await check("...and it doesn't ask to save the same login again", async () => { const l = lps().pop(); await l.click('#go'); await wait(1500); assert.ok(!promptWin()); });
+
+    // 2b. plain http: never offered, never filled; fake (scripted) sign-ins: never offered
+    await shell.evaluate(() => window.shell.newTab()); await wait(300);
+    await go(H + '/login');
+    const hp = await page(new RegExp(H.replace(/[.:/]/g, (c) => '\\' + c) + '/login'));
+    await wait(1500);
+    await check('a plain http sign-in page is never filled in', async () => assert.deepStrictEqual(await hp.evaluate(() => [document.getElementById('u').value, document.getElementById('p').value]), ['', '']));
+    await hp.fill('#u', 'luke'); await hp.fill('#p', 'other-pass'); await hp.click('#go');
+    await wait(1500);
+    await check('...and signing in on it never asks to save', () => assert.ok(!promptWin()));
+    await shell.evaluate(() => window.shell.newTab()); await wait(300);
+    await go(B + '/login');
+    const sp = await waitFor(() => app.windows().filter((w) => w.url().startsWith(B + '/login')).pop(), 6000);
+    await sp.evaluate(() => { document.getElementById('u').value = 'planted'; document.getElementById('p').value = 'planted'; document.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); document.getElementById('go').dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    await wait(1500);
+    await check("a page's own script can't fake a sign-in to open the prompt", () => assert.ok(!promptWin()));
 
     // 3. NEVER on the other host
     await shell.evaluate(() => window.shell.newTab()); await wait(300);
@@ -151,6 +184,35 @@ const LOGIN = '<!doctype html><title>sign in</title><body style="background:#fff
     await s.evaluate(() => window.ngSettings.do('theme', 'light'));
     await check('theme and size are saved', () => { const st = settingsFile(); assert.strictEqual(st.theme, 'light'); assert.strictEqual(st.uiSize, 'xl'); });
 
+    // 7. PIN set and logins locked: the sign-in page asks for the PIN in a small box, then fills
+    await s.evaluate(() => window.ngSettings.do('pin-set', '', '2468'));
+    await shell.evaluate(() => { const b = document.getElementById('keybtn').getBoundingClientRect(); window.shell.toggleVault({ left: b.left, right: b.right, top: b.top, bottom: b.bottom }); });
+    const vw = await waitFor(() => app.windows().find((w) => /vault\.html/.test(w.url())), 6000);
+    await vw.evaluate(() => window.vault.lock()); await wait(300);
+    // ...and while it's open: a NODE_GRID pop-over can't be navigated away to a website
+    await vw.evaluate(() => { location.href = 'https://example.com/'; }).catch(() => {});
+    await wait(800);
+    await check("a pop-over (the key popover) can't be navigated to a website", () => assert.ok(app.windows().some((w) => /vault\.html/.test(w.url())) && !app.windows().some((w) => /example\.com/.test(w.url()))));
+    await vw.evaluate(() => window.vault.close()).catch(() => {});
+    await shell.evaluate(() => window.shell.newTab()); await wait(300);
+    await go(A + '/login');
+    const uf = await waitFor(() => app.windows().find((w) => /unlockfill\.html/.test(w.url())), 8000);
+    await check('with logins locked, opening the sign-in page pops up a small PIN box', () => assert.ok(uf));
+    if (SHOTS && uf) { await wait(300); execFileSync('import', ['-window', 'root', path.join(SHOTS, 'unlock-to-fill.png')]); }
+    await uf.fill('#pin', '1111'); await uf.press('#pin', 'Enter'); await wait(500);
+    await check('a wrong PIN says so and fills nothing', async () => { assert.ok(/Wrong PIN/.test(await uf.evaluate(() => document.getElementById('msg').textContent))); });
+    await uf.fill('#pin', '2468'); await uf.press('#pin', 'Enter').catch(() => {});
+    await check('the right PIN fills the login straight in', async () => assert.ok(await waitFor(async () => {
+      for (const w of app.windows().filter((x) => x.url().startsWith(A + '/login'))) { const v = await w.evaluate(() => [document.getElementById('u').value, document.getElementById('p').value]).catch(() => null); if (v && v[0] === 'luke' && v[1] === 'hunter2') return true; }
+      return false;
+    }, 6000)));
+    await s.evaluate(() => window.ngSettings.do('pin-clear', '2468'));
+
+    // 8. the frame itself can't be navigated away (a dropped link, a script)
+    await shell.evaluate(() => { location.href = 'https://example.com/'; }).catch(() => {});
+    await wait(1000);
+    await check("NODE_GRID's own frame can't be replaced by a website", async () => assert.ok(app.windows().some((w) => /shell\.html$/.test(w.url())) && await shell.evaluate(() => !!window.shell)));
+
     // 4 (setup). a cookie on the site you didn't keep
     await shell.evaluate(() => window.shell.newTab()); await wait(300);
     await go(B + '/welcome');
@@ -175,7 +237,7 @@ const LOGIN = '<!doctype html><title>sign in</title><body style="background:#fff
     await shell.evaluate(() => window.shell.newTab()); await wait(300);
     await shell.evaluate((x) => window.shell.go(x), B + '/me');
     await check("after a restart: a site you didn't keep is signed out (wiped as always)", async () => assert.ok(await waitFor(async () => { const s = await state(); const t = s && s.tabs.find((x) => x.id === s.activeId); return t && t.title === 'signed out'; }, 8000)));
-  } finally { await app.close().catch(() => {}); site.close(); }
+  } finally { await app.close().catch(() => {}); site.close(); plain.close(); }
   if (failed) { console.log('5.1.5 FEATURES TEST FAILED'); process.exit(1); }
   console.log('ALL 5.1.5 FEATURES TESTS PASS');
 })().catch((e) => { console.error(e); process.exit(1); });

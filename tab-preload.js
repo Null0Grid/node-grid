@@ -22,11 +22,14 @@ window.addEventListener('mousemove', (e) => {
 //  itself, never to any website.
 // ===================================================================================
 (() => {
-  if (!/^https?:$/.test(location.protocol)) return;
+  if (!/^https?:$/.test(location.protocol)) return;          // the app only acts on https, or http sites you said you trust
   const isText = (el) => el && el.tagName === 'INPUT' && /^(text|email|tel|)$/i.test(el.getAttribute('type') || '');
   const shown = (el) => el.getClientRects().length > 0;
   const looksLikeUser = (el) => /user|email|login|account|ident|phone|name/i.test([el.name, el.id, el.autocomplete, el.getAttribute('type')].join(' '));
   let sentFor = '';
+  let trustedAt = 0;                                   // when the person last pressed a key or clicked
+  for (const ev of ['keydown', 'mousedown', 'pointerdown', 'touchstart']) window.addEventListener(ev, (e) => { if (e.isTrusted) trustedAt = Date.now(); }, true);
+  const lastTrusted = () => Date.now() - trustedAt < 1500;
   function capture(origin) {
     const pws = [...document.querySelectorAll('input[type=password]')].filter((p) => p.value && shown(p));
     if (!pws.length) {                      // a username-only step (Google, Microsoft): remember the name for the next page
@@ -35,7 +38,8 @@ window.addEventListener('mousemove', (e) => {
       if (u) ipcRenderer.send('login:user', u.value.trim().slice(0, 200));
       return;
     }
-    const pw = pws[0];
+    // change-password / sign-up forms: the last filled password field is the new one
+    const pw = pws[pws.length - 1];
     const scope = pw.form || document;
     let user = '';
     for (const el of scope.querySelectorAll('input')) {
@@ -46,9 +50,12 @@ window.addEventListener('mousemove', (e) => {
     sentFor = key;
     ipcRenderer.send('login:submitted', { user: user.trim().slice(0, 200), pass: pw.value.slice(0, 500) });
   }
-  window.addEventListener('submit', (e) => capture(e.target), true);
-  window.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') setTimeout(() => capture(e.target), 0); }, true);
+  // only real actions by the person count (a page can't fake them with dispatchEvent);
+  // a script-driven form.submit() gets no event, so it never opens the prompt
+  window.addEventListener('submit', (e) => { if (lastTrusted()) capture(e.target); }, true);
+  window.addEventListener('keydown', (e) => { if (e.isTrusted && e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') setTimeout(() => capture(e.target), 0); }, true);
   window.addEventListener('click', (e) => {          // sign-in buttons that aren't real form submits (most single-page apps)
+    if (!e.isTrusted) return;
     const b = e.target && e.target.closest && e.target.closest('button, input[type=submit], [role=button]');
     if (!b) return;
     const label = (b.value || b.textContent || b.getAttribute('aria-label') || '').trim();
@@ -90,12 +97,23 @@ if (cfg && cfg.errorPage && location.href.startsWith(cfg.errorPage)) {
   } catch {}
 }
 
+// The "not secure" warning page (insecure.html): which address, and your choice.
+if (cfg && cfg.insecurePage && location.href.startsWith(cfg.insecurePage)) {
+  try {
+    contextBridge.exposeInMainWorld('nodegridInsecure', {
+      info: () => ipcRenderer.sendSync('insecure:info'),
+      choose: (c) => ipcRenderer.send('insecure:choose', String(c))
+    });
+  } catch {}
+}
+
 // The bundled start page remembers which engine + Vault setting you used last.
 // (Only those two choices are saved, never what you searched for.)
 if (cfg && location.protocol === 'file:' && location.href.split(/[?#]/)[0] === cfg.homeFile) {
   try {
     contextBridge.exposeInMainWorld('nodegridPrefs', {
       search: cfg.searchPrefs || null,
+      dashboard: cfg.dashboard || '',
       saveSearch: (engine, vault) => ipcRenderer.send('prefs:search', String(engine), !!vault)
     });
   } catch {}

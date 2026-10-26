@@ -76,3 +76,4 @@ svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width:
 
 /* ---------- light theme (Settings > APPEARANCE > Theme) ---------- */
 :root[data-theme="light"] { --bg: #f3f5f9; --panel: #ffffff; --panel-2: #e8edf4; --line: #c9d3e1; --cyan: #007f9e; --pink: #c8186a; --green: #0f8a55; --amber: #a86b00; --text: #2b3647; --dim: #66768c; --hi: #0b1424; color-scheme: light; }
+:root[data-theme="light"] .url { color: #55657a; }

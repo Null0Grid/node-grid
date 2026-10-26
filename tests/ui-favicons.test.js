@@ -40,7 +40,7 @@ const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><style>
     r.setHeader('Content-Type', 'text/html'); r.end('<!doctype html><title>' + q.url + '</title>' + (pages[q.url] || '') + '<body>' + q.url);
   }); await new Promise((r) => site.listen(0, '127.0.0.1', r));
   const B = 'http://127.0.0.1:' + site.address().port;
-  const app = await pw._electron.launch({ args: [APP, '--user-data-dir=' + path.join(os.tmpdir(), 'ng-fav-' + Date.now())], executablePath: electronPath, env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/' } });
+  const app = await pw._electron.launch({ args: [APP, '--user-data-dir=' + path.join(os.tmpdir(), 'ng-fav-' + Date.now())], executablePath: electronPath, env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1' } });
   let shell; for (let i = 0; i < 80 && !shell; i++) { shell = app.windows().find((w) => /shell\.html$/.test(w.url())); await wait(150); }
   await wait(800);
   for (const p of Object.keys(pages).filter((k) => k !== '/slow-icon')) { await shell.evaluate(() => window.shell.newTab()); await wait(250); await shell.evaluate((u) => window.shell.go(u), B + p); await wait(700); }

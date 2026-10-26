@@ -147,3 +147,24 @@ Like Firefox: once something has been downloaded, a download arrow appears in th
 - Fixed: a pinned tab with Masking on could get stuck loading at startup.
 
 Tests: `ui-515` (save prompt, auto-fill, never, kept vs. wiped across a restart, pinned Masking, theme and size) and `ui-whatsnew` (card after an update, not again, About, first start plays the walkthrough).
+
+## 5.1.6: security release (two independent reviews of 5.1.5)
+
+**Security**
+- **Not-secure warning:** a tab heading to a plain `http://` page (anything but this computer itself: localhost, 127.x) stops at `insecure.html` first. CLOSE never goes in (back to the previous page, or the tab closes); PROCEED, DON'T TRUST opens it for the rest of this run with logins never saved or filled; PROCEED, I TRUST IT remembers the site (`settings.httpTrusted`, listed in Settings › PRIVACY) and lets logins be saved and filled there like on https. The address bar shows the site, and Back skips the warning. Tested live (`tests/ui-insecure.test.js`).
+- NODE_GRID's own frame and pop-overs can't be navigated or open windows (`will-navigate` / `will-frame-navigate` / `will-redirect` prevented, window opens denied for every non-tab app page), and the frame's bridge (`preload.js`) only exists on `shell.html`. Before, a link dragged onto the sidebar could load a website into the frame with its privileged bridge (open tabs, downloads that open, the key popover's passwords).
+- Logins: saved and filled only on https pages; auto-fill only into password/username fields that are actually visible on screen, never on pages with more than one password box; manual fill matches the site or its subdomains only. The sign-in capture counts only real key presses and clicks (a page's scripts can't fake a submit), only the active tab, and a saved password can't be replaced while logins are locked. Change-password forms offer the new password.
+- Unlock to fill: with logins locked, a small PIN box by the key icon opens when a site's sign-in form shows; the right PIN fills the login.
+- Keep me signed in, redesigned: the first kept site moves every open normal tab into the kept session at once (cookies carried over), so sessions are never split; sites are kept with their port; the box starts unticked; signing out of one site clears its data and only the cookies no other kept site shares; opening NODE_GRID while it's still wiping on quit starts it again right after.
+- Updater: a .deb/.rpm is hashed again right before pkexec installs it; the .tar.gz helper waits for every process from the folder and retries the copy; NODEGRID_* test switches are removed in installed builds (except a loopback test update server); release builds only get `contents: read`, the attach job `write`.
+- "Open an app": the prompt names the app (link scheme), answers are per app, and risky Windows schemes (ms-msdt, search-ms, ms-officecmd...) are always refused. Pop-ups from websites open only http(s) addresses.
+- Null Drive warns when the token goes over plain http to a network name (nas.lan), not just to outside addresses.
+
+**Fixes**
+- Update files for copies that can't update themselves go through the Downloads list.
+- Light theme: readable burner tabs and the address bar's grey text; tabs no longer flash black.
+- The What's new card and the walkthrough don't take the keyboard while you're typing; upgraders see only the notes since the version they had.
+- The start page's dashboard button is now a setting (Settings > Start page search); no built-in address.
+- Privacy policy: real contact address; kept sites and saved logins described.
+
+Tests: `ui-515` adds https-only, faked sign-ins, the PIN box, and frame/pop-over navigation.

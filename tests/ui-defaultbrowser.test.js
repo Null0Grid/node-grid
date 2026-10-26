@@ -31,7 +31,7 @@ async function waitFor(fn, timeoutMs = 10000) {
 (async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ng-home-'));
   const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), XDG_DATA_HOME: path.join(home, '.local', 'share'),
-    XDG_CURRENT_DESKTOP: '', DESKTOP_SESSION: '', NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/' };
+    XDG_CURRENT_DESKTOP: '', DESKTOP_SESSION: '', NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1' };
   const xdg = (...a) => { try { return execFileSync(a[0], a.slice(1), { env, encoding: 'utf8' }).trim(); } catch { return ''; } };
   const app = await pw._electron.launch({ args: [APP_DIR, '--user-data-dir=' + path.join(home, 'ud')], executablePath: electronPath, env });
   let failed = false;

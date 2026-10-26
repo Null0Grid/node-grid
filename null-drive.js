@@ -39,6 +39,8 @@ function normAddress(input) {
 }
 const hostOf = (base) => { try { return new URL(base).hostname.toLowerCase().replace(/^\[|\]$/g, ''); } catch { return ''; } };
 const isPrivate = (base) => PRIVATE.test(hostOf(base));
+// a private IP address (or this computer) only: names like nas.lan can be answered by any network you're on
+const isPrivateIp = (base) => /^(127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|::1|localhost)$/i.test(hostOf(base));
 // Each path segment URL-encoded, "/" kept: "Null Notes/Plan.md" -> "Null%20Notes/Plan.md"
 const encPath = (p) => String(p).split('/').filter(Boolean).map(encodeURIComponent).join('/');
 
@@ -125,7 +127,8 @@ module.exports = function createDrive({ getSettings, saveSettings, enc, dec, can
     return {
       configured: configured(), url: s.url || '', hasToken: !!s.token,
       state: configured() ? live.state : 'off', user: live.user || '', at: live.at || '',
-      plain: !!s.url && /^http:/i.test(s.url) && !isPrivate(s.url)      // token would cross the internet unencrypted
+      plain: !!s.url && /^http:/i.test(s.url) && !isPrivateIp(s.url),     // token would travel unencrypted to whoever answers for that name
+      plainName: !!s.url && /^http:/i.test(s.url) && !isPrivateIp(s.url) && isPrivate(s.url)
     };
   }
 

@@ -35,11 +35,11 @@
     window.perm.answer(allow, $('remember').checked);
   };
 
-  window.perm.onShow(({ host, kind }) => {
+  window.perm.onShow(({ host, kind, app }) => {
     $('icon').innerHTML = ICONS[kind] || ICONS.other;
     $('icon').className = 'badge k-' + String(kind).replace(/[^a-z]/g, '');
     $('host').textContent = host;
-    $('what').textContent = VERBS[kind] || `wants permission: ${kind}`;
+    $('what').textContent = kind === 'external-app' && app ? `wants to open an app on this computer (${app}: links)` : (VERBS[kind] || `wants permission: ${kind}`);
     $('remember').checked = false;
     $('card').hidden = false;
     open = true;

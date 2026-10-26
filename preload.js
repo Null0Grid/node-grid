@@ -1,7 +1,9 @@
 // Narrow bridge between the shell UI and the main process.
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('shell', {
+// Only on NODE_GRID's own frame page (shell.html): if anything else ever loads
+// here, it gets no bridge at all.
+if (location.protocol === 'file:' && /\/shell\.html$/.test(location.pathname)) contextBridge.exposeInMainWorld('shell', {
   newTab:      ()   => ipcRenderer.send('tab:new'),
   closeTab:    (id) => ipcRenderer.send('tab:close', id),
   activate:    (id) => ipcRenderer.send('tab:activate', id),

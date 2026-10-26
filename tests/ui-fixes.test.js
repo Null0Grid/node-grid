@@ -88,7 +88,7 @@ async function driveCertCheck() {
   const app = await pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + userData],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:' + ghPort + '/latest', NODEGRID_UPDATE_DELAY_MS: '600000' },
+    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_SKIP_INTRO: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:' + ghPort + '/latest', NODEGRID_UPDATE_DELAY_MS: '600000' },
   });
   const errors = [];
   app.process().stderr.on('data', (d) => { const s = String(d); if (/Uncaught|TypeError|ReferenceError|UnhandledPromiseRejection/.test(s)) errors.push('main: ' + s.trim().slice(0, 300)); });
@@ -98,13 +98,12 @@ async function driveCertCheck() {
     await shell.evaluate(() => { window.__s = null; window.shell.onState((s) => { window.__s = s; }); });
     await wait(1000);
     // record native menus instead of showing them, and record downloads instead of starting them
-    await app.evaluate(({ Menu, BrowserWindow }) => {
+    await app.evaluate(({ Menu, session }) => {
       global.__menus = [];
       const build = Menu.buildFromTemplate.bind(Menu);
       Menu.buildFromTemplate = (t) => { global.__menus.push(t); const m = build(t); m.popup = () => {}; return m; };
       global.__dl = [];
-      const wc = BrowserWindow.getAllWindows()[0].webContents;
-      wc.downloadURL = (u) => global.__dl.push(u);
+      for (const p of ['nullgrid-ephemeral', 'persist:nullgrid-kept']) session.fromPartition(p).downloadURL = (u) => global.__dl.push(u);
     });
     const state = () => shell.evaluate(() => window.__s);
     const activeTab = async () => { const s = await state(); return s && s.tabs.find((t) => t.id === s.activeId); };
@@ -200,7 +199,7 @@ async function driveCertCheck() {
     await waitFor(async () => (await s.evaluate(() => window.ngSettings.get())).update.state === 'available', 8000);
     await shell.evaluate(() => window.shell.openBurner()); await waitFor(async () => (await activeTab()).burnEnds);
     await s.evaluate(() => window.ngSettings.do('update-get'));
-    await check('"Get it" downloads the update through the window, even with a burner tab in front', async () => assert.ok(await waitFor(() => app.evaluate(() => global.__dl.some((u) => /99\.0\.0/.test(u))), 4000)));
+    await check('"Get it" downloads the update through the normal session (so it shows in Downloads), even with a burner tab in front', async () => assert.ok(await waitFor(() => app.evaluate(() => global.__dl.some((u) => /99\.0\.0/.test(u))), 4000)));
     // back to the Settings tab
     const setTab = (await state()).tabs.find((t) => t.settings);
     await shell.evaluate((id) => window.shell.activate(id), setTab.id); await wait(400);

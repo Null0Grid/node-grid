@@ -123,7 +123,9 @@
       else render();
     };
     s.append(f);
-    if (D.plain) s.append(el('p', 'hint dwarn', "This address isn't on your home network and uses plain http, so your token would travel unencrypted. Use https for a Drive outside your network."));
+    if (D.plain) s.append(el('p', 'hint dwarn', D.plainName
+      ? "This uses plain http with a network name, so your token travels unencrypted, and on another network (a café, a hotel) a different device could answer to that name and get it. Use https, or the Drive's private IP address."
+      : "This address isn't on your home network and uses plain http, so your token would travel unencrypted. Use https for a Drive outside your network."));
     s.append(el('p', 'hint', 'Make the token in Null Drive: Settings > Devices > Add device > Create an API token, scope Everything (needed to view and download files). Press Enter to connect.'));
     if (D.configured) {
       const b = el('div', 'drow');
@@ -181,6 +183,7 @@
       if (M.search.engine !== 'startpage') { toast('Vault only works with Startpage', true); return; }
       act('search', 'startpage', on, on ? 'Vault on' : 'Vault off');
     })));
+    s1.append(row('Dashboard button', 'Your own dashboard (e.g. Homepage, Homarr) as a button on the start page. Leave empty for none.', inputRow(M.dashboardUrl, '10.0.1.133 or dash.lan', 'SAVE', (v) => act('dashboard', v, null, v ? 'Dashboard button saved' : 'Dashboard button removed'))));
     out.push(s1);
 
     // NULL DRIVE
@@ -193,6 +196,9 @@
     s2.append(el('h3', null, 'Stay signed in on'));
     s2.append(el('p', 'hint', 'These sites keep their sign-in and site data when NODE_GRID closes. Every other site is wiped, as always. Add one with right-click > "Keep me signed in on this site", or when you save a login.'));
     s2.append(list(M.keepSignedIn, 'No sites yet.', (h) => li(h, null, 'SIGN OUT + REMOVE', () => act('keep-remove', h, null, h + ' removed and signed out'))));
+    s2.append(el('h3', null, 'Trusted http sites'));
+    s2.append(el('p', 'hint', 'Plain http sites you chose "Proceed, I trust it" for: no warning, and logins can be saved and filled there.'));
+    s2.append(list(M.httpTrusted, 'None.', (h) => li(h, null, 'REMOVE', () => act('http-untrust', h, null, h + ' removed'))));
     s2.append(row('Ad + tracker blocking', M.adblock.ready ? 'Blocks ads and trackers on every site' : 'Block lists are still loading', toggle(M.adblock.on, (on) => act('adblock', on, null, on ? 'Ad blocking on' : 'Ad blocking off'))));
     s2.append(el('h3', null, 'Sites where ad blocking is paused'));
     s2.append(list(M.adblock.paused, 'None. (Click the shield on a site to pause it there.)', (h) => li(h, null, 'BLOCK AGAIN', () => act('adblock-resume', h, null, 'Blocking again on ' + h))));

@@ -162,9 +162,16 @@ if ($Relaunch -eq '1') { if ($ArgLine) { Start-Process -FilePath $Exe -ArgumentL
 const SH_HELPER = `#!/bin/sh
 # NODE_GRID update helper: $1 pid  $2 new files  $3 program folder  $4 stage  $5 log  $6 program  $7 relaunch  $8... its arguments
 pid=$1; src=$2; dst=$3; stage=$4; log=$5; exe=$6; again=$7; shift 7
-i=0; while kill -0 "$pid" 2>/dev/null && [ $i -lt 300 ]; do sleep 0.3; i=$((i+1)); done
+# wait for NODE_GRID and every process still running from its folder (renderers, zygote...)
+busy() { for p in /proc/[0-9]*; do [ "$(readlink "$p/exe" 2>/dev/null)" = "$exe" ] && return 0; done; return 1; }
+i=0; while { kill -0 "$pid" 2>/dev/null || busy; } && [ $i -lt 300 ]; do sleep 0.3; i=$((i+1)); done
 sleep 0.5
-if cp -a "$src"/. "$dst"/; then rm -rf "$stage"; echo ok > "$log"; else echo "copy failed" > "$log"; fi
+n=0; ok=0
+while [ $n -lt 10 ]; do
+  if cp -a "$src"/. "$dst"/; then ok=1; break; fi
+  n=$((n+1)); sleep 1
+done
+if [ $ok = 1 ]; then rm -rf "$stage"; echo ok > "$log"; else echo "copy failed" > "$log"; fi
 if [ "$again" = 1 ]; then setsid "$exe" "$@" >/dev/null 2>&1 < /dev/null & fi
 exit 0
 `;
@@ -210,6 +217,12 @@ function applyNow(kind, ready, { dir, relaunch }) {
     return { ok: true, relaunchSelf: relaunch, execPath: dst, args: relaunchArgs() };
   }
   if (kind === 'deb' || kind === 'rpm') {
+    // checked again right before it's installed as root: the file sat in your
+    // user folder since it was downloaded, and must still be exactly what GitHub published
+    try {
+      const now = crypto.createHash('sha256').update(fs.readFileSync(ready.file)).digest('hex');
+      if (!ready.sha256 || now !== ready.sha256) { rmrf(ready.file); return Promise.resolve({ ok: false, reason: 'changed' }); }
+    } catch { return Promise.resolve({ ok: false, reason: 'changed' }); }
     const args = kind === 'deb' ? ['dpkg', '-i', ready.file] : ['rpm', '-U', '--replacepkgs', ready.file];
     return new Promise((resolve) => {
       let p;

@@ -1,4 +1,22 @@
 {
+  "5.1.6": {
+    "title": "Security release",
+    "new": [
+      "Not-secure warning: plain http sites stop at a warning first, with CLOSE, PROCEED, DON'T TRUST (logins never saved or filled), or PROCEED, I TRUST IT (remembered; logins work there). Your own computer is never warned.",
+      "Unlock to fill: with a PIN set, a small PIN box pops up when a sign-in page opens; type it and your login goes straight in.",
+      "Settings > Start page: put your own dashboard (Homepage, Homarr...) on the start page as a button."
+    ],
+    "fixed": [
+      "A website could take over NODE_GRID's own toolbar and sidebar if you dragged a link onto them. Now nothing can navigate NODE_GRID's own pages.",
+      "Passwords are now only saved and filled on secure (https) pages, only into fields you can see, and only the site (or its subdomains) they were saved for.",
+      "Websites can no longer fake a sign-in to pop up the save prompt, and a saved password can't be changed while your logins are locked.",
+      "Keep me signed in: all tabs now share one session, so sign-in pop-ups work; sites on a port (like Home Assistant :8123) stay signed in; the box starts unticked; signing out of one site no longer signs you out of others.",
+      "Updates for .deb and .rpm are checked again right before they're installed; test switches no longer work in installed copies.",
+      "\"Open an app\" requests now say which app, are remembered per app, and dangerous Windows tools are always refused.",
+      "Null Drive warns when its token would travel unencrypted to a network name like nas.lan.",
+      "Light theme: burner tabs are readable, new tabs no longer flash black. Cards no longer steal the keyboard while you type."
+    ]
+  },
   "5.1.5": {
     "title": "Easier on the eyes, and you stay signed in",
     "new": [

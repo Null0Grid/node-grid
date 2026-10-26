@@ -3,12 +3,26 @@
 // Pages render in WebContentsViews; the shell UI (shell.html) draws everything around them.
 
 const { app, BrowserWindow, WebContentsView, ipcMain, Menu, clipboard, nativeTheme, session, safeStorage, shell: eshell, protocol, net, dialog } = require('electron');
+// Test switches (NODEGRID_* environment variables) only work in a development
+// copy. In an installed build they're removed, except a test update server on
+// this computer (http://127.0.0.1 / localhost), which the update tests need.
+if (app.isPackaged) {
+  const loop = (v) => /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(v || '');
+  for (const k of Object.keys(process.env)) {
+    if (!k.startsWith('NODEGRID_')) continue;
+    if (k === 'NODEGRID_UPDATE_DELAY_MS' || k === 'NODEGRID_SKIP_INTRO') continue;
+    if ((k === 'NODEGRID_UPDATE_URL' || k === 'NODEGRID_UPDATE_TEST_HOST') && loop(process.env[k])) continue;
+    delete process.env[k];
+  }
+}
 const crypto = require('crypto');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
 // Built-in error page (shown when a page can't load, or a server returns a blank error)
 const ERROR_PAGE = pathToFileURL(path.join(__dirname, 'error.html')).href;
+const INSECURE_PAGE = pathToFileURL(path.join(__dirname, 'insecure.html')).href;
+const isInsecurePage = (u) => typeof u === 'string' && u.startsWith(INSECURE_PAGE);
 const isErrorPage = (u) => typeof u === 'string' && u.startsWith(ERROR_PAGE);
 
 // Theme (Settings > APPEARANCE > Theme): Dark, Light, or Match my computer.
@@ -23,7 +37,18 @@ const uiTheme = () => (themeChoice() === 'system' ? (nativeTheme.shouldUseDarkCo
 const APP_PAGES = pathToFileURL(__dirname).href + '/';
 const isAppPage = (u) => typeof u === 'string' && u.startsWith(APP_PAGES);
 const themePage = (wc) => { if (!wc.isDestroyed() && isAppPage(wc.getURL())) wc.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(uiTheme())}`).catch(() => {}); };
-app.on('web-contents-created', (_e, wc) => wc.on('dom-ready', () => themePage(wc)));
+app.on('web-contents-created', (_e, wc) => {
+  wc.on('dom-ready', () => themePage(wc));
+  // NODE_GRID's own frame and pop-overs (shell, key popover, prompts, gear, Packet...)
+  // never navigate and never open windows: a link or file dropped on them, or a
+  // page script, can't replace them with a website that would then hold their
+  // privileged bridge. Tabs (including the start page and Settings) are exempt.
+  const own = () => !tabs.some((t) => t.view.webContents === wc) && (isAppPage(wc.getURL()) || (win && !win.isDestroyed() && wc === win.webContents));
+  wc.on('will-navigate', (e) => { if (own()) e.preventDefault(); });
+  wc.on('will-frame-navigate', (e) => { if (own()) e.preventDefault(); });
+  wc.on('will-redirect', (e) => { if (own()) e.preventDefault(); });
+  if (!wc.getType || wc.getType() !== 'webview') wc.setWindowOpenHandler(() => ({ action: 'deny' }));   // tabs set their own handler right after this
+});
 function applyTheme() {
   nativeTheme.themeSource = themeChoice();
   for (const wc of require('electron').webContents.getAllWebContents()) themePage(wc);
@@ -87,6 +112,7 @@ function openLinks(links) {
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 app.on('second-instance', (_e, argv, cwd) => {
+  if (quittingNow) { app.relaunch({ args: argv.slice(1) }); return; }   // opened while NODE_GRID was closing: start again right after
   openLinks(linksFrom(argv.slice(1), cwd));
   if (!win) return;
   if (win.isMinimized()) win.restore();
@@ -218,7 +244,7 @@ function newTab(url = HOME, opts = {}) {
       preload: path.join(__dirname, 'tab-preload.js')
     }
   });
-  view.setBackgroundColor('#0a0a0f');
+  view.setBackgroundColor(uiTheme() === 'dark' ? '#0a0a0f' : '#f3f5f9');   // no dark flash in the light theme
   view.setBounds(viewport);
   win.contentView.addChildView(view);
 
@@ -230,7 +256,10 @@ function newTab(url = HOME, opts = {}) {
   const wc = view.webContents;
 
   // Links with target=_blank / window.open become tabs instead of new windows
-  wc.setWindowOpenHandler(({ url }) => { newTab(url, { peek, burner }); return { action: 'deny' }; });   // burner links stay burner
+  wc.setWindowOpenHandler(({ url }) => {                    // burner links stay burner; web addresses only
+    if (/^https?:\/\//i.test(url) || (devMode && isSimUrl(url))) newTab(url, { peek, burner });
+    return { action: 'deny' };
+  });
 
   wc.on('page-title-updated', (_e, title) => { if (tab.sleeping) return; tab.title = title; pushState(); });
   wc.on('page-favicon-updated', async (_e, icons) => {
@@ -248,7 +277,7 @@ function newTab(url = HOME, opts = {}) {
     if (tab.sleeping) return;
     tab.loading = false;
     const u = wc.getURL();
-    tab.url = isErrorPage(u) || (peek && u.startsWith('data:text/html')) ? tab.errorUrl : isReaderPage(u) ? (tab.readerUrl || tab.url) : u;
+    tab.url = isErrorPage(u) || isInsecurePage(u) || (peek && u.startsWith('data:text/html')) ? tab.errorUrl : isReaderPage(u) ? (tab.readerUrl || tab.url) : u;
     pushState();
   });
   wc.on('did-start-navigation', (_e, u, inPage, isMainFrame) => {
@@ -281,7 +310,9 @@ function newTab(url = HOME, opts = {}) {
       pushState(); return;
     }
     tab.reader = false;
-    if (isErrorPage(u)) {
+    if (isInsecurePage(u)) {
+      tab.url = tab.errorUrl;                 // the address bar shows the http site it's warning about
+    } else if (isErrorPage(u)) {
       tab.url = tab.errorUrl;                 // keep showing the address that failed
       dropFailedEntry(wc, tab.errorUrl);
     } else {
@@ -297,6 +328,7 @@ function newTab(url = HOME, opts = {}) {
   wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
     if (tab.sleeping) return;
     if (!isMainFrame || code === -3 || isErrorPage(url)) return;   // -3 = aborted (Stop, or navigated away)
+    if (insecureWaiting.get(wc.id) === url) return;                // stopped on purpose: the "not secure" warning is loading
     if (peek) { tab.errorUrl = url; return peekError(wc, url, code, desc); }   // the scripted error page can't run here
     showError(tab, { url, kind: 'net', code, desc });
   });
@@ -788,7 +820,7 @@ ipcMain.on('peek:source', (e) => {
 // The eggs themselves run in tab-preload.js on the NODE_GRID page. Nothing here
 // stores or logs anything: no search text ever reaches this process.
 ipcMain.on('egg:config', (e) => {
-  try { e.returnValue = { homeFile: HOME_FILE, errorPage: ERROR_PAGE, readerPage: READER_PAGE, searchHost: new URL(SEARCH_ORIGIN).host, searchPrefs: settings.searchPrefs || null, eggs: featureOn('eggs') }; } catch { e.returnValue = null; }
+  try { e.returnValue = { homeFile: HOME_FILE, errorPage: ERROR_PAGE, insecurePage: INSECURE_PAGE, readerPage: READER_PAGE, searchHost: new URL(SEARCH_ORIGIN).host, searchPrefs: settings.searchPrefs || null, eggs: featureOn('eggs'), dashboard: /^https?:\/\//i.test(settings.dashboardUrl || '') ? settings.dashboardUrl : '' }; } catch { e.returnValue = null; }
 });
 
 // fsociety: the frame glitches along with the page, and afterwards a tiny dark-red
@@ -1012,7 +1044,7 @@ function getUpdate() {
   if (update.state !== 'available') return;
   if (update.self) { selfUpdate(); return; }
   if (update.asset) {
-    win.webContents.downloadURL(update.asset.url);      // the window's own session: works even with a Peek or burner tab open
+    session.fromPartition(webPartition()).downloadURL(update.asset.url);   // the normal tabs' session: shows in Downloads, even with a Peek or burner tab open
   } else newTab(update.url);
 }
 let lastPush = 0;
@@ -1026,7 +1058,7 @@ async function selfUpdate() {
       update.progress = total ? Math.min(99, Math.floor(got * 100 / total)) : 0;
       if (Date.now() - lastPush > 500) { lastPush = Date.now(); pushUpdate(); }
     });
-    let ready = { file };
+    let ready = { file, sha256: asset.sha256 };
     if (kind === 'zip' || kind === 'tar') { update.progress = 100; pushUpdate(); ready = { file, ...(await SU.unpack(kind, file, dir)) }; try { fs.unlinkSync(file); } catch {} }
     update = { ...update, state: 'ready', progress: 100, ready };
   } catch (err) {
@@ -1055,8 +1087,9 @@ async function restartToUpdate() {
   if (!r.ok) {
     applyingUpdate = false;
     delete settings.updateFrom; delete settings.restoreTabs; saveSettings();
-    const why = { cancelled: 'The install was cancelled (no password given)', 'no-pkexec': "This system can't ask for your password (pkexec is missing). Install the downloaded file yourself", install: 'The package manager refused the update' };
-    update = { ...update, state: 'ready', error: why[r.reason] || ("Couldn't install: " + r.reason) };
+    const why = { changed: 'The downloaded update changed on disk, so it was thrown away. Try UPDATE again', cancelled: 'The install was cancelled (no password given)', 'no-pkexec': "This system can't ask for your password (pkexec is missing). Install the downloaded file yourself", install: 'The package manager refused the update' };
+    update = r.reason === 'changed' ? { ...update, state: 'available', ready: null, progress: 0, error: why.changed }
+      : { ...update, state: 'ready', error: why[r.reason] || ("Couldn't install: " + r.reason) };
     pushUpdate();
     return r;
   }
@@ -1174,7 +1207,7 @@ ipcMain.handle('egg:ping', async () => {
 // ---------- small overlay windows (permission prompt, password vault) ----------
 // Page views sit above the app's frame, so anything that floats over a page is its
 // own tiny transparent view, kept on top of the tabs.
-const overlays = { perm: null, vault: null, recon: null, qr: null, dlpop: null, loginsave: null, whatsnew: null, tour: null };
+const overlays = { perm: null, vault: null, recon: null, qr: null, dlpop: null, loginsave: null, unlockfill: null, whatsnew: null, tour: null };
 
 function makeOverlay(file, preload) {
   const v = new WebContentsView({
@@ -1197,7 +1230,7 @@ function dropOverlay(name) {
 }
 function raiseOverlays() {
   if (!win || win.isDestroyed()) return;
-  for (const v of [overlays.recon, overlays.qr, overlays.vault, overlays.dlpop, overlays.loginsave, overlays.whatsnew, overlays.tour, overlays.perm]) if (v) win.contentView.addChildView(v);
+  for (const v of [overlays.recon, overlays.qr, overlays.vault, overlays.dlpop, overlays.loginsave, overlays.unlockfill, overlays.whatsnew, overlays.tour, overlays.perm]) if (v) win.contentView.addChildView(v);
   placePixel();
 }
 const isOverlay = (wc, name) => !!overlays[name] && overlays[name].webContents === wc;
@@ -1214,6 +1247,8 @@ const PERM_KIND = {
   'window-management': 'windows', 'speaker-selection': 'speakers'
 };
 const sessionGrants = new Map();      // "origin|kind" -> true/false, until the app closes
+// links to these never open an app, whatever a site asks
+const BLOCKED_SCHEMES = /^(file|javascript|vbscript|data|ms-msdt|search-ms|search|ms-search|ms-officecmd|ms-cxh|ms-cxh-full|ms-appinstaller|ms-settings|ms-word|ms-excel|ms-powerpoint|ms-access|ms-visio|ms-project|ms-publisher|ms-spd|ms-infopath|shell|res|its|mk|hcp|help|mhtml)$/i;
 const permQueue = [];
 let permShowing = null, permReady = false;
 
@@ -1245,7 +1280,8 @@ function nextPrompt() {
 }
 function sendPrompt() {
   if (!permShowing || !permReady || !overlays.perm) return;
-  overlays.perm.webContents.send('perm-show', { host: new URL(permShowing.origin).host, kind: permShowing.kind });
+  const kind = permShowing.kind.startsWith('external-app:') ? 'external-app' : permShowing.kind;
+  overlays.perm.webContents.send('perm-show', { host: new URL(permShowing.origin).host, kind, app: permShowing.app || '' });
 }
 function answerPrompt(allow, remember) {
   const p = permShowing;
@@ -1269,10 +1305,16 @@ function setupPermissions(ses, { peek = false } = {}) {
     if (SAFE_PERMS.has(permission)) return callback(true);
     const origin = originOf((details && details.requestingUrl) || wc.getURL());
     if (!origin) return callback(false);
-    const kind = permission === 'media' ? mediaKind(details && details.mediaTypes) : (PERM_KIND[permission] || permission);
+    let kind = permission === 'media' ? mediaKind(details && details.mediaTypes) : (PERM_KIND[permission] || permission);
+    let app = '';
+    if (permission === 'openExternal') {                       // which app: each one is asked (and remembered) on its own
+      const scheme = (/^([a-z][a-z0-9+.-]*):/i.exec((details && details.externalURL) || '') || [])[1];
+      if (!scheme || BLOCKED_SCHEMES.test(scheme)) return callback(false);   // never: Windows tools that have been used to attack PCs
+      app = scheme.toLowerCase(); kind = 'external-app:' + app;
+    }
     const known = decided(origin, kind);
     if (known !== undefined) return callback(known);
-    permQueue.push({ wc, origin, kind, callback });
+    permQueue.push({ wc, origin, kind, app, callback });
     nextPrompt();
   });
   ses.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => {
@@ -1988,6 +2030,51 @@ ipcMain.on('cert:info', (e) => {
   e.returnValue = ce && certTrustable(ce.host) ? { host: ce.host, issuer: ce.issuer, fingerprint: ce.fingerprint, error: ce.error } : null;
 });
 
+// ---------- "not secure" warning for plain http sites ----------
+// A tab heading to an http:// page (anything but this computer itself) stops at
+// insecure.html first: CLOSE (never go in), PROCEED, DON'T TRUST (open it, logins
+// are never saved or filled there), or PROCEED, I TRUST IT (remembered; logins
+// work there like on https). Trusted sites are listed in Settings > PRIVACY.
+const httpTrusted = () => (Array.isArray(settings.httpTrusted) ? settings.httpTrusted : []);
+const passedThisRun = new Set();                 // "proceed, don't trust": no warning again until NODE_GRID closes
+const insecureWaiting = new Map();               // webContents id -> the http address it was going to
+const httpHostOf = (u) => { try { const x = new URL(u); return x.protocol === 'http:' ? x.host.toLowerCase() : ''; } catch { return ''; } };
+const isLoopback = (h) => /^(localhost|127(\.\d+){3}|\[::1\])(:\d+)?$/i.test(h);
+const trustedHttp = (u) => { const h = httpHostOf(u); return !!h && httpTrusted().includes(h); };
+function insecureStop(details) {
+  const host = httpHostOf(details.url);
+  if (!host || isLoopback(host) || httpTrusted().includes(host) || passedThisRun.has(host)) return false;
+  const wc = details.webContents;
+  const t = wc && tabs.find((x) => x.view.webContents === wc);
+  if (!t || t.peek || t.sim || t.settingsTab) return false;
+  insecureWaiting.set(wc.id, details.url);
+  t.errorUrl = details.url;                       // what the address bar shows over the warning
+  setImmediate(() => { if (!wc.isDestroyed()) wc.loadURL(INSECURE_PAGE + '?' + new URLSearchParams({ url: details.url }).toString()).catch(() => {}); });
+  return true;
+}
+const onInsecurePage = (wc) => String(wc.getURL()).startsWith(INSECURE_PAGE);
+ipcMain.on('insecure:info', (e) => { e.returnValue = onInsecurePage(e.sender) ? { url: insecureWaiting.get(e.sender.id) || '' } : null; });
+ipcMain.on('insecure:choose', (e, choice) => {
+  if (!onInsecurePage(e.sender)) return;
+  const wc = e.sender, url = insecureWaiting.get(wc.id), t = tabs.find((x) => x.view.webContents === wc);
+  if (!url || !t) return;
+  const host = httpHostOf(url);
+  if (choice === 'close') {                       // never went in: back where you were, or the tab goes
+    insecureWaiting.delete(wc.id);
+    if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); else closeTab(t.id);
+    return;
+  }
+  if (choice === 'trust') { settings.httpTrusted = [...new Set([...httpTrusted(), host])]; saveSettings(); toast(`${host} is trusted: logins can be saved and filled there`); }
+  else if (choice === 'proceed') passedThisRun.add(host);
+  else return;
+  insecureWaiting.delete(wc.id);
+  const at = wc.navigationHistory.getActiveIndex();
+  wc.once('did-navigate', () => {                 // Back from the site skips the warning page
+    try { const h = wc.navigationHistory, list = h.getAllEntries(); if (list[at] && list[at].url.startsWith(INSECURE_PAGE) && at !== h.getActiveIndex()) h.removeEntryAtIndex(at); } catch {}
+  });
+  wc.loadURL(url).catch(() => {});
+});
+
 // ---------- PIN lock for saved logins ----------
 // Optional 4-8 digit PIN. Stored only as a salted scrypt hash. Unlocking lasts 5 minutes
 // (each use extends it). 5 wrong tries = a 30 second wait. Forgot it = erase the logins.
@@ -2158,7 +2245,7 @@ function settingsModel() {
     certs: Object.entries(settings.trustedCerts || {}).map(([host, c]) => ({ host, issuer: c.issuer, added: c.added })),
     burnerMinutes: burnerMinutes(), burnerChoices: BURN_CHOICES,
     pin: { set: pinSet() }, logins: vault.length,
-    hasTour: hasTour(),
+    hasTour: hasTour(), dashboardUrl: settings.dashboardUrl || '', httpTrusted: httpTrusted(),
     loginOffer: loginOffer(), loginAutofill: loginAutofill(), loginNever: loginNever(), keepSignedIn: keptHosts(),
     dark: { on: !!settings.darkPages, except: settings.darkExcept || [] },
     uiSize: ['large', 'xl'].includes(settings.uiSize) ? settings.uiSize : 'normal',
@@ -2192,6 +2279,14 @@ ipcMain.handle('settings:do', async (e, action, a, b) => {
     case 'burner': if (!BURN_CHOICES.includes(Number(a))) return { ok: false }; settings.burnerMinutes = Number(a); saveSettings(); return ok();
     case 'dark': settings.darkPages = !!a; saveSettings(); applyDarkAll(); return ok();
     case 'theme': if (!THEMES.includes(a)) return { ok: false }; if (a === 'dark') delete settings.theme; else settings.theme = a; saveSettings(); applyTheme(); return ok();
+    case 'dashboard': {                                       // the start page's dashboard button (your own homelab dashboard)
+      let u = String(a || '').trim();
+      if (!u) { delete settings.dashboardUrl; saveSettings(); return ok(); }
+      if (!/^https?:\/\//i.test(u)) u = (LOCALISH.test(u) ? 'http://' : 'https://') + u;
+      try { new URL(u); } catch { return { ok: false, reason: 'address' }; }
+      settings.dashboardUrl = u; saveSettings(); return ok();
+    }
+    case 'http-untrust': settings.httpTrusted = httpTrusted().filter((h) => h !== a); saveSettings(); return ok();
     case 'login-offer': settings.loginOffer = !!a; saveSettings(); return ok();
     case 'login-autofill': settings.loginAutofill = !!a; saveSettings(); return ok();
     case 'login-never-remove': settings.loginNever = loginNever().filter((h) => h !== a); saveSettings(); return ok();
@@ -2903,7 +2998,7 @@ function saveVault() {
 }
 const siteHost = (u) => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.hostname.toLowerCase().replace(/^www\./, '') : ''; } catch { return ''; } };
 const normHost = (h) => String(h || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/[/?#].*$/, '').replace(/:\d+$/, '').replace(/^www\./, '');
-const hostMatch = (entryHost, pageHost) => !!pageHost && (entryHost === pageHost || pageHost.endsWith('.' + entryHost) || entryHost.endsWith('.' + pageHost));
+const hostMatch = (entryHost, pageHost) => !!pageHost && (entryHost === pageHost || pageHost.endsWith('.' + entryHost));   // the site or one of its subdomains, never the other way round
 
 function vaultState() {
   const t = activeTab();
@@ -3062,15 +3157,18 @@ const lastUser = new Map();            // webContents id -> { host, user, at } (
 let pendingLogin = null;               // { tabId, host, fullHost, user, pass, updateId }
 const tabOfWc = (wc) => tabs.find((t) => t.view.webContents === wc);
 const normalTab = (t) => t && !t.burner && !t.peek && !t.sim && !t.settingsTab;
-const fullHostOf = (u) => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.hostname.toLowerCase() : ''; } catch { return ''; } };
+const fullHostOf = (u) => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.host.toLowerCase() : ''; } catch { return ''; } };   // with the port, if any
+const isHttps = (u) => { try { return new URL(u).protocol === 'https:'; } catch { return false; } };
+const loginsAllowed = (u) => isHttps(u) || trustedHttp(u);      // https, or an http site you said you trust
 ipcMain.on('login:user', (e, user) => {
   const t = tabOfWc(e.sender);
-  if (!normalTab(t) || typeof user !== 'string' || !user) return;
+  if (!normalTab(t) || typeof user !== 'string' || !user || !loginsAllowed(e.sender.getURL())) return;
   lastUser.set(e.sender.id, { host: siteHost(t.url), user: user.slice(0, 200), at: Date.now() });
 });
 ipcMain.on('login:submitted', (e, d) => {
   const t = tabOfWc(e.sender);
   if (!normalTab(t) || !loginOffer() || !canEncrypt() || !d || typeof d.pass !== 'string' || !d.pass) return;
+  if (t.id !== activeId || !loginsAllowed(e.sender.getURL())) return;      // only the tab you're using, only secure (or trusted) pages
   const host = siteHost(e.sender.getURL()), fullHost = fullHostOf(e.sender.getURL());
   if (!host || loginNever().includes(host)) return;
   let user = typeof d.user === 'string' ? d.user.slice(0, 200) : '';
@@ -3083,6 +3181,7 @@ ipcMain.on('login:submitted', (e, d) => {
     if (p === d.pass) return;                                   // already saved
     updateId = v.id;                                            // same login, new password: offer to update it
   }
+  if (updateId && vaultLocked()) return;                        // changing a saved password needs your logins unlocked
   pendingLogin = { tabId: t.id, host, fullHost, user, pass: d.pass, updateId };
   showLoginPrompt();
 });
@@ -3107,9 +3206,10 @@ ipcMain.handle('loginsave:info', (e) => (fromLoginPrompt(e) ? loginPromptInfo() 
 ipcMain.handle('loginsave:choose', async (e, choice, keep) => {
   if (!fromLoginPrompt(e) || !pendingLogin) return { ok: false };
   const p = pendingLogin; pendingLogin = null;
-  dropOverlay('loginsave');
+  dropOverlay('loginsave'); focusPage();
   if (choice === 'never') { settings.loginNever = [...new Set([...loginNever(), p.host])]; saveSettings(); toast(`NODE_GRID won't offer to save logins for ${p.host}`); return { ok: true }; }
   if (choice !== 'save') return { ok: true };
+  if (p.updateId && vaultLocked()) return { ok: false };
   if (!canEncrypt()) { toast("This computer's encryption isn't available, so the login wasn't saved"); return { ok: false }; }
   const v = p.updateId && vault.find((x) => x.id === p.updateId);
   if (v) v.pass = enc(p.pass); else vault.push({ id: nextVaultId++, host: p.host, user: p.user, pass: enc(p.pass) });
@@ -3121,11 +3221,21 @@ ipcMain.handle('loginsave:choose', async (e, choice, keep) => {
 
 // Auto-fill: the site's only saved login goes into an empty sign-in form (never
 // overwriting what you typed), a few times while the page settles.
-const AUTOFILL_JS = (user, pass) => `(() => {
-  const vis = (el) => !!el && !el.disabled && !el.readOnly && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+// Only fields you can actually see: on screen, not transparent, not tiny. A page
+// with more than one password box (sign-up, change password) is left alone.
+const FIELD_JS = `
+  const seen = (el) => { if (!el || el.disabled || el.readOnly) return false; const r = el.getBoundingClientRect(); if (r.width < 20 || r.height < 8 || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return false;
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.1) return false; } return true; };
+  const pws = [...document.querySelectorAll('input[type=password]')].filter(seen);`;
+const DETECT_JS = `(() => {${FIELD_JS}
+  return pws.length === 1 && !pws[0].value;
+})()`;
+const AUTOFILL_JS = (user, pass) => `(() => {${FIELD_JS}
+  if (pws.length !== 1) return { user: false, pass: false };
+  const vis = seen;
   const setv = (el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
   const isText = (el) => /^(text|email|tel|)$/i.test(el.getAttribute('type') || '');
-  const pw = [...document.querySelectorAll('input[type=password]')].find(vis);
+  const pw = pws[0];
   let u = null;
   if (pw) { for (const el of (pw.form || document).querySelectorAll('input')) if (vis(el) && isText(el) && (el.compareDocumentPosition(pw) & 4)) u = el; }
   if (!u) u = [...document.querySelectorAll('input[autocomplete~=username], input[autocomplete~=email], input[type=email], input[name*=user i], input[name*=login i], input[name*=email i], input[id*=user i], input[id*=login i], input[id*=email i]')].find((el) => vis(el) && isText(el));
@@ -3135,13 +3245,25 @@ const AUTOFILL_JS = (user, pass) => `(() => {
   return out;
 })()`;
 function autofill(t) {
-  if (!normalTab(t) || !loginAutofill() || vaultLocked()) return;
+  if (!normalTab(t) || !loginAutofill() || !loginsAllowed(t.url)) return;      // secure pages, or http sites you trust
   const host = siteHost(t.url);
   if (!host) return;
   const matches = vault.filter((v) => v.host === host);
   if (matches.length !== 1) return;                     // none, or several: pick one from the key icon
   const v = matches[0];
   const gen = t.fillGen = (t.fillGen || 0) + 1;
+  if (vaultLocked()) {                                  // PIN set and locked: ask for it right there, then fill
+    (async () => {
+      for (const ms of [300, 1500]) {
+        await new Promise((r) => setTimeout(r, ms));
+        const wc = t.view.webContents;
+        if (gen !== t.fillGen || wc.isDestroyed() || t.id !== activeId || !vaultLocked()) return;
+        let has = false; try { has = await wc.executeJavaScriptInIsolatedWorld(1013, [{ code: DETECT_JS }]); } catch {}
+        if (has) { showUnlockFill(t, v); return; }
+      }
+    })();
+    return;
+  }
   const tryFill = async () => {
     const wc = t.view.webContents;
     if (gen !== t.fillGen || wc.isDestroyed() || siteHost(wc.getURL()) !== host) return true;
@@ -3152,48 +3274,100 @@ function autofill(t) {
   (async () => { for (const ms of [0, 1200, 3500]) { await new Promise((r) => setTimeout(r, ms)); if (await tryFill()) return; } })();
 }
 
+// The small PIN box that pops up by the key icon when a sign-in page opens while
+// your logins are locked: type the PIN and the login goes straight in.
+let unlockFillTab = null;
+function unlockFillBounds() { const w = 300, h = 146; return { x: Math.round(viewport.x + viewport.width - w - 8), y: Math.round(viewport.y + 6), width: w, height: h }; }
+function showUnlockFill(t, v) {
+  if (!win || win.isDestroyed() || overlays.loginsave) return;           // a save prompt is already showing
+  unlockFillTab = { tabId: t.id, host: v.host, user: v.user };
+  if (overlays.unlockfill) { overlays.unlockfill.webContents.send('unlockfill-info', unlockFillTab); return; }
+  overlays.unlockfill = makeOverlay('unlockfill.html', 'unlockfill-preload.js');
+  overlays.unlockfill.setBounds(unlockFillBounds());
+  overlays.unlockfill.webContents.once('did-finish-load', () => overlays.unlockfill && overlays.unlockfill.webContents.focus());
+  raiseOverlays();
+}
+const fromUnlockFill = (e) => isOverlay(e.sender, 'unlockfill');
+ipcMain.handle('unlockfill:info', (e) => (fromUnlockFill(e) && unlockFillTab ? { host: unlockFillTab.host, user: unlockFillTab.user } : null));
+ipcMain.handle('unlockfill:try', (e, pin) => {
+  if (!fromUnlockFill(e) || !unlockFillTab) return { ok: false };
+  const r = tryUnlock(String(pin || ''));
+  sendVault();
+  if (!r.ok) return r;
+  const t = getTab(unlockFillTab.tabId); unlockFillTab = null;
+  dropOverlay('unlockfill');
+  if (t) { activate(t.id); autofill(t); }
+  return { ok: true };
+});
+ipcMain.on('unlockfill:close', (e) => { if (fromUnlockFill(e)) { unlockFillTab = null; dropOverlay('unlockfill'); focusPage(); } });
+
 // Keep me signed in: sites on this list keep their cookies and site data between
 // restarts. Normal tabs use the in-memory session until you keep a site; from
 // then on they use a session saved to disk (KEEP_PARTITION) that is wiped of every
 // site you didn't keep each time NODE_GRID starts and quits.
 const keptHosts = () => (Array.isArray(settings.keepSignedIn) ? settings.keepSignedIn : []);
+// "host" or "host:port", as shown and stored. Origins for both http and https.
+const originsOf = (h) => ['https://' + h, 'http://' + h];
 async function wipeUnkept() {
   const ses = session.fromPartition(KEEP_PARTITION);
-  const keep = keptHosts().flatMap((h) => ['https://' + h, 'http://' + h]);
+  const keep = keptHosts().flatMap(originsOf);
   try { if (keep.length) await ses.clearData({ excludeOrigins: keep }); else await ses.clearData(); } catch (err) { console.error('NODE_GRID: could not clear site data:', err.message); }
 }
+// Keeping a site. All normal tabs share one session: the first time you keep a
+// site, every open normal tab moves into the kept session together (cookies
+// carried over, so you stay signed in where you are), so sign-ins and sign-in
+// popups never end up split across two sessions.
 async function keepSite(host, t) {
   if (!host) return;
   if (!keptHosts().includes(host)) { settings.keepSignedIn = [...keptHosts(), host]; saveSettings(); }
+  if (useKeepSession) { pushState(); return; }
   useKeepSession = true;
-  if (!t || !normalTab(t) || t.view.webContents.session === session.fromPartition(KEEP_PARTITION)) { pushState(); return; }
-  // this tab is still in the in-memory session: bring its cookies over and reopen it in the kept one
-  const from = t.view.webContents.session, to = session.fromPartition(KEEP_PARTITION);
-  const dom = host.split('.').slice(-2).join('.');
+  const from = session.fromPartition(PARTITION), to = session.fromPartition(KEEP_PARTITION);
   try {
-    for (const c of await from.cookies.get({ domain: dom })) {
-      const url = (c.secure ? 'https://' : 'http://') + c.domain.replace(/^\./, '') + (c.path || '/');
-      await to.cookies.set({ url, name: c.name, value: c.value, domain: c.hostOnly ? undefined : c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, expirationDate: c.expirationDate || Date.now() / 1000 + 30 * 86400 }).catch(() => {});
+    for (const c of await from.cookies.get({})) {
+      const d = c.domain.replace(/^\./, '');
+      const cookie = { url: (c.secure ? 'https://' : 'http://') + d + (c.path || '/'), name: c.name, value: c.value, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite };
+      if (!c.hostOnly) cookie.domain = c.domain;
+      if (!c.session && c.expirationDate) cookie.expirationDate = c.expirationDate;   // session cookies stay session cookies
+      await to.cookies.set(cookie).catch(() => {});
     }
   } catch {}
-  reopenInKeptSession(t);
-}
-function reopenInKeptSession(t) {
-  const idx = tabs.indexOf(t), url = t.url, active = t.id === activeId;
-  const nt = newTab(url, { pinned: t.pinned, masked: t.masked });
-  tabs.splice(tabs.indexOf(nt), 1); tabs.splice(idx, 0, nt);
-  closeTab(t.id);
-  if (active) activate(nt.id); else pushState();
-}
-function unkeepSite(host) {
-  settings.keepSignedIn = keptHosts().filter((h) => h !== host); saveSettings();
-  session.fromPartition(KEEP_PARTITION).clearData({ origins: ['https://' + host, 'http://' + host] }).catch(() => {});
+  const moving = tabs.filter((x) => normalTab(x) && x.view.webContents.session === from);
+  const activeWas = activeId;
+  for (const x of moving) reopenInKeptSession(x, x.id === activeWas);
   pushState();
 }
-let wipedOnQuit = false;
+function reopenInKeptSession(t, makeActive) {
+  const idx = tabs.indexOf(t);
+  if (idx < 0) return;                                       // closed meanwhile
+  const nt = newTab(t.url, { pinned: t.pinned, masked: t.masked });
+  tabs.splice(tabs.indexOf(nt), 1); tabs.splice(Math.min(idx, tabs.length), 0, nt);
+  const keepActive = activeId;
+  closeTab(t.id);
+  activate(makeActive ? nt.id : (getTab(keepActive) ? keepActive : nt.id));
+}
+// Signing out of one kept site: its site data, and its cookies unless another
+// kept site shares them.
+async function unkeepSite(host) {
+  settings.keepSignedIn = keptHosts().filter((h) => h !== host); saveSettings();
+  const ses = session.fromPartition(KEEP_PARTITION);
+  const name = host.replace(/:\d+$/, '');
+  try {
+    await ses.clearData({ origins: originsOf(host), dataTypes: ['backgroundFetch', 'cache', 'downloads', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'] });
+    const others = keptHosts().map((h) => h.replace(/:\d+$/, ''));
+    for (const c of await ses.cookies.get({})) {
+      const d = c.domain.replace(/^\./, '');
+      const forThis = name === d || name.endsWith('.' + d);
+      const forOther = others.some((o) => o === d || o.endsWith('.' + d));
+      if (forThis && !forOther) await ses.cookies.remove((c.secure ? 'https://' : 'http://') + d + (c.path || '/'), c.name).catch(() => {});
+    }
+  } catch {}
+  pushState();
+}
+let wipedOnQuit = false, quittingNow = false;
 app.on('will-quit', (e) => {                      // wipe what you didn't keep before closing
   if (wipedOnQuit) return;
-  e.preventDefault(); wipedOnQuit = true;
+  e.preventDefault(); wipedOnQuit = true; quittingNow = true;
   Promise.race([wipeUnkept(), new Promise((r) => setTimeout(r, 4000))]).finally(() => app.quit());
 });
 
@@ -3214,7 +3388,7 @@ function notesSince(seen) {
 }
 function decideIntro() {               // called once settings are loaded
   if (firstRun) { pendingTour = hasTour() && !process.env.NODEGRID_SKIP_INTRO; settings.seenVersion = APP_VERSION; saveSettings(); return; }   // tests that drive the keyboard skip it
-  const seen = settings.seenVersion || null;
+  const seen = settings.seenVersion || (settings.updateFrom && settings.updateFrom.from) || null;   // updated from: only what's new since then
   if (seen === APP_VERSION) return;
   if (notesSince(seen).length) pendingWhatsNew = true; else { settings.seenVersion = APP_VERSION; saveSettings(); }
 }
@@ -3225,11 +3399,20 @@ function whatsNewBounds() {
 }
 function showWhatsNew(all) {
   if (!win || win.isDestroyed() || overlays.whatsnew) return;
-  whatsNewSeen = all ? null : (settings.seenVersion || null);
+  whatsNewSeen = all ? null : (settings.seenVersion || (settings.updateFrom && settings.updateFrom.from) || null);
   overlays.whatsnew = makeOverlay('whatsnew.html', 'whatsnew-preload.js');
   overlays.whatsnew.setBounds(whatsNewBounds());
-  overlays.whatsnew.webContents.once('did-finish-load', () => overlays.whatsnew && overlays.whatsnew.webContents.focus());
+  overlays.whatsnew.webContents.once('did-finish-load', () => focusUnlessTyping(overlays.whatsnew));
   raiseOverlays();
+}
+// a card that pops up by itself takes the keyboard only if you aren't typing somewhere
+async function focusUnlessTyping(v) {
+  if (!v) return;
+  const t = activeTab();
+  let typing = false;
+  try { typing = win.webContents.isFocused() ? await win.webContents.executeJavaScript('!!document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)')
+    : !!(t && await t.view.webContents.executeJavaScript('!!document.activeElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) || document.activeElement.isContentEditable)')); } catch {}
+  if (!typing && !v.webContents.isDestroyed()) v.webContents.focus();
 }
 function closeWhatsNew() {
   dropOverlay('whatsnew');
@@ -3248,7 +3431,7 @@ function openTour() {
   if (!win || win.isDestroyed() || overlays.tour || !hasTour()) return;
   overlays.tour = makeOverlay('tour.html', 'tour-preload.js');
   overlays.tour.setBounds(tourBounds());
-  overlays.tour.webContents.once('did-finish-load', () => overlays.tour && overlays.tour.webContents.focus());
+  overlays.tour.webContents.once('did-finish-load', () => focusUnlessTyping(overlays.tour));
   raiseOverlays();
 }
 ipcMain.on('tour:close', (e) => { if (isOverlay(e.sender, 'tour')) { dropOverlay('tour'); focusPage(); } });
@@ -3279,6 +3462,7 @@ async function initAdblock() {
 }
 function hookAdblock(ses) {
   ses.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
+    if (details.resourceType === 'mainFrame' && insecureStop(details)) return callback({ cancel: true });   // "not secure" warning first
     if (!blocker || settings.adblockOff) return callback({});   // lists not loaded yet, or switched off in settings
     const wc = details.webContents;
     const top = wc && !wc.isDestroyed() ? siteHost(wc.getURL()) : '';
@@ -3428,7 +3612,7 @@ function pageMenu(tab, p) {
   // Identity
   const kh = fullHostOf(tab.url);
   if (kh && normalTab(tab)) items.push({ label: 'Keep me signed in on ' + kh, type: 'checkbox', checked: keptHosts().includes(kh),
-    click: () => { if (keptHosts().includes(kh)) { unkeepSite(kh); toast(`${kh} will be signed out when NODE_GRID closes`); } else { keepSite(kh, tab); toast(`You'll stay signed in on ${kh}. Sign in once more if it asks`); } } });
+    click: () => { if (keptHosts().includes(kh)) { unkeepSite(kh); toast(`Signed out of ${kh}; it's wiped like other sites from now on`); } else { keepSite(kh, tab); toast(`You'll stay signed in on ${kh}. Sign in once more if it asks`); } } });
   if (maskable(tab)) items.push(maskItem(tab), SEP);
   else if (kh && normalTab(tab)) items.push(SEP);
 
@@ -3552,6 +3736,7 @@ ipcMain.on('viewport', (_e, r) => {
   if (overlays.vault) overlays.vault.setBounds(vaultBounds());
   if (overlays.dlpop) overlays.dlpop.setBounds(dlpopBounds());
   if (overlays.loginsave) overlays.loginsave.setBounds(loginPromptBounds());
+  if (overlays.unlockfill) overlays.unlockfill.setBounds(unlockFillBounds());
   if (overlays.whatsnew) overlays.whatsnew.setBounds(whatsNewBounds());
   if (overlays.tour) overlays.tour.setBounds(tourBounds());
   if (overlays.recon) overlays.recon.setBounds(reconBounds());
