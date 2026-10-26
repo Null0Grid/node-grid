@@ -29,8 +29,8 @@ source_aarch64=("${pkgname%-bin}-${pkgver}-arm64.tar.gz::https://github.com/Null
 # published on the 5.1.6 GitHub release. On the next release, run `updpkgsums`
 # against the new release assets and regenerate .SRCINFO.
 sha256sums=('f304828ddc49b946dbc2f4c28329a8318f546ac423b92c649a4b0e489fcf38a8')
-sha256sums_x86_64=('FILL_IN_FROM_THE_5.1.6_RELEASE_x86_64_TARBALL')
-sha256sums_aarch64=('FILL_IN_FROM_THE_5.1.6_RELEASE_arm64_TARBALL')
+sha256sums_x86_64=('c47e4c52562073de0c39f456065c5e6e2b1c8f617aac1382868995d55fdcd671')
+sha256sums_aarch64=('18e6f6d448bd925ac95cc4fbd5bb35358873f551bf9c2aac476c842c46e76123')
 
 package() {
   local _instdir="${pkgdir}/opt/${pkgname%-bin}"
