@@ -5,7 +5,8 @@
       "Settings > APPEARANCE > Tabs: put your tabs in a row across the top like other browsers. The sidebar shrinks to a rail one icon wide; history, downloads, vault and loadouts still open from it."
     ],
     "fixed": [
-      "A YouTube video in the sidebar radio now fills its box, with no black bars above and below."
+      "A YouTube video in the sidebar radio now fills its box, with no black bars above and below.",
+      "The NODE_GRID icon now fills its space on the taskbar like other apps: no black square around the blue frame."
     ]
   },
   "5.1.6": {
