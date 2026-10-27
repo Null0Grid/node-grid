@@ -6,7 +6,8 @@
     ],
     "fixed": [
       "A YouTube video in the sidebar radio now fills its box, with no black bars above and below.",
-      "The NODE_GRID icon now fills its space on the taskbar like other apps: no black square around the blue frame."
+      "The NODE_GRID icon now fills its space on the taskbar like other apps: no black square around the blue frame.",
+      "Windows: a popped-out video no longer shows up as a second NODE_GRID button on the taskbar."
     ]
   },
   "5.1.6": {

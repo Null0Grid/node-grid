@@ -107,6 +107,24 @@ function openLinks(links) {
   for (const u of links) newTab(u);
 }
 
+// One taskbar button for everything. Windows groups windows by their app ID.
+// Electron stamps its own ID on our main window, but a popped-out video
+// (Chromium's picture-in-picture window) only gets the process's ID, so it
+// showed up as a second NODE_GRID button. Setting the process ID gives every
+// window the same one. Installed from the Store, it has to be the package's
+// own ID (<package family>!NODEGRID) so it also matches the pinned icon.
+function windowsAppId() {
+  if (process.windowsStore) {
+    // installed under ...\WindowsApps\<Name>_<Version>_<Arch>_<Resource>_<PublisherId>\...
+    for (let d = path.dirname(process.execPath); path.dirname(d) !== d; d = path.dirname(d)) {
+      const m = /^([^_]+)_[\d.]+_[^_]*_[^_]*_([a-z0-9]{13})$/i.exec(path.basename(d));
+      if (m) return `${m[1]}_${m[2]}!NODEGRID`;
+    }
+  }
+  return 'electron.app.' + app.getName();   // what Electron already put on the main window (keeps existing pins)
+}
+if (process.platform === 'win32') { try { app.setAppUserModelId(windowsAppId()); } catch {} }
+
 // Only one copy at a time: clicking the taskbar icon again focuses the open window,
 // and any link it was given opens in a new tab.
 const gotLock = app.requestSingleInstanceLock();
