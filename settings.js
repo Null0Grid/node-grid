@@ -239,6 +239,7 @@
     // LOOK
     const s5 = section('look', 'APPEARANCE + LANGUAGE', null, 'APPEARANCE');
     s5.append(row('Theme', 'How NODE_GRID itself looks. Match my computer follows your system light or dark mode', select([['dark', 'Dark'], ['light', 'Light'], ['system', 'Match my computer']], M.theme, (v) => act('theme', v, null, 'Theme: ' + ({ dark: 'Dark', light: 'Light', system: 'Match my computer' })[v]))));
+    s5.append(row('Tabs', 'Show your tabs down the left side, or in a row across the top like other browsers', select([['side', 'On the side'], ['top', 'Across the top']], M.tabsPos, (v) => act('tabs-pos', v, null, v === 'top' ? 'Tabs: across the top' : 'Tabs: on the side'))));
     s5.append(row('Sidebar size', 'Bigger tab icons and text in the sidebar, easier to see', select([['normal', 'Normal'], ['large', 'Large'], ['xl', 'Extra large']], M.uiSize, (v) => act('ui-size', v, null, 'Sidebar size: ' + ({ normal: 'Normal', large: 'Large', xl: 'Extra large' })[v]))));
     s5.append(row('Dark pages', 'Turns bright websites dark (the moon button)', toggle(M.dark.on, (on) => act('dark', on, null, on ? 'Dark pages on' : 'Dark pages off'))));
     if (M.dark.except.length) { s5.append(el('h3', null, 'Kept as they are')); s5.append(list(M.dark.except, '', (h) => li(h, null, 'DARKEN', () => act('dark-unexcept', h, null, 'Saved')))); }

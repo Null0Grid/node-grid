@@ -1896,6 +1896,9 @@ const ytEmbed = (id) => (process.env.NODEGRID_YT_EMBED || 'https://www.youtube.c
 const ytSend = (st) => { if (win && !win.isDestroyed()) win.webContents.send('yt-state', st); };
 let ytRect = { x: 0, y: 0, width: 0, height: 0 }, ytHidPaused = false;
 const ytVisible = () => ytRect.width >= 200 && ytRect.height >= 200;   // YouTube: embedded players must be at least 200x200
+const YT_FILL_CSS = `html, body, #player, .html5-video-player, .html5-video-container { background: #000 !important; }
+  .html5-video-player video, .html5-main-video, video { width: 100% !important; height: 100% !important; left: 0 !important; top: 0 !important; object-fit: cover !important; }
+  .html5-video-container { width: 100% !important; height: 100% !important; }`;
 const YT_MEDIA_JS = (cmd) => `(() => { const m = document.querySelector('video, audio'); if (m) m.${cmd}(); })()`;
 function ytPlace() {
   if (!ytView || ytView.webContents.isDestroyed()) return;
@@ -1938,6 +1941,9 @@ function ytPlay(id) {
     ytSend({ state: 'playing' });
   });
   wc.on('media-paused', () => ytSend({ state: 'paused' }));
+  // The sidebar box is narrower than a 16:9 video, so YouTube would letterbox it
+  // with black bars; fill the box instead (the sides are trimmed a little).
+  wc.on('dom-ready', () => { wc.insertCSS(YT_FILL_CSS).catch(() => {}); });
   wc.on('did-fail-load', (_e, code, _d, _u, main) => { if (main && code !== -3) ytSend({ state: 'error' }); });
   wc.on('did-finish-load', () => {
     // If autoplay didn't kick in, press the big play button once.
@@ -2249,6 +2255,7 @@ function settingsModel() {
     loginOffer: loginOffer(), loginAutofill: loginAutofill(), loginNever: loginNever(), keepSignedIn: keptHosts(),
     dark: { on: !!settings.darkPages, except: settings.darkExcept || [] },
     uiSize: ['large', 'xl'].includes(settings.uiSize) ? settings.uiSize : 'normal',
+    tabsPos: settings.tabsPos === 'top' ? 'top' : 'side',
     theme: themeChoice(),
     translate: { lang: settings.translateLang || '', system: langName(systemLang()), langs: LANGS },
     ai: { provider: aiProvider(), custom: settings.aiCustom || '', local: settings.localAi || '' },
@@ -2291,6 +2298,7 @@ ipcMain.handle('settings:do', async (e, action, a, b) => {
     case 'login-autofill': settings.loginAutofill = !!a; saveSettings(); return ok();
     case 'login-never-remove': settings.loginNever = loginNever().filter((h) => h !== a); saveSettings(); return ok();
     case 'keep-remove': unkeepSite(String(a || '')); return ok();
+    case 'tabs-pos': if (!['side', 'top'].includes(a)) return { ok: false }; if (a === 'side') delete settings.tabsPos; else settings.tabsPos = a; saveSettings(); return ok();
     case 'ui-size': if (!['normal', 'large', 'xl'].includes(a)) return { ok: false }; if (a === 'normal') delete settings.uiSize; else settings.uiSize = a; saveSettings(); return ok();
     case 'dark-unexcept': settings.darkExcept = (settings.darkExcept || []).filter((h) => h !== a); saveSettings(); applyDarkAll(); return ok();
     case 'translate': if (a && !LANGS.some(([k]) => k === a)) return { ok: false }; if (a) settings.translateLang = a; else delete settings.translateLang; saveSettings(); return ok();
@@ -3693,6 +3701,7 @@ function pushState() {
     adblockOn: !!blocker && !settings.adblockOff,
     dark: darkOn(),
     uiSize: ['large', 'xl'].includes(settings.uiSize) ? settings.uiSize : 'normal',
+    tabsPos: settings.tabsPos === 'top' ? 'top' : 'side',
     darkSkip: !!(t && darkExcluded(t.url)),
     media: featureOn('music') ? mediaState() : null,
     features: featureMap(),

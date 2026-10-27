@@ -30,8 +30,11 @@ function startFakeYouTube() {
     const server = http.createServer((req, res) => {
       if (req.url.startsWith('/red.mp4')) { res.setHeader('Content-Type', 'video/mp4'); return fs.createReadStream(VIDEO).pipe(res); }
       res.setHeader('Content-Type', 'text/html');
-      res.end('<!doctype html><title>fake-yt</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#000}video{width:100%;height:100%;object-fit:cover}</style>'
-        + '<video src="/red.mp4" autoplay loop playsinline></video>');
+      // laid out like YouTube's own player: a 16:9 video letterboxed in the middle of
+      // the box, with black above and below (NODE_GRID stretches it to fill the box)
+      res.end('<!doctype html><title>fake-yt</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#000}</style>'
+        + '<div id="player" style="width:100%;height:100%"><div class="html5-video-player" style="position:relative;width:100%;height:100%;background:#000"><div class="html5-video-container">'
+        + '<video class="html5-main-video" style="position:absolute;width:100%;height:56%;left:0;top:22%;object-fit:contain" src="/red.mp4" autoplay loop playsinline></video></div></div></div>');
     });
     server.listen(0, '127.0.0.1', () => resolve(server));
   });
@@ -85,6 +88,9 @@ function screenPixel(x, y) {
     const px = screenPixel(content.x + box.x + box.w / 2, content.y + box.y + box.h / 2);
     console.log('  box', JSON.stringify(box), 'centre pixel', px.join(','));
     await check('the box is at least 200x200 (YouTube minimum)', () => assert.ok(box.w >= 200 && box.h >= 200, JSON.stringify(box)));
+    const edges = [screenPixel(content.x + box.x + box.w / 2, content.y + box.y + 10), screenPixel(content.x + box.x + box.w / 2, content.y + box.y + box.h - 10)];
+    console.log('  top/bottom edge pixels', edges.map((p) => p.join(',')).join(' / '));
+    await check('the video fills the whole box: no black bars at the top or bottom', () => assert.ok(edges.every((p) => p[0] > 150 && p[1] < 90 && p[2] < 90), 'got ' + edges.join(' / ')));
     await check('the player is drawn inside the box (centre pixel is the red video)', () => assert.ok(px[0] > 150 && px[1] < 90 && px[2] < 90, 'got ' + px));
     if (SHOTS) execFileSync('import', ['-window', 'root', path.join(SHOTS, 'yt-radio-player.png')]);
 

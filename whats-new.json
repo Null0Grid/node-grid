@@ -1,4 +1,13 @@
 {
+  "5.1.7": {
+    "title": "Tabs on top",
+    "new": [
+      "Settings > APPEARANCE > Tabs: put your tabs in a row across the top like other browsers. The sidebar shrinks to a rail one icon wide; history, downloads, vault and loadouts still open from it."
+    ],
+    "fixed": [
+      "A YouTube video in the sidebar radio now fills its box, with no black bars above and below."
+    ]
+  },
   "5.1.6": {
     "title": "Security release",
     "new": [

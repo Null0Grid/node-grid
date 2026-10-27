@@ -168,3 +168,12 @@ Tests: `ui-515` (save prompt, auto-fill, never, kept vs. wiped across a restart,
 - Privacy policy: real contact address; kept sites and saved logins described.
 
 Tests: `ui-515` adds https-only, faked sign-ins, the PIN box, and frame/pop-over navigation.
+
+## 5.1.7: tabs across the top, YouTube radio fills its box
+
+- Settings → APPEARANCE → **Tabs**: *On the side* (default) or *Across the top* (`settings.tabsPos = 'top'`, sent to the shell as `state.tabsPos`; action `tabs-pos`).
+  - The shell moves `#pins`, `#tabs` and `#tabrow` into `#topstrip` above the toolbar (the same elements, so every click, menu and middle-click handler carries over). On Windows the strip keeps room for the window buttons; on macOS it clears the traffic lights.
+  - The sidebar becomes a rail one icon wide (`body.collapsed`, set by `syncRail()` without touching the saved side-mode choice). It opens to full width while a rail panel (history, downloads, vault, loadouts, packet trail) is showing, or on hover when hover-to-expand is on. The collapse button is hidden in this mode.
+  - The vertical mouse wheel scrolls the strip sideways; the active tab is kept in view.
+  - Test: `tests/ui-tabstop.test.js` (switching, using the top tabs, the rail panel, restart, switching back).
+- YouTube radio: YouTube letterboxes a 16:9 video inside the 200×200 minimum box, leaving black bars above and below. `YT_FILL_CSS` is inserted into the embed on `dom-ready` so the video covers the box (the sides are trimmed slightly). `tests/ui-ytradio.test.js` now uses a letterboxed stand-in and checks the top and bottom edges are video, not black.

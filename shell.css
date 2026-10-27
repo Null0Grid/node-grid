@@ -786,3 +786,58 @@ body.size-xl .fav.x-on .fav-x svg { width: 13px; height: 13px; }
 :root[data-theme="light"] .burn-timer.soon { color: #d00000; }
 :root[data-theme="light"] body.burner-active #where b { color: #b3261e; }
 :root[data-theme="light"] #where .u-rest, :root[data-theme="light"] #where:hover { color: #55657a; }
+
+/* ---------- tabs across the top (Settings > APPEARANCE > Tabs) ---------- */
+#topstrip { display: none; }
+body.tabs-top #topstrip {
+  display: flex; align-items: stretch; gap: 4px; flex-shrink: 0;
+  height: var(--bar-h); padding: 4px var(--overlay-w) 0 6px;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;              /* empty space moves the window */
+}
+body.tabs-top #bar { padding-right: 8px; } /* the window buttons sit on the tab strip now */
+body.tabs-top.mac #topstrip { padding-left: max(6px, calc(78px - var(--side-closed))); padding-right: 6px; }
+body.tabs-top.ai-open #topstrip { padding-right: 6px; }
+body.tabs-top #toggle { display: none; }
+body.tabs-top.collapsed:not(.peek) .side-head { justify-content: center; padding: 0; }
+body.tabs-top.collapsed:not(.peek) .logo { display: grid; } /* the rail opens by itself for its panels */
+body.tabs-top #tabspacer { min-height: 0; }
+
+body.tabs-top #topstrip #pins,
+body.tabs-top #topstrip #tabs { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 2px; padding: 0; margin: 0; border: 0; min-width: 0; }
+body.tabs-top #topstrip #pins[hidden] { display: none; }
+body.tabs-top #topstrip #pins { flex-shrink: 0; padding-right: 4px; border-right: 1px dashed var(--line); }
+body.tabs-top #topstrip #tabs { flex: 0 1 auto; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+body.tabs-top #topstrip #tabs::-webkit-scrollbar { display: none; height: 0; }
+
+body.tabs-top #topstrip .tab {
+  -webkit-app-region: no-drag;
+  flex: 0 1 210px; min-width: 72px; height: auto; margin: 0;
+  padding: 0 6px 0 9px; justify-content: flex-start;
+  border: 1px solid transparent; border-bottom: 0;
+}
+body.tabs-top #topstrip .tab.active { background: var(--bg); border-color: var(--line); }
+body.tabs-top #topstrip .tab.active::before { left: -1px; right: -1px; top: -1px; bottom: auto; width: auto; height: 2px; }
+body.tabs-top #topstrip .tab .title { display: block; }
+body.tabs-top #topstrip .tab .close { display: grid; }
+body.tabs-top #topstrip .tab .burn-timer { display: inline; }
+body.tabs-top #topstrip .tab.sleeping::after { display: block; }
+body.tabs-top #topstrip #pins .tab { flex: 0 0 38px; min-width: 38px; width: 38px; padding: 0; justify-content: center; }
+body.tabs-top #topstrip #pins .tab .title, body.tabs-top #topstrip #pins .tab .close, body.tabs-top #topstrip #pins .tab .burn-timer { display: none; }
+
+body.tabs-top #topstrip .tabrow { display: flex; flex-direction: row; flex-shrink: 0; gap: 2px; margin: 0 0 4px; -webkit-app-region: no-drag; }
+body.tabs-top #topstrip .newtab { height: auto; width: 32px; margin: 0; padding: 0; justify-content: center; border-color: transparent; }
+body.tabs-top #topstrip .newtab:hover { border-color: var(--cyan); }
+body.tabs-top #topstrip .burnbtn { border-color: transparent; }
+body.tabs-top #topstrip .burnbtn:hover { border-color: #ff3b3b; }
+body.tabs-top #topstrip .newtab .label { display: none; }
+
+body.tabs-top.size-large { --bar-h-top: 48px; }
+body.tabs-top.size-xl { --bar-h-top: 58px; }
+body.tabs-top.size-large #topstrip, body.tabs-top.size-xl #topstrip { height: var(--bar-h-top); }
+body.tabs-top.size-large #topstrip .tab { min-width: 84px; flex-basis: 240px; }
+body.tabs-top.size-xl #topstrip .tab { min-width: 96px; flex-basis: 270px; }
+body.tabs-top.size-large #topstrip #pins .tab { flex-basis: 48px; width: 48px; min-width: 48px; }
+body.tabs-top.size-xl #topstrip #pins .tab { flex-basis: 60px; width: 60px; min-width: 60px; }
+body.tabs-top.size-large #topstrip .newtab { width: 40px; }
+body.tabs-top.size-xl #topstrip .newtab { width: 48px; }

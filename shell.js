@@ -14,11 +14,43 @@ const X_SVG = '<svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><li
 function isCollapsed() { return body.classList.contains('collapsed'); }
 
 function setCollapsed(on) {
+  if (isTop()) return;                     // tabs across the top: the rail sizes itself (see below)
   body.classList.toggle('collapsed', on);
   body.classList.remove('peek');
   try { localStorage.setItem('sidebarCollapsed', on ? '1' : '0'); } catch {}
 }
-try { setCollapsed(localStorage.getItem('sidebarCollapsed') === '1'); } catch {}
+const savedCollapsed = () => { try { return localStorage.getItem('sidebarCollapsed') === '1'; } catch { return false; } };
+
+// ---------- tabs across the top (Settings > APPEARANCE > Tabs) ----------
+// The tab list, pinned tabs and the new-tab / burner buttons move into a strip
+// above the toolbar. The sidebar stays as a rail one icon wide; it opens to full
+// width only while one of its panels (history, downloads, vault...) is showing,
+// or while you hover it (if hover-to-expand is on).
+function isTop() { return body.classList.contains('tabs-top'); }
+const SIDE_PANELS = ['show-history', 'show-downloads', 'show-trail', 'show-saved', 'show-loadouts'];
+function syncRail() {
+  if (!isTop()) return;
+  const want = !SIDE_PANELS.some((c) => body.classList.contains(c));
+  if (body.classList.contains('collapsed') !== want) body.classList.toggle('collapsed', want);
+}
+new MutationObserver(syncRail).observe(body, { attributes: true, attributeFilter: ['class'] });
+function setTabsPos(pos) {
+  const top = pos === 'top';
+  if (top === isTop()) return;
+  const strip = $('topstrip'), spacer = $('tabspacer');
+  for (const id of ['pins', 'tabs', 'tabrow']) {
+    if (top) strip.appendChild($(id)); else sidebar.insertBefore($(id), spacer);
+  }
+  body.classList.toggle('tabs-top', top);
+  body.classList.remove('peek');
+  if (top) syncRail(); else body.classList.toggle('collapsed', savedCollapsed());
+}
+// vertical mouse wheel scrolls the tab strip sideways
+$('tabs').addEventListener('wheel', (e) => {
+  if (!isTop() || !e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  e.preventDefault(); $('tabs').scrollLeft += e.deltaY;
+}, { passive: false });
+setCollapsed(savedCollapsed());
 
 $('toggle').onclick = () => setCollapsed(!isCollapsed());
 window.shell.onToggleSidebar(() => setCollapsed(!isCollapsed()));
@@ -74,6 +106,7 @@ new ResizeObserver(() => {
 
 function host(url) { try { return new URL(url).host; } catch { return ''; } }
 
+let lastTopActive = null;
 const tabEls = new Map();   // id -> { li, icon, title, iconKey }
 
 function selectTab(id) {
@@ -84,7 +117,7 @@ function selectTab(id) {
 // Shrunk sidebar that stays shrunk (Settings > FEATURES > hover-to-expand off):
 // the tabs' own close buttons are hidden there, so the site icon doubles as one.
 const RAIL_X_DELAY = 2000;  // ms of hovering before the little close X shows on the icon's corner
-const railX = () => isCollapsed() && body.classList.contains('nofeat-hoverpeek') && !body.classList.contains('peek');
+const railX = () => !isTop() && isCollapsed() && body.classList.contains('nofeat-hoverpeek') && !body.classList.contains('peek');
 
 function createTab(id) {
   const li = document.createElement('li');
@@ -431,6 +464,7 @@ function renderHistory(list) {
 }
 
 window.shell.onState((s) => {                      // Settings > APPEARANCE > Sidebar size
+  setTabsPos(s.tabsPos);
   body.classList.toggle('size-large', s.uiSize === 'large');
   body.classList.toggle('size-xl', s.uiSize === 'xl');
 });
@@ -461,6 +495,11 @@ window.shell.onState((s) => {
     if (box.children[i] !== rec.li) box.insertBefore(rec.li, box.children[i] || null);
   });
   pinsEl.hidden = pi === 0;
+  if (isTop() && s.activeId !== lastTopActive) {    // keep the active tab in view on the strip
+    lastTopActive = s.activeId;
+    const r = tabEls.get(s.activeId);
+    if (r) r.li.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
 
   // Toolbar
   $('back').disabled = !s.canGoBack;

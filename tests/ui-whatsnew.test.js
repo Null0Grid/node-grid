@@ -37,7 +37,7 @@ const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + l
   const card = (app) => app.windows().find((w) => /whatsnew\.html/.test(w.url()));
   const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'ng-wn-'));
   fs.writeFileSync(path.join(ud, 'settings.json'), JSON.stringify({ seenVersion: '5.1.2' }));
-  const want = Object.keys(NOTES).filter((v) => !newer(v, VERSION) && newer(v, '5.1.2')).sort((a, b) => (newer(a, b) ? -1 : 1));
+  const want = Object.keys(NOTES).filter((v) => !newer(v, VERSION) && newer(v, '5.1.2')).sort((a, b) => (newer(a, b) ? -1 : 1)).slice(0, 4);   // the card shows the 4 newest at most
 
   let app = await launch(ud);
   try {
@@ -45,7 +45,7 @@ const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + l
     await check('after an update, the start page shows the What\'s new card', () => assert.ok(c));
     await c.waitForSelector('#notes section');
     const shown = await c.evaluate(() => [...document.querySelectorAll('#notes h2')].map((h) => h.textContent.split(' ')[0]));
-    await check(`it lists every version since the one you had, newest first (${want.join(', ')})`, () => assert.deepStrictEqual(shown, want));
+    await check(`it lists the versions since the one you had (newest 4), newest first (${want.join(', ')})`, () => assert.deepStrictEqual(shown, want));
     await check('each version shows what is new and what was fixed', async () => assert.ok(await c.evaluate(() => document.querySelectorAll('#notes li').length > 0 && !!document.querySelector('#notes h3.new'))));
     if (SHOTS) { await wait(400); execFileSync('import', ['-window', 'root', path.join(SHOTS, 'whats-new.png')]); }
     await c.click('#ok').catch(() => {});

@@ -47,8 +47,8 @@ modules:
         # Pin this to the exact released tag/version when cutting a Flathub
         # submission or update — Flathub requires a versioned, checksummed
         # source, never a moving branch reference.
-        url: https://github.com/Null0Grid/node-grid/archive/refs/tags/5.1.6.tar.gz
-        sha256: 19b107e0827ed1256de1b98a2d4458158cb632bd2b68c3702cfc1e55e12ca647
+        url: https://github.com/Null0Grid/node-grid/archive/refs/tags/5.1.7.tar.gz
+        sha256: REPLACE_WITH_SHA256_OF_SOURCE_TARBALL_FOR_THIS_TAG
         x-checker-data:
           type: anitya
           url: https://github.com/Null0Grid/node-grid/releases

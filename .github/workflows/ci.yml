@@ -38,6 +38,8 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:pipdock
       - name: Not-secure warning for http sites (live in the app)
         run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:insecure
+      - name: Tabs across the top (live in the app)
+        run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:tabstop
       - name: Self-update, end to end (old .tar.gz build updates itself to a new one)
         run: |
           npx electron-builder --linux dir --x64 --publish never -c.directories.output="$RUNNER_TEMP/old" > "$RUNNER_TEMP/b1.log" 2>&1 || { echo "::error title=build::$(tail -c 800 "$RUNNER_TEMP/b1.log" | tr '\n' ' ')"; exit 1; }
