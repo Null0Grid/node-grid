@@ -1,4 +1,4 @@
-NODE_GRID :: publishing to the Microsoft Store
+Null Grid :: publishing to the Microsoft Store
 ==============================================
 
 ONE TIME
@@ -18,7 +18,7 @@ ONE TIME
 
 EACH VERSION
 5. Double-click "Build Store package.bat" (store-identity.txt next to it).
-   About 5-10 minutes. You get NODE_GRID-<version>.appx in this folder.
+   About 5-10 minutes. You get Null Grid-<version>.appx in this folder.
    Or on GitHub: Actions > Store package > Run workflow, then download the
    "store-package" artifact.
 6. Partner Center > your app > Start your submission:
@@ -32,7 +32,7 @@ EACH VERSION
 7. Submit. Review usually takes a few days. Once live, share the Store link.
 
 NOTES FOR CERTIFICATION (paste this)
-  NODE_GRID is a Chromium-based (Electron) desktop web browser. It uses the
+  Null Grid is a Chromium-based (Electron) desktop web browser. It uses the
   runFullTrust capability because it is a desktop app. No sign-in is needed
   to test. Optional features (AI panel, radio, reader mode, etc.) can be
   switched off in Settings (gear icon, bottom-left).
@@ -49,7 +49,7 @@ AUTOMATIC STORE UPDATES (one-time setup, optional)
   1. Partner Center > Account settings > Organization profile > Tenants:
      associate or create a Microsoft Entra (Azure AD) tenant.
   2. Entra admin center > App registrations > New registration (any name,
-     e.g. "NODE_GRID releases"). Note the Application (client) ID and the
+     e.g. "Null Grid releases"). Note the Application (client) ID and the
      Directory (tenant) ID. Certificates & secrets > New client secret: copy
      the value straight away (it isn't shown again).
   3. Partner Center > Account settings > User management > Microsoft Entra
@@ -57,7 +57,7 @@ AUTOMATIC STORE UPDATES (one-time setup, optional)
   4. Partner Center > Account settings > Legal info / Developer settings: note
      the Seller ID. Your app's page > Product identity: note the Store ID
      (12 characters, starts with 9).
-  5. GitHub > Null0Grid/node-grid > Settings > Secrets and variables > Actions:
+  5. GitHub > Null0Grid/null-grid > Settings > Secrets and variables > Actions:
      Secrets: AZURE_AD_TENANT_ID, AZURE_AD_APPLICATION_CLIENT_ID,
               AZURE_AD_APPLICATION_SECRET, SELLER_ID
      Variables: STORE_PRODUCT_ID  (the Store ID: 9PL3D6SNHMLS for this app)

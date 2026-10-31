@@ -33,7 +33,7 @@ const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + l
 
 (async () => {
   const launch = (ud) => pw._electron.launch({ args: [APP_DIR, '--user-data-dir=' + ud], executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/' } });
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_UPDATE_URL: 'http://127.0.0.1:1/' } });
   const card = (app) => app.windows().find((w) => /whatsnew\.html/.test(w.url()));
   const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'ng-wn-'));
   fs.writeFileSync(path.join(ud, 'settings.json'), JSON.stringify({ seenVersion: '5.1.2' }));

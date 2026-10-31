@@ -1,4 +1,4 @@
-// Runs in the AI side panel. It only does something on NODE_GRID's own built-in
+// Runs in the AI side panel. It only does something on Null Grid's own built-in
 // local chat page (local-ai.html); websites like claude.ai or chatgpt.com get nothing.
 const { contextBridge, ipcRenderer } = require('electron');
 

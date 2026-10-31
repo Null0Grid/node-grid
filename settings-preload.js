@@ -1,4 +1,4 @@
-// Bridge for NODE_GRID's own settings page (settings.html). Only that page gets it.
+// Bridge for Null Grid's own settings page (settings.html). Only that page gets it.
 const { contextBridge, ipcRenderer } = require('electron');
 
 if (location.protocol === 'file:' && /\/settings\.html$/.test(location.pathname)) {

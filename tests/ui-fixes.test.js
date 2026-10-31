@@ -64,9 +64,9 @@ async function driveCertCheck() {
   const gh = http.createServer((q, r) => {
     const v = 'v99.0.0';
     r.setHeader('Content-Type', 'application/json');
-    r.end(JSON.stringify({ tag_name: v, html_url: 'https://github.com/Null0Grid/node-grid/releases/tag/' + v, body: 'notes',
-      assets: ['NODE_GRID-99.0.0-win32-x64.zip', 'NODE_GRID-99.0.0.AppImage', 'nullgrid-browser_99.0.0_amd64.deb', 'nullgrid-browser-99.0.0.x86_64.rpm', 'nullgrid-browser-99.0.0.tar.gz']
-        .map((name) => ({ name, size: 1000, browser_download_url: 'https://github.com/Null0Grid/node-grid/releases/download/' + v + '/' + name })) }));
+    r.end(JSON.stringify({ tag_name: v, html_url: 'https://github.com/Null0Grid/null-grid/releases/tag/' + v, body: 'notes',
+      assets: ['Null Grid-99.0.0-win32-x64.zip', 'Null Grid-99.0.0.AppImage', 'nullgrid-browser_99.0.0_amd64.deb', 'nullgrid-browser-99.0.0.x86_64.rpm', 'nullgrid-browser-99.0.0.tar.gz']
+        .map((name) => ({ name, size: 1000, browser_download_url: 'https://github.com/Null0Grid/null-grid/releases/download/' + v + '/' + name })) }));
   });
   const ghPort = await listen(gh);
   const iconDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ng-fix-icon-'));
@@ -84,11 +84,11 @@ async function driveCertCheck() {
   });
   const port = await listen(site);
   const A = 'http://127.0.0.1:' + port, L = 'http://localhost:' + port;   // two hosts: one for normal tabs, one for burner tabs
-  const userData = path.join(os.tmpdir(), 'node-grid-ci-fixes-' + Date.now());
+  const userData = path.join(os.tmpdir(), 'null-grid-ci-fixes-' + Date.now());
   const app = await pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + userData],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_SKIP_INTRO: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:' + ghPort + '/latest', NODEGRID_UPDATE_DELAY_MS: '600000' },
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_SKIP_INTRO: '1', NULLGRID_UPDATE_URL: 'http://127.0.0.1:' + ghPort + '/latest', NULLGRID_UPDATE_DELAY_MS: '600000' },
   });
   const errors = [];
   app.process().stderr.on('data', (d) => { const s = String(d); if (/Uncaught|TypeError|ReferenceError|UnhandledPromiseRejection/.test(s)) errors.push('main: ' + s.trim().slice(0, 300)); });

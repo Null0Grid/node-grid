@@ -77,6 +77,7 @@ $('back').onclick = () => window.shell.back();
 $('reload').onclick = () => window.shell.reload();
 $('home').onclick = () => window.shell.home();
 $('newtab').onclick = () => window.shell.newTab();
+$('newtab').addEventListener('contextmenu', (e) => { e.preventDefault(); window.shell.newTabMenu(); });   // new tab / new window / burner
 
 // ---------- keep the page view glued to #viewport ----------
 
@@ -107,6 +108,17 @@ new ResizeObserver(() => {
 function host(url) { try { return new URL(url).host; } catch { return ''; } }
 
 let lastTopActive = null;
+const TAB_DRAG = 'text/x-nullgrid-tab';
+// A tab dragged in from another Null Grid window: drop it anywhere on the tabs (or the sidebar) to move it here.
+for (const el of [$('tabs'), $('pins'), $('topstrip'), sidebar]) {
+  el.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes(TAB_DRAG)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } });
+  el.addEventListener('drop', (e) => {
+    if (!e.dataTransfer.types.includes(TAB_DRAG)) return;
+    e.preventDefault(); e.stopPropagation();
+    const id = Number(e.dataTransfer.getData(TAB_DRAG));
+    if (id && !tabEls.has(id)) window.shell.adoptTab(id);     // one of this window's own tabs: nothing to do
+  });
+}
 const tabEls = new Map();   // id -> { li, icon, title, iconKey }
 
 function selectTab(id) {
@@ -171,6 +183,20 @@ function createTab(id) {
   close.addEventListener('click', closeThis);
   li.addEventListener('auxclick', (e) => { if (e.button === 1) window.shell.closeTab(id); }); // middle-click
   li.addEventListener('contextmenu', (e) => { e.preventDefault(); window.shell.tabMenu(id); });  // right-click
+  // Drag a tab out of the window to give it a window of its own; drop it on another
+  // Null Grid window's tabs to move it there (see the drop handler below).
+  li.draggable = true;
+  li.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData(TAB_DRAG, String(id));
+    e.dataTransfer.effectAllowed = 'move';
+    li.classList.add('dragging');
+  });
+  li.addEventListener('dragend', (e) => {
+    li.classList.remove('dragging');
+    if (e.dataTransfer.dropEffect !== 'none' || (!e.screenX && !e.screenY)) return;   // dropped on a window, or no idea where
+    const outside = e.screenX < window.screenX || e.screenX > window.screenX + window.outerWidth || e.screenY < window.screenY || e.screenY > window.screenY + window.outerHeight;
+    if (outside) window.shell.tabToNewWindow(id, { x: e.screenX, y: e.screenY });
+  });
 
   const rec = { li, icon, title, timer, iconKey: null };
   tabEls.set(id, rec);
@@ -244,10 +270,10 @@ function createFav(id) {
   btn.addEventListener('contextmenu', (e) => { e.preventDefault(); window.shell.favMenu(id); });
 
   // drag to reorder
-  btn.addEventListener('dragstart', (e) => { btn.classList.add('dragging'); e.dataTransfer.setData('text/x-nodegrid-fav', String(id)); e.dataTransfer.effectAllowed = 'move'; });
+  btn.addEventListener('dragstart', (e) => { btn.classList.add('dragging'); e.dataTransfer.setData('text/x-nullgrid-fav', String(id)); e.dataTransfer.effectAllowed = 'move'; });
   btn.addEventListener('dragend', () => { btn.classList.remove('dragging'); clearDrop(); });
   btn.addEventListener('dragover', (e) => {
-    if (!e.dataTransfer.types.includes('text/x-nodegrid-fav')) return;
+    if (!e.dataTransfer.types.includes('text/x-nullgrid-fav')) return;
     e.preventDefault();
     clearDrop();
     const r = btn.getBoundingClientRect();
@@ -255,7 +281,7 @@ function createFav(id) {
   });
   btn.addEventListener('drop', (e) => {
     e.preventDefault();
-    const dragged = Number(e.dataTransfer.getData('text/x-nodegrid-fav'));
+    const dragged = Number(e.dataTransfer.getData('text/x-nullgrid-fav'));
     const after = btn.classList.contains('drop-after');
     clearDrop();
     if (!dragged || dragged === id) return;
@@ -510,10 +536,10 @@ window.shell.onState((s) => {
   const where = $('where');
   let full = active ? active.url || '' : '';
   if (s.origUrl) full = s.origUrl;                     // translated: show the real address
-  if (/^file:\/\/.*\/home\/index\.html(\?|$)/i.test(full)) full = 'nodegrid://home';   // bundled start page
-  if (/^nodegrid:\/\/doom(\/|$)/i.test(full)) full = 'nodegrid://doom';                    // the sim
-  if (/^file:\/\/.*\/settings\.html(\?|#|$)/i.test(full)) full = 'nodegrid://settings';     // settings page
-  $('simbtn').classList.toggle('on', /^nodegrid:\/\/doom/.test(full));
+  if (/^file:\/\/.*\/home\/index\.html(\?|$)/i.test(full)) full = 'nullgrid://home';   // bundled start page
+  if (/^nullgrid:\/\/doom(\/|$)/i.test(full)) full = 'nullgrid://doom';                    // the sim
+  if (/^file:\/\/.*\/settings\.html(\?|#|$)/i.test(full)) full = 'nullgrid://settings';     // settings page
+  $('simbtn').classList.toggle('on', /^nullgrid:\/\/doom/.test(full));
   if (where.dataset.url !== full) {
     where.dataset.url = full;
     where.title = full;
@@ -533,7 +559,7 @@ window.shell.onState((s) => {
       where.textContent = full;
     }
   }
-  document.title = active && active.title ? `${active.title} :: NODE_GRID` : 'NODE_GRID';
+  document.title = active && active.title ? `${active.title} :: Null Grid` : 'Null Grid';
   body.classList.toggle('burner-active', !!(active && active.burnEnds));
   renderSaved(s.saved || []);
   renderLoadouts(s.loadouts || []);

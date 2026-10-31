@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>NODE_GRID :: SEARCH</title>
-<!-- Bundled copy of search.nullgrid.dev/index.html, shipped inside the NODE_GRID app -->
+<title>Null Grid :: SEARCH</title>
+<!-- Bundled copy of search.nullgrid.dev/index.html, shipped inside the Null Grid app -->
 <link rel="icon" href="favicon.ico" sizes="any" />
 <link rel="icon" href="icon-512.png" type="image/png" sizes="512x512" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -24,7 +24,7 @@
     --wait:#ffc857;
     --mono:"JetBrains Mono","SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
   }
-  @media all{                                     /* NODE_GRID Settings > APPEARANCE > Theme: Light / Match my computer */
+  @media all{                                     /* Null Grid Settings > APPEARANCE > Theme: Light / Match my computer */
     :root[data-theme="light"]{
       color-scheme: light;
       --bg:#f3f5f9; --panel:#ffffff; --panel-2:#e8edf4; --line:#c9d3e1;
@@ -287,7 +287,7 @@
 <div class="wrap">
 
   <div class="topbar">
-    <span><span class="dot"></span>NODE_GRID :: LINK ESTABLISHED</span>
+    <span><span class="dot"></span>Null Grid :: LINK ESTABLISHED</span>
     <span>
       <span id="clock">--:--:--</span>
       <a class="grid-link" id="gridLink" href="#" title="Open your dashboard" hidden>&#9638;</a>
@@ -313,7 +313,7 @@
           <option value="startpage">Startpage</option>
         </select>
       </div>
-      <label class="vault-toggle" id="vaultWrap" title="Vault: search through NODE_GRID (Startpage only)">
+      <label class="vault-toggle" id="vaultWrap" title="Vault: search through Null Grid (Startpage only)">
         <input type="checkbox" id="vaultToggle" checked />
         <span class="vt-track"></span>
         <span class="vt-label">Vault</span>
@@ -322,7 +322,7 @@
   </div>
 
   <footer>
-    <span id="ng-version">NODE_GRID</span> <span class="accent">::</span> Session Active <span class="accent">::</span> All Systems Nominal
+    <span id="ng-version">Null Grid</span> <span class="accent">::</span> Session Active <span class="accent">::</span> All Systems Nominal
   </footer>
 
 </div>
@@ -331,7 +331,7 @@
   // Footer shows the app version (the app opens this page with ?v=<version>).
   try {
     var ngv = new URLSearchParams(location.search).get('v');
-    if (ngv && /^[0-9][0-9A-Za-z.\-]{0,20}$/.test(ngv)) document.getElementById('ng-version').textContent = 'NODE_GRID v' + ngv;
+    if (ngv && /^[0-9][0-9A-Za-z.\-]{0,20}$/.test(ngv)) document.getElementById('ng-version').textContent = 'Null Grid v' + ngv;
   } catch (err) {}
 (function(){
   var ENGINE_URLS = {
@@ -381,9 +381,9 @@
   var qInput = document.getElementById('q');
 
   // ---- remember the last engine + Vault switch ----
-  // In the NODE_GRID app the choice is saved by the app; in a normal browser, in localStorage.
+  // In the Null Grid app the choice is saved by the app; in a normal browser, in localStorage.
   var VALID = { duckduckgo: 1, brave: 1, google: 1, startpage: 1 };
-  var bridge = window.nodegridPrefs || null;
+  var bridge = window.nullgridPrefs || null;
   // the dashboard button: your own address from Settings > Start page search (none set: no button)
   (function(){ var gl = document.getElementById('gridLink'); if (gl && bridge && /^https?:\/\//i.test(bridge.dashboard || '')) { gl.href = bridge.dashboard; gl.hidden = false; } })();
   var vaultWrap = document.getElementById('vaultWrap');
@@ -404,7 +404,7 @@
     vaultToggle.disabled = !sp;
     vaultToggle.checked = sp && vaultPref;
     vaultWrap.classList.toggle('off', !sp);
-    vaultWrap.title = sp ? 'Vault: search through NODE_GRID' : 'Vault works with Startpage only';
+    vaultWrap.title = sp ? 'Vault: search through Null Grid' : 'Vault works with Startpage only';
   }
   loadPrefs();
   syncVault();
@@ -420,9 +420,9 @@
     var engine = engineSelect.value;
 
     if(engine === 'startpage' && vaultToggle.checked){
-      // route through NODE_GRID's own results page (vault + web, live)
+      // route through Null Grid's own results page (vault + web, live)
       var params = new URLSearchParams({ q: val, engine: engine });
-      // Bundled in the NODE_GRID app: the start page loads locally, results come from the server.
+      // Bundled in the Null Grid app: the start page loads locally, results come from the server.
       // (?search=<origin> on this page's own address overrides the server, for testing.)
       var SEARCH_ORIGIN = 'https://search.nullgrid.dev';
       try { var o = new URLSearchParams(location.search).get('search'); if (o && /^https?:\/\//.test(o)) SEARCH_ORIGIN = o.replace(/\/$/, ''); } catch (err) {}

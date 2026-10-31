@@ -156,11 +156,11 @@ jobs:
         run: npm run dist
       - name: Zip the portable build
         shell: pwsh
-        run: Compress-Archive -Path "dist/NODE_GRID-win32-x64" -DestinationPath "dist/NODE_GRID-${{ needs.version.outputs.version }}-win32-x64.zip"
+        run: Compress-Archive -Path "dist/Null Grid-win32-x64" -DestinationPath "dist/Null-Grid-${{ needs.version.outputs.version }}-win32-x64.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: dist/NODE_GRID-*-win32-x64.zip
+          path: dist/Null-Grid-*-win32-x64.zip
       - name: Build Store package (MSIX)
         run: |
           node store-apply.js store-identity.txt
@@ -220,7 +220,7 @@ jobs:
         with:
           tag_name: ${{ env.TAG }}
           append_body: true
-          name: NODE_GRID ${{ needs.version.outputs.version }}
+          name: Null Grid ${{ needs.version.outputs.version }}
           fail_on_unmatched_files: true      # the core packages must all be there
           files: |
             dist/linux/*.deb
@@ -229,12 +229,12 @@ jobs:
             dist/linux/*.tar.gz
             dist/windows/*.zip
           body: |
-            **Windows:** unzip `NODE_GRID-${{ needs.version.outputs.version }}-win32-x64.zip` and run `NODE_GRID.exe` (portable, no installer), or get it from the Microsoft Store.
+            **Windows:** unzip `Null-Grid-${{ needs.version.outputs.version }}-win32-x64.zip` and run the program inside (portable, no installer), or get it from the Microsoft Store.
             **Linux — x64 and arm64:**
-            - Any distro, no install needed: download `NODE_GRID-${{ needs.version.outputs.version }}.AppImage` (x64) or `NODE_GRID-${{ needs.version.outputs.version }}-arm64.AppImage`, `chmod +x` it, and run it.
+            - Any distro, no install needed: download `Null-Grid-${{ needs.version.outputs.version }}-x86_64.AppImage` (x64) or `Null-Grid-${{ needs.version.outputs.version }}-arm64.AppImage`, `chmod +x` it, and run it.
             - Ubuntu 24.04+ / Debian 13+: `sudo apt install ./nullgrid-browser_${{ needs.version.outputs.version }}_amd64.deb` (or `_arm64.deb`)
             - Fedora / openSUSE / RHEL: `sudo rpm -i nullgrid-browser-${{ needs.version.outputs.version }}.x86_64.rpm` (or `.aarch64.rpm`)
-            - Anything else: unpack `nullgrid-browser-${{ needs.version.outputs.version }}.tar.gz` (or `-arm64.tar.gz`) and run the `node-grid` binary inside.
+            - Anything else: unpack `nullgrid-browser-${{ needs.version.outputs.version }}.tar.gz` (or `-arm64.tar.gz`) and run the program inside.
             - Flatpak / Snap, if this run built them: see this release's `.flatpak`/`.snap` assets. (Both build in best-effort CI jobs — if a job fails this run, grab the AppImage/.deb/.rpm/.tar.gz instead; see README.)
             - Arch (AUR): `nullgrid-browser-bin` — see `packaging/aur/` in this repo for the PKGBUILD.
 

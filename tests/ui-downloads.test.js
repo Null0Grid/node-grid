@@ -45,9 +45,9 @@ const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + l
   const base = 'http://127.0.0.1:' + site.address().port;
   const dlDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ng-dl-'));
   const app = await pw._electron.launch({
-    args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'node-grid-ci-dl-' + Date.now())],
+    args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'null-grid-ci-dl-' + Date.now())],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1', NODEGRID_DOWNLOADS: dlDir },
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_UPDATE_URL: 'http://127.0.0.1:1/', NULLGRID_SKIP_INTRO: '1', NULLGRID_DOWNLOADS: dlDir },
   });
   const errors = [];
   try {

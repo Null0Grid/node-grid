@@ -7,7 +7,7 @@
 //      node-grid.desktop with http/https/html, since no package installed one)
 //      and sets it with xdg-settings / xdg-mime
 //   3. after: xdg-settings itself reports node-grid.desktop, the http/https
-//      handlers point at it, and Settings says NODE_GRID is the default
+//      handlers point at it, and Settings says Null Grid is the default
 // Linux only; needs xdg-utils and an X display (xvfb-run).
 //
 //   xvfb-run -a node tests/ui-defaultbrowser.test.js
@@ -31,7 +31,7 @@ async function waitFor(fn, timeoutMs = 10000) {
 (async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ng-home-'));
   const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), XDG_DATA_HOME: path.join(home, '.local', 'share'),
-    XDG_CURRENT_DESKTOP: '', DESKTOP_SESSION: '', NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1' };
+    XDG_CURRENT_DESKTOP: '', DESKTOP_SESSION: '', NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_UPDATE_URL: 'http://127.0.0.1:1/', NULLGRID_SKIP_INTRO: '1' };
   const xdg = (...a) => { try { return execFileSync(a[0], a.slice(1), { env, encoding: 'utf8' }).trim(); } catch { return ''; } };
   const app = await pw._electron.launch({ args: [APP_DIR, '--user-data-dir=' + path.join(home, 'ud')], executablePath: electronPath, env });
   let failed = false;
@@ -42,7 +42,7 @@ async function waitFor(fn, timeoutMs = 10000) {
     await shell.evaluate(() => window.shell.openSettings());
     const s = await waitFor(() => app.windows().find((w) => /settings\.html/.test(w.url())), 8000);
     await s.waitForSelector('#browserstat');
-    await check('before: Settings says NODE_GRID is not the default', async () => assert.ok(!/is your default browser/.test(await s.textContent('#browserstat')), await s.textContent('#browserstat')));
+    await check('before: Settings says Null Grid is not the default', async () => assert.ok(!/is your default browser/.test(await s.textContent('#browserstat')), await s.textContent('#browserstat')));
     await check('before: xdg-settings agrees', () => assert.notStrictEqual(xdg('xdg-settings', 'get', 'default-web-browser'), 'node-grid.desktop'));
 
     await s.click('#browsermake');
@@ -54,12 +54,12 @@ async function waitFor(fn, timeoutMs = 10000) {
       assert.ok(/MimeType=.*x-scheme-handler\/http;.*x-scheme-handler\/https;.*text\/html;/.test(d), d);
       assert.ok(/Categories=Network;WebBrowser;/.test(d), d);
     });
-    await check('after: xdg-settings reports NODE_GRID as the default browser', async () => assert.ok(await waitFor(() => xdg('xdg-settings', 'get', 'default-web-browser') === 'node-grid.desktop', 6000), xdg('xdg-settings', 'get', 'default-web-browser')));
-    await check('after: http and https links go to NODE_GRID', () => {
+    await check('after: xdg-settings reports Null Grid as the default browser', async () => assert.ok(await waitFor(() => xdg('xdg-settings', 'get', 'default-web-browser') === 'node-grid.desktop', 6000), xdg('xdg-settings', 'get', 'default-web-browser')));
+    await check('after: http and https links go to Null Grid', () => {
       assert.strictEqual(xdg('xdg-mime', 'query', 'default', 'x-scheme-handler/http'), 'node-grid.desktop');
       assert.strictEqual(xdg('xdg-mime', 'query', 'default', 'x-scheme-handler/https'), 'node-grid.desktop');
     });
-    await check('after: Settings says NODE_GRID is your default browser', async () => assert.ok(await waitFor(async () => /is your default browser/.test(await s.textContent('#browserstat')), 6000)));
+    await check('after: Settings says Null Grid is your default browser', async () => assert.ok(await waitFor(async () => /is your default browser/.test(await s.textContent('#browserstat')), 6000)));
   } finally {
     await app.close().catch(() => {});
     fs.rmSync(home, { recursive: true, force: true });

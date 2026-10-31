@@ -1,5 +1,5 @@
 'use strict';
-// End-to-end check of NODE_GRID's everyday features, through the real app, using
+// End-to-end check of Null Grid's everyday features, through the real app, using
 // real key presses (xdotool) for the keyboard shortcuts:
 //   Ctrl+T new tab, Ctrl+L + typing an address, Ctrl+W close, Ctrl+Tab cycle,
 //   Ctrl+R reload, Alt+Left back, Ctrl+F find on page, Ctrl+D favorite,
@@ -42,9 +42,9 @@ const ARTICLE = '<!doctype html><title>Field notes</title><body style="backgroun
   await new Promise((r) => site.listen(0, '127.0.0.1', r));
   const base = 'http://127.0.0.1:' + site.address().port;
   const app = await pw._electron.launch({
-    args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'node-grid-ci-core-' + Date.now())],
+    args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'null-grid-ci-core-' + Date.now())],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1' },   // no first-start walkthrough over the keys
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_UPDATE_URL: 'http://127.0.0.1:1/', NULLGRID_SKIP_INTRO: '1' },   // no first-start walkthrough over the keys
   });
   const mainErrors = [];
   app.process().stderr.on('data', (d) => { const s = String(d); if (/Uncaught|TypeError|ReferenceError|UnhandledPromiseRejection/.test(s)) mainErrors.push(s.trim().slice(0, 300)); });

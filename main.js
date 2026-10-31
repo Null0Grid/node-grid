@@ -1,23 +1,127 @@
-// NODE_GRID browser shell — main process
+// Null Grid browser shell — main process
 // Window chrome only: vertical tab sidebar, back / reload / home.
 // Pages render in WebContentsViews; the shell UI (shell.html) draws everything around them.
 
 const { app, BrowserWindow, WebContentsView, ipcMain, Menu, clipboard, nativeTheme, session, safeStorage, shell: eshell, protocol, net, dialog } = require('electron');
-// Test switches (NODEGRID_* environment variables) only work in a development
+// Test switches (NULLGRID_* environment variables) only work in a development
 // copy. In an installed build they're removed, except a test update server on
 // this computer (http://127.0.0.1 / localhost), which the update tests need.
 if (app.isPackaged) {
   const loop = (v) => /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(v || '');
   for (const k of Object.keys(process.env)) {
-    if (!k.startsWith('NODEGRID_')) continue;
-    if (k === 'NODEGRID_UPDATE_DELAY_MS' || k === 'NODEGRID_SKIP_INTRO') continue;
-    if ((k === 'NODEGRID_UPDATE_URL' || k === 'NODEGRID_UPDATE_TEST_HOST') && loop(process.env[k])) continue;
+    if (!k.startsWith('NULLGRID_')) continue;
+    if (k === 'NULLGRID_UPDATE_DELAY_MS' || k === 'NULLGRID_SKIP_INTRO') continue;
+    if ((k === 'NULLGRID_UPDATE_URL' || k === 'NULLGRID_UPDATE_TEST_HOST') && loop(process.env[k])) continue;
     delete process.env[k];
   }
 }
 const crypto = require('crypto');
 const path = require('path');
 const { pathToFileURL } = require('url');
+
+// ---------- renamed: NODE_GRID is now Null Grid (5.2.0) ----------
+// A copy updated from a version before the rename keeps everything:
+//  - its data folder (settings, favorites, history, logins, Vault, loadouts...)
+//    moves to the new name before anything opens it; a Flatpak copies it over
+//    from the old Flatpak's folder
+//  - the AI panel's and the game's saved storage move to their new names
+//  - on Linux, the desktop keyring entry that unlocks saved logins and kept
+//    sign-ins is filed under the app's name. Null Grid starts under the old
+//    name just long enough for that key to be read, then takes its new name, so
+//    nothing has to be signed into again. (A fresh install is Null Grid throughout.)
+const LEGACY_NAME = 'NODE_GRID';
+const LEGACY_FLATPAK = 'dev.nullgrid.nodegrid';
+const PRODUCT = 'Null Grid';
+(function carryOver() {
+  const fsx = require('fs');
+  const dataDir = app.getPath('userData');
+  const custom = app.commandLine.hasSwitch('user-data-dir');
+  const old = process.env.FLATPAK_ID && process.env.HOME ? path.join(process.env.HOME, '.var', 'app', LEGACY_FLATPAK, 'config', LEGACY_NAME)
+    : path.join(app.getPath('appData'), LEGACY_NAME);
+  const marker = path.join(dataDir, 'legacy-keyring');
+  // (Electron may already have made an empty new folder, with only its crash
+  // reporter's files, before this runs: that still counts as nothing there yet.)
+  const fresh = !fsx.existsSync(path.join(dataDir, 'settings.json')) && !fsx.existsSync(path.join(dataDir, 'favorites.json'));
+  if (!custom && fresh && fsx.existsSync(path.join(old, 'settings.json'))) {
+    let src = old;
+    if (!process.env.FLATPAK_ID) {
+      // claim the old folder first: if the old version is still open, Windows won't
+      // let it be renamed, and it's used where it is until the next start
+      src = old + '.moving';
+      try { fsx.renameSync(old, src); } catch { app.setPath('userData', old); return; }
+    }
+    fsx.mkdirSync(dataDir, { recursive: true });
+    for (const name of fsx.readdirSync(src)) {
+      const a = path.join(src, name), b = path.join(dataDir, name);
+      if (fsx.existsSync(b)) continue;                          // (the crash reporter's own folder)
+      try { if (process.env.FLATPAK_ID) throw 0; fsx.renameSync(a, b); } catch { try { fsx.cpSync(a, b, { recursive: true }); } catch {} }
+    }
+    if (src !== old) { try { fsx.rmSync(src, { recursive: true, force: true }); } catch {} }
+    if (process.platform !== 'win32') { try { fsx.writeFileSync(marker, LEGACY_NAME); } catch {} }
+  }
+  for (const [from, to] of [['nodegrid-ai', 'nullgrid-ai'], ['nodegrid-sim', 'nullgrid-sim']]) {
+    const a = path.join(dataDir, 'Partitions', from), b = path.join(dataDir, 'Partitions', to);
+    try { if (fsx.existsSync(a) && !fsx.existsSync(b)) fsx.renameSync(a, b); } catch {}
+  }
+  if (process.platform !== 'win32' && fsx.existsSync(marker)) {
+    app.setPath('userData', dataDir);                          // stays put while the name is the old one for a moment
+    app.setName(LEGACY_NAME);
+    app.whenReady().then(() => app.setName(PRODUCT));          // the keyring has been read by now
+  }
+})();
+
+// ---------- windows ----------
+// Null Grid can have several windows, each with its own tabs, sidebar panels,
+// pop-overs, AI panel and radio. Most of this file is written against "the
+// window": win, tabs, activeId, viewport, overlays and friends. Those variables
+// always hold the state of one window, `cur`; use(ctx) swaps them for another
+// window's (saveCur/use below, next to their declarations).
+// Every way in switches to the window it belongs to first: an event from one of
+// a window's pages or pop-overs (their emit is wrapped as they're created), a
+// message from them (ipcMain is wrapped too), a click in a right-click menu, a
+// window event. Work that carries on later -- timers, awaits, .then -- goes on
+// in the window it started in: every async step remembers the window it was
+// started from and switches back to it before it runs.
+const { createHook, executionAsyncResource } = require('async_hooks');
+const CTX = Symbol('nullgridWindow');
+const ctxs = new Set();               // every open window's state
+const wcCtx = new Map();              // webContents id -> the window it was made for
+let cur = null;                       // the window the variables below belong to right now
+let lastFocused = null;               // the window you used last (second launch, update bot...)
+createHook({
+  init(_id, _type, _trigger, res) { if (cur && res && typeof res === 'object') { try { res[CTX] = cur; } catch {} } },
+  before() { const r = executionAsyncResource(); const c = r && r[CTX]; if (c && c !== cur) enter(c); }
+}).enable();
+const liveCtx = () => (lastFocused && !lastFocused.dead ? lastFocused : [...ctxs].find((c) => !c.dead) || null);
+function enter(c) { if (c) use(c.dead ? liveCtx() : c); }
+// which window a webContents (frame, tab, pop-over, AI panel...) belongs to
+function ctxOfWc(wc) {
+  if (!wc) return null;
+  saveCur();
+  for (const c of ctxs) {
+    if (c.win && !c.win.isDestroyed() && c.win.webContents === wc) return c;
+    if (c.tabs.some((t) => t.view.webContents === wc)) return c;
+    for (const v of [c.peekUI, c.peekView, c.gearView, c.pixelView, c.updateBot, c.aiView, c.ytView, c.pipControlsView, ...Object.values(c.overlays)]) if (v && v.webContents === wc) return c;
+  }
+  return wcCtx.get(wc.id) || null;
+}
+// Run fn as window c, then go back to the window that was current.
+function withCtx(c, fn) {
+  const was = cur;
+  enter(c);
+  try { return fn(); } finally { enter(was); }
+}
+// Run fn once for every open window (things every window shows: favorites, theme...).
+function forEachCtx(fn) {
+  const was = cur;
+  try { for (const c of [...ctxs]) { if (c.dead) continue; use(c); fn(c); } } finally { enter(was); }
+}
+const allTabs = () => { saveCur(); return [...ctxs].flatMap((c) => c.tabs); };
+const ctxOfTab = (t) => { saveCur(); return [...ctxs].find((c) => c.tabs.includes(t)) || null; };
+for (const m of ['on', 'once', 'handle', 'handleOnce']) {          // messages: switch to the sender's window first
+  const orig = ipcMain[m].bind(ipcMain);
+  ipcMain[m] = (channel, fn) => orig(channel, (e, ...a) => { enter(ctxOfWc(e && e.sender)); return fn(e, ...a); });
+}
 
 // Built-in error page (shown when a page can't load, or a server returns a blank error)
 const ERROR_PAGE = pathToFileURL(path.join(__dirname, 'error.html')).href;
@@ -26,7 +130,7 @@ const isInsecurePage = (u) => typeof u === 'string' && u.startsWith(INSECURE_PAG
 const isErrorPage = (u) => typeof u === 'string' && u.startsWith(ERROR_PAGE);
 
 // Theme (Settings > APPEARANCE > Theme): Dark, Light, or Match my computer.
-// NODE_GRID's own pages (shell, Settings, pop-overs, start page, error page) get
+// Null Grid's own pages (shell, Settings, pop-overs, start page, error page) get
 // data-theme="light" or "dark" on <html> as they load and again whenever it
 // changes; their CSS has the light palette. Native menus and websites' light/dark
 // preference follow through nativeTheme. Dark until settings are loaded.
@@ -38,12 +142,18 @@ const APP_PAGES = pathToFileURL(__dirname).href + '/';
 const isAppPage = (u) => typeof u === 'string' && u.startsWith(APP_PAGES);
 const themePage = (wc) => { if (!wc.isDestroyed() && isAppPage(wc.getURL())) wc.executeJavaScript(`document.documentElement.dataset.theme = ${JSON.stringify(uiTheme())}`).catch(() => {}); };
 app.on('web-contents-created', (_e, wc) => {
+  // its events run as the window it belongs to (see "windows" above)
+  if (cur) wcCtx.set(wc.id, cur);
+  const emit = wc.emit;
+  wc.emit = function (...a) { enter(ctxOfWc(wc)); return emit.apply(this, a); };
+  const wcId = wc.id;
+  wc.once('destroyed', () => wcCtx.delete(wcId));
   wc.on('dom-ready', () => themePage(wc));
-  // NODE_GRID's own frame and pop-overs (shell, key popover, prompts, gear, Packet...)
+  // Null Grid's own frame and pop-overs (shell, key popover, prompts, gear, Packet...)
   // never navigate and never open windows: a link or file dropped on them, or a
   // page script, can't replace them with a website that would then hold their
   // privileged bridge. Tabs (including the start page and Settings) are exempt.
-  const own = () => !tabs.some((t) => t.view.webContents === wc) && (isAppPage(wc.getURL()) || (win && !win.isDestroyed() && wc === win.webContents));
+  const own = () => !allTabs().some((t) => t.view.webContents === wc) && (isAppPage(wc.getURL()) || [...ctxs].some((c) => c.win && !c.win.isDestroyed() && wc === c.win.webContents));
   wc.on('will-navigate', (e) => { if (own()) e.preventDefault(); });
   wc.on('will-frame-navigate', (e) => { if (own()) e.preventDefault(); });
   wc.on('will-redirect', (e) => { if (own()) e.preventDefault(); });
@@ -52,38 +162,39 @@ app.on('web-contents-created', (_e, wc) => {
 function applyTheme() {
   nativeTheme.themeSource = themeChoice();
   for (const wc of require('electron').webContents.getAllWebContents()) themePage(wc);
-  if (win && !win.isDestroyed() && process.platform !== 'darwin') {
+  forEachCtx(() => {
+    if (!win || win.isDestroyed() || process.platform === 'darwin') return;
     const dark = uiTheme() === 'dark';
     try { win.setTitleBarOverlay({ color: dark ? '#0a0a0f' : '#f3f5f9', symbolColor: dark ? '#00e5ff' : '#007f9e', height: 40 }); } catch {}
     win.setBackgroundColor(dark ? '#0a0a0f' : '#f3f5f9');
-  }
+  });
 }
-nativeTheme.on('updated', () => { if (win && !win.isDestroyed() && themeChoice() === 'system') applyTheme(); });   // the computer switched modes
+nativeTheme.on('updated', () => { if (ctxs.size && themeChoice() === 'system') applyTheme(); });   // the computer switched modes
 
 // The start page ships inside the app (home/index.html), so Home opens instantly and
-// offline. Searches still go to the NODE_GRID server for results.
-const SEARCH_ORIGIN = (process.env.NODEGRID_SEARCH || 'https://search.nullgrid.dev').replace(/\/$/, '');
+// offline. Searches still go to the Null Grid server for results.
+const SEARCH_ORIGIN = (process.env.NULLGRID_SEARCH || 'https://search.nullgrid.dev').replace(/\/$/, '');
 const HOME_FILE = pathToFileURL(path.join(__dirname, 'home', 'index.html')).href;
 const APP_VERSION = require('./package.json').version;    // shown in the start page footer
-const HOME = process.env.NODEGRID_HOME ||
+const HOME = process.env.NULLGRID_HOME ||
   HOME_FILE + '?v=' + encodeURIComponent(APP_VERSION) +
-  (process.env.NODEGRID_SEARCH ? '&search=' + encodeURIComponent(SEARCH_ORIGIN) : '');
+  (process.env.NULLGRID_SEARCH ? '&search=' + encodeURIComponent(SEARCH_ORIGIN) : '');
 
-// NODE_GRID SIM (Freedoom on doomgeneric) ships inside the app and is served from
-// nodegrid://doom/ so the game can fetch its own files (file:// pages can't).
+// Null Grid SIM (Freedoom on doomgeneric) ships inside the app and is served from
+// nullgrid://doom/ so the game can fetch its own files (file:// pages can't).
 // It runs in its own small saved storage so game saves survive a restart; nothing
 // else ever loads there.
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'nodegrid', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: 'nullgrid', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
 ]);
-const SIM_PARTITION = 'persist:nodegrid-sim';
-const SIM_URL = 'nodegrid://doom/index.html';
-const isSimUrl = (u) => /^nodegrid:\/\/doom(\/|$)/i.test(u || '');
+const SIM_PARTITION = 'persist:nullgrid-sim';
+const SIM_URL = 'nullgrid://doom/index.html';
+const isSimUrl = (u) => /^nullgrid:\/\/doom(\/|$)/i.test(u || '');
 
-// Links handed to NODE_GRID: as the default browser (Windows Default apps, xdg on
+// Links handed to Null Grid: as the default browser (Windows Default apps, xdg on
 // Linux / Omarchy), by another app, or a web file opened with it. They arrive on
 // the command line: at launch, or (since only one copy runs) through
-// 'second-instance' when NODE_GRID is already open.
+// 'second-instance' when Null Grid is already open.
 const WEB_FILE = /\.(x?html?|shtml|svg|pdf|xht|webp|avif)$/i;
 function linksFrom(argv, cwd) {
   const out = [];
@@ -110,7 +221,7 @@ function openLinks(links) {
 // One taskbar button for everything. Windows groups windows by their app ID.
 // Electron stamps its own ID on our main window, but a popped-out video
 // (Chromium's picture-in-picture window) only gets the process's ID, so it
-// showed up as a second NODE_GRID button. Setting the process ID gives every
+// showed up as a second Null Grid button. Setting the process ID gives every
 // window the same one. Installed from the Store, it has to be the package's
 // own ID (<package family>!NODEGRID) so it also matches the pinned icon.
 function windowsAppId() {
@@ -130,9 +241,10 @@ if (process.platform === 'win32') { try { app.setAppUserModelId(windowsAppId());
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 app.on('second-instance', (_e, argv, cwd) => {
-  if (quittingNow) { app.relaunch({ args: argv.slice(1) }); return; }   // opened while NODE_GRID was closing: start again right after
+  if (quittingNow) { app.relaunch({ args: argv.slice(1) }); return; }   // opened while Null Grid was closing: start again right after
+  enter(liveCtx());                                   // links open in the window you used last
   openLinks(linksFrom(argv.slice(1), cwd));
-  if (!win) return;
+  if (!win || win.isDestroyed()) return;
   if (win.isMinimized()) win.restore();
   win.focus();
 });
@@ -146,10 +258,12 @@ const KEEP_PARTITION = 'persist:nullgrid-kept';
 let useKeepSession = false;
 const webPartition = () => (useKeepSession ? KEEP_PARTITION : PARTITION);
 
+// This window's state (see "windows" at the top). More of it is declared further
+// down next to the code that uses it; saveCur() and use() list all of it.
 let win = null;
 let tabs = [];          // { id, view, title, favicon, loading, url }
 let activeId = null;
-let nextId = 1;
+let nextId = 1;         // (shared: a tab keeps its id when it moves to another window)
 let viewport = { x: 0, y: 0, width: 800, height: 600 };
 // The sidebar's empty strip (below the tabs, above the music player) that a video
 // can dock into instead of popping out as its own floating window. 0x0 means
@@ -159,13 +273,49 @@ let pipDockRect = { x: 0, y: 0, width: 0, height: 0 };
 let pipDock = null;          // { tabId } of the tab currently docked there, or null
 let pipControlsView = null;  // the tiny restore/close bar drawn over the docked video
 
+const freshOverlays = () => ({ perm: null, vault: null, recon: null, qr: null, dlpop: null, loginsave: null, unlockfill: null, whatsnew: null, tour: null });
+function newCtx() {
+  return { win: null, tabs: [], activeId: null, viewport: { x: 0, y: 0, width: 800, height: 600 },
+    pipDockRect: { x: 0, y: 0, width: 0, height: 0 }, pipDock: null, pipControlsView: null,
+    peekUI: null, peekView: null, peekUrl: '', gearView: null, pixelView: null, updateBot: null,
+    overlays: freshOverlays(), permQueue: [], permShowing: null, permReady: false, trailWatching: false, trailTimer: null,
+    aiView: null, aiShown: false, mediaTabId: null, ytView: null, ytStartTimer: null, ytRect: { x: 0, y: 0, width: 0, height: 0 }, ytHidPaused: false,
+    dlpopAnchor: null, dlpopClosedAt: 0, dlpopOpenedAt: 0, vaultAnchor: null, unlockFillTab: null, lastState: '' };
+}
+// Put the current window's variables back into its record...
+function saveCur() {
+  if (!cur) return;
+  Object.assign(cur, { win, tabs, activeId, viewport, pipDockRect, pipDock, pipControlsView, peekUI, peekView, peekUrl, gearView, pixelView, updateBot,
+    overlays, permQueue, permShowing, permReady, trailWatching, trailTimer, aiView, aiShown, mediaTabId, ytView, ytStartTimer, ytRect, ytHidPaused,
+    dlpopAnchor, dlpopClosedAt, dlpopOpenedAt, vaultAnchor, unlockFillTab, lastState });
+}
+// ...and load another window's.
+function use(c) {
+  if (!c || c === cur) return;
+  saveCur();
+  ({ win, tabs, activeId, viewport, pipDockRect, pipDock, pipControlsView, peekUI, peekView, peekUrl, gearView, pixelView, updateBot,
+    overlays, permQueue, permShowing, permReady, trailWatching, trailTimer, aiView, aiShown, mediaTabId, ytView, ytStartTimer, ytRect, ytHidPaused,
+    dlpopAnchor, dlpopClosedAt, dlpopOpenedAt, vaultAnchor, unlockFillTab, lastState } = c);
+  cur = c;
+}
+
 // ---------- window ----------
 
-function createWindow() {
+// opts.first: the window Null Grid starts with (pinned tabs, links it was
+// opened with, tabs coming back after an update). Otherwise opts.urls opens those
+// tabs, opts.adopt moves an existing tab in, or it starts on the start page.
+function createWindow(opts = {}) {
   const darkUi = uiTheme() === 'dark';
+  const from = win && !win.isDestroyed() ? win.getBounds() : null;   // a new window opens a little down and right of this one
+  const c = newCtx();
+  c.first = !!opts.first;
+  ctxs.add(c);
+  use(c);
+  if (!lastFocused || lastFocused.dead) lastFocused = c;
   win = new BrowserWindow({
-    width: 1280,
-    height: 820,
+    width: from ? from.width : 1280,
+    height: from ? from.height : 820,
+    ...placeNewWindow(opts.at, from),
     minWidth: 640,
     minHeight: 400,
     backgroundColor: darkUi ? '#0a0a0f' : '#f3f5f9',
@@ -182,41 +332,144 @@ function createWindow() {
       sandbox: true
     }
   });
+  c.win = win;
+  const w = win;
+  const winEmit = w.emit;                 // the window's own events run as this window
+  w.emit = function (...a) { enter(c); return winEmit.apply(this, a); };
 
-  win.loadFile('shell.html');
-  win.webContents.on('before-input-event', handleKeys);
-  win.webContents.on('focus', () => dlpopFocusElsewhere());
-  win.webContents.once('did-finish-load', () => {
-    const maskedPins = new Set(settings.pinnedMasked || []);
-    if (featureOn('pinned')) for (const u of (settings.pinned || []).filter((x) => /^https?:\/\//i.test(x)).slice(0, 20)) newTab(u, { pinned: true, masked: maskedPins.has(u) });   // Masking comes back the way you left it
-    const links = pendingLinks; pendingLinks = [];
-    const restore = Array.isArray(settings.restoreTabs) ? settings.restoreTabs.filter((u) => /^https?:\/\//i.test(u)).slice(0, 30) : [];
-    if (settings.restoreTabs) { delete settings.restoreTabs; saveSettings(); }
-    if (links.length) for (const u of links) newTab(u);   // opened with a link: show it, not the start page
-    else if (restore.length) for (const u of restore) newTab(u);   // back from an update restart: the tabs you had
+  w.loadFile('shell.html');
+  w.webContents.on('before-input-event', handleKeys);
+  w.webContents.on('focus', () => dlpopFocusElsewhere());
+  w.webContents.once('did-finish-load', () => {
+    if (opts.first) {
+      const maskedPins = new Set(settings.pinnedMasked || []);
+      if (featureOn('pinned')) for (const u of (settings.pinned || []).filter((x) => /^https?:\/\//i.test(x)).slice(0, 20)) newTab(u, { pinned: true, masked: maskedPins.has(u) });   // Masking comes back the way you left it
+      const links = pendingLinks; pendingLinks = [];
+      const restore = Array.isArray(settings.restoreTabs) ? settings.restoreTabs.filter((u) => /^https?:\/\//i.test(u)).slice(0, 30) : [];
+      const more = Array.isArray(settings.restoreWindows) ? settings.restoreWindows.slice(1, 8) : [];   // the other windows you had open
+      if (settings.restoreTabs || settings.restoreWindows) { delete settings.restoreTabs; delete settings.restoreWindows; saveSettings(); }
+      if (links.length) for (const u of links) newTab(u);   // opened with a link: show it, not the start page
+      else if (restore.length) for (const u of restore) newTab(u);   // back from an update restart: the tabs you had
+      else newTab(HOME);
+      shellReady = true;
+      updateNotice();
+      for (const list of more) {
+        const urls = (Array.isArray(list) ? list : []).filter((u) => /^https?:\/\//i.test(u)).slice(0, 30);
+        if (urls.length) createWindow({ urls });
+      }
+    } else if (opts.adopt && ctxOfTab(opts.adopt)) moveTab(opts.adopt, c);
+    else if (opts.urls && opts.urls.length) for (const u of opts.urls) newTab(u);
     else newTab(HOME);
-    shellReady = true;
-    updateNotice();
   });
 
   // Mouse side button "back" (Windows)
-  win.on('app-command', (_e, cmd) => {
+  w.on('app-command', (_e, cmd) => {
     if (cmd === 'browser-backward') back();
     if (cmd === 'browser-forward') forward();
     if (cmd === 'browser-refresh') reload();
     if (cmd === 'browser-home') home();
   });
 
-  win.on('closed', () => { win = null; tabs = []; });
+  w.on('closed', () => closeCtx(c));
   // Coming back to the window: keyboard goes to the page, not the sidebar/toolbar
-  win.on('focus', () => setTimeout(() => {
-    if (!win || win.isDestroyed() || peekUI) return;
-    if (win.webContents.isFocused()) {
-      win.webContents.executeJavaScript('!!(document.activeElement && document.activeElement.matches("input, textarea"))')
-        .then((typing) => { if (!typing) focusPage(); }).catch(() => {});
-    }
-  }, 0));
+  w.on('focus', () => {
+    lastFocused = c;
+    setTimeout(() => {
+      if (!win || win.isDestroyed() || peekUI) return;
+      if (win.webContents.isFocused()) {
+        win.webContents.executeJavaScript('!!(document.activeElement && document.activeElement.matches("input, textarea"))')
+          .then((typing) => { if (!typing) focusPage(); }).catch(() => {});
+      }
+    }, 0);
+  });
+  return c;
 }
+const newWindow = (urls) => createWindow({ urls: urls || [] });
+// Where a new window goes: where a dragged tab was let go (or a little down and
+// right of the window it came from), always fully on that screen.
+function placeNewWindow(at, from) {
+  if (!at && !from) return {};
+  const w = from ? from.width : 1280, h = from ? from.height : 820;
+  const want = at ? { x: at.x - 120, y: at.y - 20 } : { x: from.x + 30, y: from.y + 30 };
+  const { screen } = require('electron');
+  const wa = screen.getDisplayNearestPoint({ x: Math.round(at ? at.x : want.x), y: Math.round(at ? at.y : want.y) }).workArea;
+  const width = Math.min(w, wa.width), height = Math.min(h, wa.height);
+  return { width, height, x: Math.round(Math.min(Math.max(want.x, wa.x), wa.x + wa.width - width)), y: Math.round(Math.min(Math.max(want.y, wa.y), wa.y + wa.height - height)) };
+}
+
+// A window closed: its tabs, pop-overs and panels go with it. (When it's the last
+// one, Null Grid quits.)
+let appQuitting = false;
+app.on('before-quit', () => { appQuitting = true; });
+function closeCtx(c) {
+  if (c.dead) return;
+  enter(c);
+  saveCur();
+  const gone = [...c.tabs];
+  const views = [...gone.map((t) => t.view), c.peekUI, c.peekView, c.gearView, c.pixelView, c.updateBot, c.aiView, c.ytView, c.pipControlsView, ...Object.values(c.overlays)];
+  clearTimeout(c.ytStartTimer); clearTimeout(c.trailTimer);
+  for (const p of c.permQueue) { try { p.callback(false); } catch {} }
+  if (c.permShowing) { try { c.permShowing.callback(false); } catch {} }
+  c.tabs = []; tabs = [];
+  c.dead = true;
+  ctxs.delete(c);
+  if (lastFocused === c) lastFocused = null;
+  for (const v of views) {
+    if (!v) continue;
+    try { const id = v.webContents.id; trails.delete(id); blockedByTab.delete(id); certErrors.delete(id); } catch {}
+    try { if (!v.webContents.isDestroyed()) v.webContents.close(); } catch {}
+  }
+  if (pendingLogin && gone.some((t) => t.id === pendingLogin.tabId)) pendingLogin = null;
+  const left = liveCtx();
+  if (left) use(left);
+  // burner groups with no tab left anywhere are wiped; pinned tabs that closed with
+  // this window stop being pinned (unless Null Grid is quitting)
+  for (const part of new Set(gone.filter((t) => t.burner).map((t) => t.burner.part))) if (!allTabs().some((t) => t.burner && t.burner.part === part)) burnGroup(part, false);
+  if (left && !appQuitting && gone.some((t) => t.pinned)) savePins();
+  if (left) pushState();
+}
+
+// Moving a tab to another window: the same page, still loaded and running.
+function moveTab(t, to) {
+  const from = ctxOfTab(t);
+  if (!from || !to || from === to || to.dead) return;
+  withCtx(from, () => {
+    const idx = tabs.indexOf(t);
+    if (pipDock && pipDock.tabId === t.id) { dropPipControls(); t.view.webContents.executeJavaScript(UNDOCK_JS, true).catch(() => {}); }
+    if (mediaTabId === t.id) mediaTabId = null;
+    if (overlays.recon) dropOverlay('recon');
+    if (overlays.qr) dropOverlay('qr');
+    tabs.splice(idx, 1);
+    try { win.contentView.removeChildView(t.view); } catch {}
+    if (!tabs.length) { setImmediate(() => { if (!from.dead && from.win && !from.win.isDestroyed() && !from.tabs.length) from.win.close(); }); }   // it was the last one: that window goes
+    else if (t.id === activeId) activate(tabs[Math.min(idx, tabs.length - 1)].id);
+    else pushState();
+  });
+  withCtx(to, () => {
+    wcCtx.set(t.view.webContents.id, to);
+    tabs.push(t);
+    if (t.pinned) { tabs.splice(tabs.indexOf(t), 1); tabs.splice(tabs.filter((x) => x.pinned).length, 0, t); }
+    t.view.setBounds(tabBounds(t));
+    win.contentView.addChildView(t.view);
+    activate(t.id);
+    if (!win.isDestroyed()) win.focus();
+  });
+}
+function moveToNewWindow(t, at) { if (t && ctxOfTab(t)) createWindow({ adopt: t, at }); }
+// Dragging tabs (shell.js): out of the window = its own new window, where you let go;
+// onto another Null Grid window's tabs = moves there.
+ipcMain.on('tab:to-new-window', (e, id, at) => {
+  if (e.sender !== win.webContents) return;
+  const t = getTab(Number(id));
+  if (!t || tabs.length < 2) return;
+  const p = at && Number.isFinite(at.x) && Number.isFinite(at.y) ? { x: Math.round(at.x), y: Math.round(at.y) } : null;
+  moveToNewWindow(t, p);
+});
+ipcMain.on('tab:adopt', (e, id) => {
+  if (e.sender !== win.webContents) return;
+  const t = allTabs().find((x) => x.id === Number(id));
+  if (t && ctxOfTab(t) !== cur) moveTab(t, cur);
+});
 
 // ---------- tabs ----------
 
@@ -422,9 +675,13 @@ function closeTab(id) {
   const wcid = tab.view.webContents.id;
   trails.delete(wcid); blockedByTab.delete(wcid); certErrors.delete(wcid);
   tab.view.webContents.close();
-  if (tab.burner && !tabs.some((t) => t.burner && t.burner.part === tab.burner.part)) burnGroup(tab.burner.part, false);
+  if (tab.burner && !allTabs().some((t) => t.burner && t.burner.part === tab.burner.part)) burnGroup(tab.burner.part, false);
 
-  if (tabs.length === 0) { newTab(HOME); return; }   // never leave the window empty
+  if (tabs.length === 0) {
+    const other = [...ctxs].some((c) => c !== cur && !c.dead);
+    if (other && win && !win.isDestroyed()) { const w = win; setImmediate(() => { if (!w.isDestroyed()) w.close(); }); pushState(); return; }   // its last tab: that window closes (others stay)
+    newTab(HOME); return;                             // the only window is never left empty
+  }
   if (id === activeId) activate(tabs[Math.min(idx, tabs.length - 1)].id);
   else pushState();
 }
@@ -433,7 +690,7 @@ function peekError(wc, url, code, desc) {
   const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const html = `<!doctype html><meta charset="utf-8"><title>Peek failed</title>
 <body style="margin:0;height:100vh;display:grid;place-items:center;background:#0a0a0f;color:#b8c7d9;font:18px Consolas,monospace">
-<div style="max-width:560px;padding:24px"><div style="color:#ffb000;letter-spacing:2px;font-size:12px">NODE_GRID :: PEEK</div>
+<div style="max-width:560px;padding:24px"><div style="color:#ffb000;letter-spacing:2px;font-size:12px">Null Grid :: PEEK</div>
 <h1 style="color:#00e5ff;font-weight:normal;margin:10px 0">Couldn't load this page</h1>
 <p style="border-left:2px solid #ff2e88;padding:8px 12px;background:#10131b;overflow-wrap:anywhere">${esc(url)}<br><span style="color:#5a6b80">${esc(desc || 'ERROR')} (${esc(code)})</span></p></div></body>`;
   wc.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
@@ -515,7 +772,7 @@ function home() {
 // Saved as JSON in the app's own folder; browsing history is still never stored.
 const fs = require('fs');
 // ---------- site icons ----------
-// The sidebar is NODE_GRID's own page, so a site icon served with
+// The sidebar is Null Grid's own page, so a site icon served with
 // Cross-Origin-Resource-Policy: same-origin/same-site (GitHub's are) won't load
 // there. So the main process fetches the icon through the tab's own session
 // (its cookies, ad blocking and certificate trust) and hands the sidebar a
@@ -568,7 +825,7 @@ const favById = (id) => favs.find((f) => f.id === id);
 const starrable = (u) => /^https?:\/\//i.test(u || '');
 
 function loadFavs() {
-  favFile = process.env.NODEGRID_FAVS || path.join(app.getPath('userData'), 'favorites.json');
+  favFile = process.env.NULLGRID_FAVS || path.join(app.getPath('userData'), 'favorites.json');
   try {
     const data = JSON.parse(fs.readFileSync(favFile, 'utf8'));
     if (Array.isArray(data)) favs = data.filter((f) => f && starrable(f.url)).map((f) => ({ id: nextFavId++, url: f.url, title: String(f.title || f.url), favicon: f.favicon || null }));
@@ -677,7 +934,7 @@ function hostOf(u) {
 }
 
 function loadHistory() {
-  histFile = process.env.NODEGRID_HIST || path.join(app.getPath('userData'), 'history.json');
+  histFile = process.env.NULLGRID_HIST || path.join(app.getPath('userData'), 'history.json');
   try {
     const data = JSON.parse(fs.readFileSync(histFile, 'utf8'));
     const seen = new Set();
@@ -835,7 +1092,7 @@ ipcMain.on('peek:source', (e) => {
 });
 
 // ---------- Easter eggs: support for the start page ----------
-// The eggs themselves run in tab-preload.js on the NODE_GRID page. Nothing here
+// The eggs themselves run in tab-preload.js on the Null Grid page. Nothing here
 // stores or logs anything: no search text ever reaches this process.
 ipcMain.on('egg:config', (e) => {
   try { e.returnValue = { homeFile: HOME_FILE, errorPage: ERROR_PAGE, insecurePage: INSECURE_PAGE, readerPage: READER_PAGE, searchHost: new URL(SEARCH_ORIGIN).host, searchPrefs: settings.searchPrefs || null, eggs: featureOn('eggs'), dashboard: /^https?:\/\//i.test(settings.dashboardUrl || '') ? settings.dashboardUrl : '' }; } catch { e.returnValue = null; }
@@ -843,13 +1100,13 @@ ipcMain.on('egg:config', (e) => {
 
 // fsociety: the frame glitches along with the page, and afterwards a tiny dark-red
 // pixel stays in the bottom-right corner of the window (an app setting, not history).
-const SETTINGS_FILE = () => process.env.NODEGRID_SETTINGS || path.join(app.getPath('userData'), 'settings.json');
+const SETTINGS_FILE = () => process.env.NULLGRID_SETTINGS || path.join(app.getPath('userData'), 'settings.json');
 let settings = {};
 function loadSettings() { try { settings = JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')) || {}; } catch { settings = {}; } }
 function saveSettings() {          // temp file + rename, so a crash mid-write can't leave a half-written file
   const f = SETTINGS_FILE();
   try { fs.writeFileSync(f + '.tmp', JSON.stringify(settings, null, 1)); fs.renameSync(f + '.tmp', f); }
-  catch (err) { console.error('NODE_GRID: could not save settings:', err.message); }
+  catch (err) { console.error('Null Grid: could not save settings:', err.message); }
 }
 
 // ---------- feature switches ----------
@@ -864,7 +1121,7 @@ const FEATURES = {
   saved: 'Vault (saved pages)', trail: 'Packet trail', eggs: 'Easter eggs',
   gear: 'Settings button (bottom-right corner)',
   updates: 'Check GitHub for new versions (once a day)',
-  recon: 'Recon (developer mode)', mobile: 'Mobile view (developer mode)', sim: 'NODE_GRID SIM game (developer mode)'
+  recon: 'Recon (developer mode)', mobile: 'Mobile view (developer mode)', sim: 'Null Grid SIM game (developer mode)'
 };
 // Store builds can leave parts out (see store-kit): build-flags.json next to the app.
 let BUILD = {};
@@ -934,7 +1191,7 @@ function writeUserDesktopFile() {
   const appsDir = path.join(process.env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'applications');
   const iconDir = path.join(process.env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'icons', 'hicolor', '512x512', 'apps');
   fs.mkdirSync(appsDir, { recursive: true }); fs.mkdirSync(iconDir, { recursive: true });
-  try { fs.copyFileSync(path.join(__dirname, 'home', 'icon-512.png'), path.join(iconDir, 'node-grid.png')); } catch {}
+  try { fs.copyFileSync(path.join(__dirname, 'home', 'icon-512.png'), path.join(iconDir, 'null-grid.png')); } catch {}
   // Desktop Entry spec: quote each argument, backslash-escape " ` $ \ inside the
   // quotes, write % as %%, then escape backslashes again for the string value.
   const q = (s) => {
@@ -945,8 +1202,8 @@ function writeUserDesktopFile() {
   const exec = process.env.APPIMAGE ? q(process.env.APPIMAGE) : app.isPackaged ? q(process.execPath) : q(process.execPath) + ' ' + q(app.getAppPath());
   const file = path.join(appsDir, DESKTOP_ID);
   fs.writeFileSync(file, [
-    '[Desktop Entry]', 'Name=NODE_GRID', 'GenericName=Web Browser', 'Comment=Null Grid web browser',
-    'Exec=' + exec.replace(/\\/g, '\\\\') + ' %U', 'Terminal=false', 'Type=Application', 'Icon=node-grid', 'StartupWMClass=node-grid',
+    '[Desktop Entry]', 'Name=Null Grid', 'GenericName=Web Browser', 'Comment=Null Grid web browser',
+    'Exec=' + exec.replace(/\\/g, '\\\\') + ' %U', 'Terminal=false', 'Type=Application', 'Icon=null-grid', 'StartupWMClass=node-grid',
     'StartupNotify=true', 'Categories=Network;WebBrowser;', 'MimeType=' + WEB_MIME.join(';') + ';', ''
   ].join('\n'));
   runCmd('update-desktop-database', [appsDir]);
@@ -976,7 +1233,7 @@ async function makeDefaultBrowser() {
 }
 
 // ---------- updates ----------
-// Asks GitHub for the newest NODE_GRID release (api.github.com, public, no login)
+// Asks GitHub for the newest Null Grid release (api.github.com, public, no login)
 // at launch and once a day, if Settings > FEATURES > "Check GitHub for new
 // versions" is on; Settings > UPDATES > CHECK NOW asks any time. Only the version
 // number and download links come back; nothing about you is sent beyond the
@@ -985,13 +1242,13 @@ async function makeDefaultBrowser() {
 // Microsoft Store copies check too, but they can't replace themselves with a
 // GitHub download (Windows keeps Store apps, and their data, separate), so for
 // them the bot says the Store update is on its way and links to what's new.
-const UPDATE_REPO = 'Null0Grid/node-grid';
-const UPDATE_URL = process.env.NODEGRID_UPDATE_URL || `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
+const UPDATE_REPO = 'Null0Grid/null-grid';
+const UPDATE_URL = process.env.NULLGRID_UPDATE_URL || `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
 const UPDATE_EVERY = 24 * 3600 * 1000;
 const IS_STORE = !!(BUILD.store || process.windowsStore);
 // Copies that can replace their own files update themselves (self-update.js):
 // UPDATE downloads + checks the file, then it's swapped in on restart or when
-// NODE_GRID closes.
+// Null Grid closes.
 const SU = require('./self-update');
 let installKindCache = null;
 const installKind = () => installKindCache || (installKindCache = SU.installKind({ app, isStore: IS_STORE }));
@@ -1023,7 +1280,7 @@ async function checkUpdates({ manual = false } = {}) {
   update = { ...update, state: 'checking', error: null };
   pushUpdate();
   try {
-    const res = await net.fetch(UPDATE_URL, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'NODE_GRID' }, signal: AbortSignal.timeout(12000) });
+    const res = await net.fetch(UPDATE_URL, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'NullGrid' }, signal: AbortSignal.timeout(12000) });
     if (res.status === 404) throw new Error('no releases yet');
     if (!res.ok) throw new Error('GitHub answered ' + res.status);
     const r = await res.json();
@@ -1033,7 +1290,7 @@ async function checkUpdates({ manual = false } = {}) {
       const d = /^sha256:([0-9a-f]{64})$/i.exec(String(a.digest || ''));       // GitHub's own checksum of the file
       return { name: String(a.name), url: String(a.browser_download_url), size: Number(a.size) || 0, sha256: d ? d[1].toLowerCase() : null };
     }) : [];
-    const ok = (u) => /^https:\/\/github\.com\//.test(u) || (process.env.NODEGRID_UPDATE_TEST_HOST && u.startsWith(process.env.NODEGRID_UPDATE_TEST_HOST));
+    const ok = (u) => /^https:\/\/github\.com\//.test(u) || (process.env.NULLGRID_UPDATE_TEST_HOST && u.startsWith(process.env.NULLGRID_UPDATE_TEST_HOST));
     const asset = IS_STORE ? null : pickAsset(assets.filter((a) => ok(a.url)));
     const self = !!(asset && asset.sha256 && asset.size && SU.SELF.has(installKind()));
     update = { state: newerThan(latest, APP_VERSION) ? 'available' : 'current', latest, url: ok(String(r.html_url)) ? String(r.html_url) : `https://github.com/${UPDATE_REPO}/releases`,
@@ -1052,9 +1309,12 @@ function updateInfo() {
     kind: installKind(), self: update.self, progress: update.progress, needsPassword: update.self && /^(deb|rpm)$/.test(installKind()) };
 }
 function pushUpdate() {
-  if (updateBot && !updateBot.webContents.isDestroyed()) updateBot.webContents.send('updbot-info', updateInfo());
-  for (const t of tabs) if (t.settingsTab && !t.view.webContents.isDestroyed()) t.view.webContents.send('settings-refresh');
+  const info = updateInfo();
+  forEachCtx(() => { if (updateBot && !updateBot.webContents.isDestroyed()) updateBot.webContents.send('updbot-info', info); });
+  refreshSettingsTabs();
 }
+// Settings tabs in every window re-read their page
+function refreshSettingsTabs() { for (const t of allTabs()) if (t.settingsTab && !t.view.webContents.isDestroyed()) t.view.webContents.send('settings-refresh'); }
 // GET IT: a copy that can update itself downloads + checks the new version
 // (selfUpdate); anything else gets the file through the normal Downloads panel,
 // or the release page.
@@ -1084,12 +1344,17 @@ async function selfUpdate() {
   }
   pushUpdate();
 }
-// Before NODE_GRID goes away for an update: note what's being installed (so the
+// Before Null Grid goes away for an update: note what's being installed (so the
 // next start can say whether it worked) and which tabs were open (so they come back).
 function rememberForUpdate() {
   settings.updateFrom = { from: APP_VERSION, to: update.latest };
-  settings.restoreTabs = tabs.filter((t) => !t.burner && !t.peek && !t.sim && !t.settingsTab && !(t.pinned && featureOn('pinned')))
+  saveCur();
+  const keepable = (list) => list.filter((t) => !t.burner && !t.peek && !t.sim && !t.settingsTab && !(t.pinned && featureOn('pinned')))
     .map((t) => untranslate(t.url) || t.url).filter((u) => /^https?:\/\//i.test(u)).slice(0, 30);
+  const order = [...ctxs].filter((c) => !c.dead).sort((a, b) => (a.first ? -1 : b.first ? 1 : 0));   // the first window first: it gets the pinned tabs back
+  const lists = order.map((c) => keepable(c.tabs));
+  settings.restoreTabs = lists[0] || [];                    // (what older versions read)
+  settings.restoreWindows = lists.slice(0, 8);              // every window, with its own tabs
   saveSettings();
 }
 let applyingUpdate = false;
@@ -1116,7 +1381,7 @@ async function restartToUpdate() {
   app.quit();
   return r;
 }
-// A downloaded update installs when NODE_GRID closes, too (except .deb/.rpm,
+// A downloaded update installs when Null Grid closes, too (except .deb/.rpm,
 // which need a password prompt, so they wait for RESTART).
 let updateQuitting = false;
 app.on('before-quit', () => {
@@ -1129,11 +1394,11 @@ function updateNotice() {
   const u = settings.updateFrom;
   if (!u) return;
   delete settings.updateFrom; saveSettings();
-  if (APP_VERSION === u.to) { toast(`Updated to NODE_GRID ${u.to}`); SU.cleanup(UPDATE_DIR()); }
+  if (APP_VERSION === u.to) { toast(`Updated to Null Grid ${u.to}`); SU.cleanup(UPDATE_DIR()); }
   else if (APP_VERSION === u.from) { const l = SU.lastLog(UPDATE_DIR()); toast(`The update to ${u.to} didn't install${l && l !== 'ok' ? ': ' + l : ''}. Settings > UPDATES to try again`); }
 }
 function startUpdateChecks() {             // called once the app is ready
-  const delay = Number(process.env.NODEGRID_UPDATE_DELAY_MS) || 8000;
+  const delay = Number(process.env.NULLGRID_UPDATE_DELAY_MS) || 8000;
   setTimeout(() => { if (featureOn('updates')) checkUpdates(); }, delay);
   setInterval(() => {
     const last = Math.max(update.checkedAt || 0, settings.updateCheckedAt || 0);
@@ -1152,6 +1417,9 @@ function placeUpdateBot() {
   win.contentView.addChildView(updateBot);             // keep it on top
 }
 function showUpdateBot() {
+  saveCur();
+  const home = [...ctxs].find((c) => !c.dead && c.updateBot) || liveCtx();
+  if (home && home !== cur) { withCtx(home, showUpdateBot); return; }
   if (!win || win.isDestroyed()) return;
   if (updateBot) { pushUpdate(); placeUpdateBot(); return; }
   updateBot = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'updatebot-preload.js'), contextIsolation: true, sandbox: true } });
@@ -1187,12 +1455,12 @@ function placePixel() {
   win.contentView.addChildView(pixelView);              // (re)added last = always on top
 }
 
-const fromNodeGrid = (wc) => { try { const u = new URL(wc.getURL()); return u.host === new URL(SEARCH_ORIGIN).host || (u.protocol === 'file:' && wc.getURL().split(/[?#]/)[0] === HOME_FILE); } catch { return false; } };
-ipcMain.on('egg:corrupt', (e, on) => { if (fromNodeGrid(e.sender) && win && !win.isDestroyed()) win.webContents.send('egg-corrupt', !!on); });
-ipcMain.on('egg:pixel', (e) => { if (!fromNodeGrid(e.sender)) return; settings.redPixel = true; saveSettings(); placePixel(); });
+const fromNullGrid = (wc) => { try { const u = new URL(wc.getURL()); return u.host === new URL(SEARCH_ORIGIN).host || (u.protocol === 'file:' && wc.getURL().split(/[?#]/)[0] === HOME_FILE); } catch { return false; } };
+ipcMain.on('egg:corrupt', (e, on) => { if (fromNullGrid(e.sender) && win && !win.isDestroyed()) win.webContents.send('egg-corrupt', !!on); });
+ipcMain.on('egg:pixel', (e) => { if (!fromNullGrid(e.sender)) return; settings.redPixel = true; saveSettings(); placePixel(); });
 
 // rm -rf on the results page ends on the start page. A web page can't open the
-// bundled file itself, so it asks; only NODE_GRID's own pages may ask.
+// bundled file itself, so it asks; only Null Grid's own pages may ask.
 ipcMain.on('egg:home', (e) => {
   const t = tabs.find((x) => x.view.webContents === e.sender);
   try { if (t && new URL(e.sender.getURL()).host === new URL(SEARCH_ORIGIN).host) e.sender.loadURL(HOME); } catch {}
@@ -1225,7 +1493,7 @@ ipcMain.handle('egg:ping', async () => {
 // ---------- small overlay windows (permission prompt, password vault) ----------
 // Page views sit above the app's frame, so anything that floats over a page is its
 // own tiny transparent view, kept on top of the tabs.
-const overlays = { perm: null, vault: null, recon: null, qr: null, dlpop: null, loginsave: null, unlockfill: null, whatsnew: null, tour: null };
+let overlays = freshOverlays();       // (this window's)
 
 function makeOverlay(file, preload) {
   const v = new WebContentsView({
@@ -1267,7 +1535,7 @@ const PERM_KIND = {
 const sessionGrants = new Map();      // "origin|kind" -> true/false, until the app closes
 // links to these never open an app, whatever a site asks
 const BLOCKED_SCHEMES = /^(file|javascript|vbscript|data|ms-msdt|search-ms|search|ms-search|ms-officecmd|ms-cxh|ms-cxh-full|ms-appinstaller|ms-settings|ms-word|ms-excel|ms-powerpoint|ms-access|ms-visio|ms-project|ms-publisher|ms-spd|ms-infopath|shell|res|its|mk|hcp|help|mhtml)$/i;
-const permQueue = [];
+let permQueue = [];                  // (this window's prompts)
 let permShowing = null, permReady = false;
 
 const mediaKind = (types) => {
@@ -1320,6 +1588,7 @@ ipcMain.on('perm:answer', (e, allow, remember) => { if (isOverlay(e.sender, 'per
 function setupPermissions(ses, { peek = false } = {}) {
   ses.setPermissionRequestHandler((wc, permission, callback, details) => {
     if (peek) return callback(false);                         // Peek never gets anything
+    enter(ctxOfWc(wc));                                        // the prompt shows in that tab's window
     if (SAFE_PERMS.has(permission)) return callback(true);
     const origin = originOf((details && details.requestingUrl) || wc.getURL());
     if (!origin) return callback(false);
@@ -1355,8 +1624,8 @@ const LOCALISH = /^(localhost|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\])(:\d+)?(\/|$)
 function resolveInput(text) {
   const t = String(text || '').trim();
   if (!t) return null;
-  if (t.toLowerCase() === 'nodegrid://home') return HOME;
-  if (/^nodegrid:\/\/settings\/?$/i.test(t)) return SETTINGS_PAGE;
+  if (t.toLowerCase() === 'nullgrid://home') return HOME;
+  if (/^nullgrid:\/\/settings\/?$/i.test(t)) return SETTINGS_PAGE;
   if (isSimUrl(t)) return SIM_URL;
   if (/^https?:\/\//i.test(t)) return t;
   if (!/\s/.test(t)) {
@@ -1374,11 +1643,11 @@ ipcMain.on('nav:go', (e, text) => {
   focusPage();
 });
 
-// ---------- NODE_GRID SIM (the game button) ----------
+// ---------- Null Grid SIM (the game button) ----------
 function openSim() {
-  if (!devMode || !featureOn('sim')) { toast('NODE_GRID SIM is only available in developer mode'); return null; }   // hidden game
-  const t = tabs.find((x) => x.sim);
-  if (t) { activate(t.id); return t; }                       // one sim tab; the button jumps back to it
+  if (!devMode || !featureOn('sim')) { toast('Null Grid SIM is only available in developer mode'); return null; }   // hidden game
+  const t = allTabs().find((x) => x.sim);
+  if (t) { showTab(t); return t; }                           // one sim tab; the button jumps back to it
   return newTab(SIM_URL, { sim: true });
 }
 ipcMain.on('sim:open', (e) => { if (e.sender === win.webContents) openSim(); });
@@ -1387,7 +1656,7 @@ function setupSim() {
   const ses = session.fromPartition(SIM_PARTITION);
   const root = path.join(__dirname, 'doom');
   const fonts = path.join(__dirname, 'fonts');
-  ses.protocol.handle('nodegrid', (req) => {
+  ses.protocol.handle('nullgrid', (req) => {
     let u;
     try { u = new URL(req.url); } catch { return new Response('bad address', { status: 400 }); }
     if (u.host !== 'doom') return new Response('not found', { status: 404 });
@@ -1434,7 +1703,7 @@ function noteRequest(d, failed) {
     h.bytes += len; tr.bytes += len;
   }
   if (d.resourceType === 'mainFrame' && !failed) {
-    const t = tabs.find((x) => x.view.webContents === wc);
+    const t = allTabs().find((x) => x.view.webContents === wc);
     if (t) t.mainInfo = { url: d.url, ip: d.ip || '', statusCode: d.statusCode, statusLine: d.statusLine || '', headers: d.responseHeaders || {} };
   }
   trailChanged(wc.id);
@@ -1445,9 +1714,11 @@ function hookTrail(ses) {
 }
 let trailWatching = false, trailTimer = null;
 function trailChanged(wcId) {
-  const t = activeTab();
-  if (!trailWatching || !t || t.view.webContents.id !== wcId || trailTimer) return;
-  trailTimer = setTimeout(() => { trailTimer = null; sendTrail(); }, 400);
+  forEachCtx(() => {
+    const t = activeTab();
+    if (!trailWatching || !t || t.view.webContents.id !== wcId || trailTimer) return;
+    trailTimer = setTimeout(() => { trailTimer = null; sendTrail(); }, 400);
+  });
 }
 const baseDomain = (h) => { const p = h.split('.'); if (/^\d+$/.test(p[p.length - 1])) return h; const n = p.length > 2 && /^(co|com|org|net|gov|ac|edu)$/.test(p[p.length - 2]) ? 3 : 2; return p.slice(-n).join('.'); };
 function sendTrail() {
@@ -1567,7 +1838,7 @@ ipcMain.on('recon:copy', (e, text) => { if (isOverlay(e.sender, 'recon')) clipbo
 // ---------- vault: your saved pages (this Windows user only) ----------
 // Right-click > Save to Vault, or Ctrl+S: keeps the link AND an offline copy of the
 // page in this user's own app folder. Nothing is shared or synced.
-const SAVED_DIR = () => process.env.NODEGRID_SAVED || path.join(app.getPath('userData'), 'saved-pages');
+const SAVED_DIR = () => process.env.NULLGRID_SAVED || path.join(app.getPath('userData'), 'saved-pages');
 let saved = [];               // [{ id, url, title, host, savedAt, file }]
 function loadSaved() {
   try { saved = JSON.parse(fs.readFileSync(path.join(SAVED_DIR(), 'saved.json'), 'utf8')).filter((x) => x && x.id && x.url); } catch { saved = []; }
@@ -1628,16 +1899,19 @@ ipcMain.on('saved:save', (e) => { if (e.sender === win.webContents) saveToVault(
 
 // ---------- loadouts ----------
 // A named set of tabs you can drop back in with one click. Saved locally.
-const LOADOUT_FILE = () => process.env.NODEGRID_LOADOUTS || path.join(app.getPath('userData'), 'loadouts.json');
+const LOADOUT_FILE = () => process.env.NULLGRID_LOADOUTS || path.join(app.getPath('userData'), 'loadouts.json');
 let loadouts = [];            // [{ id, name, urls: [] }]
-function loadLoadouts() { try { loadouts = JSON.parse(fs.readFileSync(LOADOUT_FILE(), 'utf8')).filter((l) => l && l.name && Array.isArray(l.urls)); } catch { loadouts = []; } }
+function loadLoadouts() {
+  try { loadouts = JSON.parse(fs.readFileSync(LOADOUT_FILE(), 'utf8')).filter((l) => l && l.name && Array.isArray(l.urls)); } catch { loadouts = []; }
+  for (const l of loadouts) l.urls = l.urls.map((u) => String(u).replace(/^nodegrid:\/\//i, 'nullgrid://'));   // saved before the rename
+}
 function writeLoadouts() { try { fs.writeFileSync(LOADOUT_FILE(), JSON.stringify(loadouts, null, 1)); } catch (err) { console.error('Could not save loadouts:', err.message); } }
 const isHomeUrl = (u) => typeof u === 'string' && u.split(/[?#]/)[0] === HOME_FILE;
 function loadoutUrls() {
   return tabs.filter((t) => !t.peek && !t.burner).map((t) => {
     const u = untranslate(t.url) || t.url || '';
-    if (t.sim) return 'nodegrid://doom';
-    if (isHomeUrl(u) || u === HOME) return 'nodegrid://home';
+    if (t.sim) return 'nullgrid://doom';
+    if (isHomeUrl(u) || u === HOME) return 'nullgrid://home';
     return /^https?:/i.test(u) ? u : null;
   }).filter(Boolean);
 }
@@ -1656,8 +1930,8 @@ ipcMain.on('loadout:deploy', (e, id, swap) => {
   if (e.sender !== win.webContents || !l) return;
   const old = swap ? tabs.filter((t) => !t.burner && !(t.pinned && featureOn('pinned'))).map((t) => t.id) : [];   // pinned tabs stay
   for (const u of l.urls) {
-    if (u === 'nodegrid://doom') { if (devMode) openSim(); }
-    else newTab(u === 'nodegrid://home' ? HOME : u);
+    if (u === 'nullgrid://doom') { if (devMode) openSim(); }
+    else newTab(u === 'nullgrid://home' ? HOME : u);
   }
   old.forEach(closeTab);
   toast(`Loadout deployed: ${l.name}`);
@@ -1680,9 +1954,9 @@ function scheduleBurn(part) {
 }
 function openBurner(url = HOME) {
   if (!featureOn('burner')) return null;
-  const part = 'nodegrid-burner-' + (++burnerSeq);       // in memory only, separate from every other tab
+  const part = 'nullgrid-burner-' + (++burnerSeq);       // in memory only, separate from every other tab
   setupWebSession(session.fromPartition(part));
-  burners.set(part, { ends: Date.now() + (Number(process.env.NODEGRID_BURN_TEST_MS) || burnerMinutes() * 60000) });   // (env: tests only)
+  burners.set(part, { ends: Date.now() + (Number(process.env.NULLGRID_BURN_TEST_MS) || burnerMinutes() * 60000) });   // (env: tests only)
   scheduleBurn(part);
   return newTab(url, { burner: { part } });
 }
@@ -1691,7 +1965,7 @@ function burnGroup(part, expired) {
   if (!b) return;
   clearTimeout(b.timer); clearTimeout(b.warn);
   burners.delete(part);
-  for (const t of tabs.filter((x) => x.burner && x.burner.part === part)) closeTab(t.id);
+  forEachCtx(() => { for (const t of tabs.filter((x) => x.burner && x.burner.part === part)) closeTab(t.id); });
   const ses = session.fromPartition(part);
   ses.clearStorageData().catch(() => {}); ses.clearCache().catch(() => {}); ses.clearAuthCache().catch(() => {});
   if (expired) toast('Burner tab wiped');
@@ -1713,7 +1987,7 @@ ipcMain.on('burner:menu', (e) => { if (e.sender === win.webContents) burnerMenu(
 // A small second browser docked on the right for an AI chat (Claude, ChatGPT, ...or
 // your own, like BT). It has its OWN saved storage, so you stay signed in to the AI
 // between launches; your normal tabs never share it.
-const AI_PARTITION = 'persist:nodegrid-ai';
+const AI_PARTITION = 'persist:nullgrid-ai';
 const AI_PROVIDERS = {
   claude: 'https://claude.ai/new',
   chatgpt: 'https://chatgpt.com/',
@@ -1729,7 +2003,7 @@ const aiUrl = (p) => p === 'custom' ? settings.aiCustom : p === 'local' ? LOCAL_
 function setupAiSession() {
   const ses = session.fromPartition(AI_PARTITION);
   // Some AI sites refuse anything that says "Electron": present a plain Chrome identity.
-  ses.setUserAgent(ses.getUserAgent().replace(/ Electron\/\S+/, '').replace(/ nullgrid-browser\/\S+/i, '').replace(/ NODE_GRID\/\S+/i, ''));
+  ses.setUserAgent(ses.getUserAgent().replace(/ Electron\/\S+/, '').replace(/ nullgrid-browser\/\S+/i, '').replace(/ NullGrid\/\S+/i, ''));
   setupPermissions(ses);            // microphone for voice chat etc. still asks first
   setupDownloads(ses);
   hookAdblock(ses);
@@ -1850,7 +2124,7 @@ function mediaState() {
 // Stations can have several servers. SomaFM publishes its current server list in a
 // .pls file per channel; Nightride serves each channel in a few formats. The player
 // tries them in order, and a background check marks stations that are down.
-const RADIO_TEST_BASE = process.env.NODEGRID_RADIO_TEST || '';      // (tests only: fake servers)
+const RADIO_TEST_BASE = process.env.NULLGRID_RADIO_TEST || '';      // (tests only: fake servers)
 function somaFallback(ch) {
   return [`https://ice.somafm.com/${ch}`, `https://ice1.somafm.com/${ch}-128-mp3`, `https://ice2.somafm.com/${ch}-128-mp3`,
     `https://ice4.somafm.com/${ch}-128-mp3`, `https://ice6.somafm.com/${ch}-128-aac`];
@@ -1907,9 +2181,9 @@ ipcMain.handle('radio:health', async (e, list) => {
 // can't be seen -- player minimised, sidebar collapsed -- the player is tucked
 // away and YouTube is paused, and it carries on when the box is back. Its own
 // in-memory storage, ad blocking on.
-const RADIO_PARTITION = 'nodegrid-radio';
+const RADIO_PARTITION = 'nullgrid-radio';
 let ytView = null, ytVol = 0.7, ytStartTimer = null;
-const ytEmbed = (id) => (process.env.NODEGRID_YT_EMBED || 'https://www.youtube.com/embed/') + encodeURIComponent(id) +
+const ytEmbed = (id) => (process.env.NULLGRID_YT_EMBED || 'https://www.youtube.com/embed/') + encodeURIComponent(id) +
   '?autoplay=1&playsinline=1&rel=0&modestbranding=1';
 const ytSend = (st) => { if (win && !win.isDestroyed()) win.webContents.send('yt-state', st); };
 let ytRect = { x: 0, y: 0, width: 0, height: 0 }, ytHidPaused = false;
@@ -2022,7 +2296,7 @@ setInterval(() => {
   const after = sleepAfter() * 1000;
   if (!after) return;
   const now = Date.now();
-  for (const t of tabs) if (t.id !== activeId && !t.sleeping && now - (t.lastActive || 0) > after && canSleep(t)) sleepTab(t);
+  forEachCtx(() => { for (const t of tabs) if (t.id !== activeId && !t.sleeping && now - (t.lastActive || 0) > after && canSleep(t)) sleepTab(t); });
 }, 5000).unref();
 
 // ---------- local devices with self-signed certificates ----------
@@ -2060,7 +2334,7 @@ ipcMain.on('cert:info', (e) => {
 // are never saved or filled there), or PROCEED, I TRUST IT (remembered; logins
 // work there like on https). Trusted sites are listed in Settings > PRIVACY.
 const httpTrusted = () => (Array.isArray(settings.httpTrusted) ? settings.httpTrusted : []);
-const passedThisRun = new Set();                 // "proceed, don't trust": no warning again until NODE_GRID closes
+const passedThisRun = new Set();                 // "proceed, don't trust": no warning again until Null Grid closes
 const insecureWaiting = new Map();               // webContents id -> the http address it was going to
 const httpHostOf = (u) => { try { const x = new URL(u); return x.protocol === 'http:' ? x.host.toLowerCase() : ''; } catch { return ''; } };
 const isLoopback = (h) => /^(localhost|127(\.\d+){3}|\[::1\])(:\d+)?$/i.test(h);
@@ -2069,7 +2343,7 @@ function insecureStop(details) {
   const host = httpHostOf(details.url);
   if (!host || isLoopback(host) || httpTrusted().includes(host) || passedThisRun.has(host)) return false;
   const wc = details.webContents;
-  const t = wc && tabs.find((x) => x.view.webContents === wc);
+  const t = wc && allTabs().find((x) => x.view.webContents === wc);
   if (!t || t.peek || t.sim || t.settingsTab) return false;
   insecureWaiting.set(wc.id, details.url);
   t.errorUrl = details.url;                       // what the address bar shows over the warning
@@ -2156,8 +2430,8 @@ async function savePdf(t) {
   if (!t || t.sim) return;
   const wc = t.view.webContents;
   const base = (t.title || hostOfUrl(t.url) || 'page').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0, 100).trim() || 'page';
-  const dir = process.env.NODEGRID_DOWNLOADS || app.getPath('downloads');
-  let file = process.env.NODEGRID_PDF_PATH;              // (tests only)
+  const dir = process.env.NULLGRID_DOWNLOADS || app.getPath('downloads');
+  let file = process.env.NULLGRID_PDF_PATH;              // (tests only)
   if (!file) {
     const r = await dialog.showSaveDialog(win, { title: 'Save as PDF', defaultPath: path.join(dir, base + '.pdf'), filters: [{ name: 'PDF', extensions: ['pdf'] }] });
     if (r.canceled || !r.filePath) return;
@@ -2250,13 +2524,20 @@ ipcMain.on('localai:chat', async (e, id, req) => {
 });
 ipcMain.on('localai:stop', (e, id) => { if (isLocalChat(e.sender)) { const ac = localChats.get(id); if (ac) ac.abort(); } });
 
-// ---------- settings page (nodegrid://settings) ----------
+// ---------- settings page (nullgrid://settings) ----------
 const SETTINGS_PAGE = pathToFileURL(path.join(__dirname, 'settings.html')).href;
 const isSettingsPage = (wc) => { const t = tabs.find((x) => x.view.webContents === wc); return !!t && t.settingsTab && wc.getURL().split(/[?#]/)[0] === SETTINGS_PAGE; };
 function openSettings() {
-  const t = tabs.find((x) => x.settingsTab);
-  if (t) { activate(t.id); return t; }
+  const t = allTabs().find((x) => x.settingsTab);
+  if (t) { showTab(t); return t; }
   return newTab(SETTINGS_PAGE);
+}
+// Switch to a tab wherever it is: its window comes to the front.
+function showTab(t) {
+  const c = ctxOfTab(t);
+  if (!c) return;
+  if (c !== cur) { enter(c); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.focus(); } }
+  activate(t.id);
 }
 ipcMain.on('settings:open', (e) => { if (e.sender === win.webContents) openSettings(); });
 function settingsModel() {
@@ -2351,13 +2632,13 @@ ipcMain.handle('settings:do', async (e, action, a, b) => {
 
 // ---------- Null Drive (Vault search source) ----------
 // The browser connects to your Null Drive itself (see null-drive.js). The results page on
-// the NODE_GRID search site asks the browser for Drive matches through a small bridge;
+// the Null Grid search site asks the browser for Drive matches through a small bridge;
 // no other site gets it, and the search server never sees your Drive.
 const drive = require('./null-drive')({
   getSettings: () => settings, saveSettings,
   enc: (t) => enc(t), dec: (b) => dec(b), canEncrypt: () => canEncrypt(),
   downloadsDir: () => app.getPath('downloads'),
-  onChange: () => { for (const t of tabs) if (t.settingsTab && !t.view.webContents.isDestroyed()) t.view.webContents.send('settings-refresh'); }
+  onChange: () => refreshSettingsTabs()
 });
 const fromSearchPage = (e) => {
   try {
@@ -2385,7 +2666,7 @@ ipcMain.on('drive:show-download', (e, name) => {
 // Small icon tabs at the top of the sidebar. They never sleep and come back when the app
 // starts (their addresses are a setting you chose; nothing else is stored).
 function savePins() {
-  const pins = tabs.filter((t) => t.pinned).map((t) => ({ u: untranslate(t.url) || t.url, m: !!t.masked })).filter((p) => /^https?:\/\//i.test(p.u));
+  const pins = allTabs().filter((t) => t.pinned).map((t) => ({ u: untranslate(t.url) || t.url, m: !!t.masked })).filter((p) => /^https?:\/\//i.test(p.u));
   settings.pinned = pins.map((p) => p.u);
   settings.pinnedMasked = pins.filter((p) => p.m).map((p) => p.u);
   saveSettings();
@@ -2430,7 +2711,7 @@ async function extractArticle(tab, wantMd) {
     if (!a) return null;
     const out = { title: a.title || document.title, byline: a.byline || '', siteName: a.siteName || '', excerpt: a.excerpt || '',
       content: a.content || '', length: a.length || 0, lang: a.lang || document.documentElement.lang || '', published: a.publishedTime || '' };
-    ${wantMd ? `const box = document.createElement('div'); box.innerHTML = a.content; out.markdown = nodegridToMarkdown(box, location.href);` : ''}
+    ${wantMd ? `const box = document.createElement('div'); box.innerHTML = a.content; out.markdown = nullgridToMarkdown(box, location.href);` : ''}
     return out;
   })()`;
   try { return await tab.view.webContents.executeJavaScriptInIsolatedWorld(1014, [{ code }]); } catch { return null; }
@@ -2651,17 +2932,16 @@ ipcMain.handle('settings:feature', (e, key, on) => {
   if (on) delete settings.features[key]; else settings.features[key] = false;
   saveSettings();
   // switching things off cleans up after them
-  if (!on && key === 'dark') applyDarkAll();
-  if (on && key === 'dark') applyDarkAll();
-  if (!on && key === 'eggs') placePixel();
-  if (on && key === 'eggs') placePixel();
+  if (key === 'dark') applyDarkAll();
   if (!on && key === 'burner') [...burners.keys()].forEach((p) => burnGroup(p, false));
-  if (!on && key === 'sim') tabs.filter((t) => t.sim).map((t) => t.id).forEach(closeTab);
-  if (!on && key === 'mobile') tabs.filter((t) => t.mobile).forEach((t) => setMobile(t, false));
-  if (!on && key === 'qr') dropOverlay('qr');
-  if (!on && key === 'recon') dropOverlay('recon');
-  if (!on && key === 'pinned') pushState();
-  if (key === 'gear') placeGear();
+  forEachCtx(() => {                                      // in every window
+    if (key === 'eggs') placePixel();
+    if (!on && key === 'sim') tabs.filter((t) => t.sim).map((t) => t.id).forEach(closeTab);
+    if (!on && key === 'mobile') tabs.filter((t) => t.mobile).forEach((t) => setMobile(t, false));
+    if (!on && key === 'qr') dropOverlay('qr');
+    if (!on && key === 'recon') dropOverlay('recon');
+    if (key === 'gear') placeGear();
+  });
   pushState();
   return { ok: true, model: settingsModel() };
 });
@@ -2675,8 +2955,8 @@ let devMode = false;
 ipcMain.on('dev:mode', (e, on) => {
   if (e.sender !== win.webContents) return;
   devMode = !!on;
-  if (!devMode) tabs.filter((t) => t.sim).map((t) => t.id).forEach(closeTab);   // leaving dev mode closes the game
-  for (const t of tabs) if (t.settingsTab && !t.view.webContents.isDestroyed()) t.view.webContents.send('settings-refresh');
+  if (!devMode) forEachCtx(() => tabs.filter((t) => t.sim).map((t) => t.id).forEach(closeTab));   // leaving dev mode closes the game
+  refreshSettingsTabs();
 });
 const PHONE = { width: 390, height: 844 };
 const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
@@ -2805,7 +3085,7 @@ async function applyDark(tab) {
   if (gen !== tab.darkGen) { wc.removeInsertedCSS(key).catch(() => {}); return; }
   tab.darkKeys = [key];
 }
-const applyDarkAll = () => { for (const t of tabs) applyDark(t); };
+const applyDarkAll = () => { for (const t of allTabs()) applyDark(t); };
 function toggleDark() { settings.darkPages = !darkOn(); saveSettings(); applyDarkAll(); pushState(); }
 function darkMenu() {
   const t = activeTab(), h = t && siteHost(t.url);
@@ -2904,20 +3184,23 @@ function uniqueName(dir, name) {
 }
 const dlView = () => downloads.map(({ id, name, received, total, state }) => ({ id, name, received, total, state }));
 function sendDownloads() {
-  if (!win || win.isDestroyed()) return;
   const list = dlView();
-  win.webContents.send('downloads', list);
-  if (overlays.dlpop) { overlays.dlpop.webContents.send('dlpop-list', list); overlays.dlpop.setBounds(dlpopBounds()); }
+  forEachCtx(() => {
+    if (!win || win.isDestroyed()) return;
+    win.webContents.send('downloads', list);
+    if (overlays.dlpop) { overlays.dlpop.webContents.send('dlpop-list', list); overlays.dlpop.setBounds(dlpopBounds()); }
+  });
 }
 function pushDownloads(now) {
-  if (!win || win.isDestroyed()) return;
   if (now) { clearTimeout(dlPushTimer); dlPushTimer = null; sendDownloads(); return; }
   if (!dlPushTimer) dlPushTimer = setTimeout(() => { dlPushTimer = null; sendDownloads(); }, 250);
 }
 function setupDownloads(ses, { peek = false } = {}) {
   ses.on('will-download', (_e, item, srcWc) => {
     if (peek) { item.cancel(); return; }                      // Peek is look-only
-    const dir = process.env.NODEGRID_DOWNLOADS || app.getPath('downloads');
+    enter(ctxOfWc(srcWc) || liveCtx());                       // the window it came from hears about it
+    const home = cur;
+    const dir = process.env.NULLGRID_DOWNLOADS || app.getPath('downloads');
     const name = uniqueName(dir, item.getFilename());
     const full = path.join(dir, name);
     item.setSavePath(full);
@@ -2931,7 +3214,7 @@ function setupDownloads(ses, { peek = false } = {}) {
     item.once('done', (_ev, state) => {
       d.received = item.getReceivedBytes(); d.state = state; d.item = null;   // completed | cancelled | interrupted
       pushDownloads(true);
-      if (win && !win.isDestroyed()) win.webContents.send('download-done', { name, state });
+      withCtx(home, () => { if (win && !win.isDestroyed()) win.webContents.send('download-done', { name, state }); });
     });
     pushDownloads(true);
     if (win && !win.isDestroyed()) win.webContents.send('download-started', { name });
@@ -2993,19 +3276,19 @@ ipcMain.on('dlpop:clear', (e) => {
   for (let i = downloads.length - 1; i >= 0; i--) if (downloads[i].state !== 'progressing') downloads.splice(i, 1);
   pushDownloads(true);
 });
-ipcMain.on('dlpop:folder', (e) => { if (fromDlPop(e)) eshell.openPath(process.env.NODEGRID_DOWNLOADS || app.getPath('downloads')); });
+ipcMain.on('dlpop:folder', (e) => { if (fromDlPop(e)) eshell.openPath(process.env.NULLGRID_DOWNLOADS || app.getPath('downloads')); });
 
 // ---------- 7. password vault (key icon) ----------
 // Logins are encrypted with the OS (Windows DPAPI via safeStorage), tied to the Windows
 // user. No cookies, nothing in the browsing session. Passwords never reach the popover:
 // filling and copying happen here in the main process.
-const VAULT_FILE = () => process.env.NODEGRID_VAULT || path.join(app.getPath('userData'), 'vault.json');
+const VAULT_FILE = () => process.env.NULLGRID_VAULT || path.join(app.getPath('userData'), 'vault.json');
 let vault = [];               // [{ id, host, user, pass (encrypted, base64) }]
 let nextVaultId = 1;
-if (process.env.NODEGRID_TEST_PLAINTEXT_VAULT && process.platform === 'linux') {
+if (process.env.NULLGRID_TEST_PLAINTEXT_VAULT && process.platform === 'linux') {
   app.whenReady().then(() => { try { safeStorage.setUsePlainTextEncryption(true); } catch {} });   // test machines only
 }
-const canEncrypt = () => { try { return safeStorage.isEncryptionAvailable() || !!process.env.NODEGRID_TEST_PLAINTEXT_VAULT; } catch { return false; } };
+const canEncrypt = () => { try { return safeStorage.isEncryptionAvailable() || !!process.env.NULLGRID_TEST_PLAINTEXT_VAULT; } catch { return false; } };
 const enc = (t) => safeStorage.encryptString(String(t)).toString('base64');
 const dec = (b) => safeStorage.decryptString(Buffer.from(b, 'base64'));
 function loadVault() {
@@ -3233,7 +3516,7 @@ ipcMain.handle('loginsave:choose', async (e, choice, keep) => {
   if (!fromLoginPrompt(e) || !pendingLogin) return { ok: false };
   const p = pendingLogin; pendingLogin = null;
   dropOverlay('loginsave'); focusPage();
-  if (choice === 'never') { settings.loginNever = [...new Set([...loginNever(), p.host])]; saveSettings(); toast(`NODE_GRID won't offer to save logins for ${p.host}`); return { ok: true }; }
+  if (choice === 'never') { settings.loginNever = [...new Set([...loginNever(), p.host])]; saveSettings(); toast(`Null Grid won't offer to save logins for ${p.host}`); return { ok: true }; }
   if (choice !== 'save') return { ok: true };
   if (p.updateId && vaultLocked()) return { ok: false };
   if (!canEncrypt()) { toast("This computer's encryption isn't available, so the login wasn't saved"); return { ok: false }; }
@@ -3330,14 +3613,14 @@ ipcMain.on('unlockfill:close', (e) => { if (fromUnlockFill(e)) { unlockFillTab =
 // Keep me signed in: sites on this list keep their cookies and site data between
 // restarts. Normal tabs use the in-memory session until you keep a site; from
 // then on they use a session saved to disk (KEEP_PARTITION) that is wiped of every
-// site you didn't keep each time NODE_GRID starts and quits.
+// site you didn't keep each time Null Grid starts and quits.
 const keptHosts = () => (Array.isArray(settings.keepSignedIn) ? settings.keepSignedIn : []);
 // "host" or "host:port", as shown and stored. Origins for both http and https.
 const originsOf = (h) => ['https://' + h, 'http://' + h];
 async function wipeUnkept() {
   const ses = session.fromPartition(KEEP_PARTITION);
   const keep = keptHosts().flatMap(originsOf);
-  try { if (keep.length) await ses.clearData({ excludeOrigins: keep }); else await ses.clearData(); } catch (err) { console.error('NODE_GRID: could not clear site data:', err.message); }
+  try { if (keep.length) await ses.clearData({ excludeOrigins: keep }); else await ses.clearData(); } catch (err) { console.error('Null Grid: could not clear site data:', err.message); }
 }
 // Keeping a site. All normal tabs share one session: the first time you keep a
 // site, every open normal tab moves into the kept session together (cookies
@@ -3358,9 +3641,11 @@ async function keepSite(host, t) {
       await to.cookies.set(cookie).catch(() => {});
     }
   } catch {}
-  const moving = tabs.filter((x) => normalTab(x) && x.view.webContents.session === from);
-  const activeWas = activeId;
-  for (const x of moving) reopenInKeptSession(x, x.id === activeWas);
+  forEachCtx(() => {
+    const moving = tabs.filter((x) => normalTab(x) && x.view.webContents.session === from);
+    const activeWas = activeId;
+    for (const x of moving) reopenInKeptSession(x, x.id === activeWas);
+  });
   pushState();
 }
 function reopenInKeptSession(t, makeActive) {
@@ -3413,7 +3698,7 @@ function notesSince(seen) {
     .map((v) => { const n = releaseNotes()[v] || {}; return { version: v, title: String(n.title || ''), new: (n.new || []).map(String), fixed: (n.fixed || []).map(String) }; });
 }
 function decideIntro() {               // called once settings are loaded
-  if (firstRun) { pendingTour = hasTour() && !process.env.NODEGRID_SKIP_INTRO; settings.seenVersion = APP_VERSION; saveSettings(); return; }   // tests that drive the keyboard skip it
+  if (firstRun) { pendingTour = hasTour() && !process.env.NULLGRID_SKIP_INTRO; settings.seenVersion = APP_VERSION; saveSettings(); return; }   // tests that drive the keyboard skip it
   const seen = settings.seenVersion || (settings.updateFrom && settings.updateFrom.from) || null;   // updated from: only what's new since then
   if (seen === APP_VERSION) return;
   if (notesSince(seen).length) pendingWhatsNew = true; else { settings.seenVersion = APP_VERSION; saveSettings(); }
@@ -3478,7 +3763,7 @@ async function initAdblock() {
   try { ({ ElectronBlocker } = require('@ghostery/adblocker-electron')); } catch { return; }
   const cache = path.join(app.getPath('userData'), 'adblock-engine.bin');
   try {
-    if (process.env.NODEGRID_ADBLOCK_FILTERS) blocker = ElectronBlocker.parse(process.env.NODEGRID_ADBLOCK_FILTERS);
+    if (process.env.NULLGRID_ADBLOCK_FILTERS) blocker = ElectronBlocker.parse(process.env.NULLGRID_ADBLOCK_FILTERS);
     else blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, { path: cache, read: fs.promises.readFile, write: fs.promises.writeFile });
   } catch (err) {
     try { blocker = ElectronBlocker.deserialize(await fs.promises.readFile(cache)); } catch { blocker = null; }
@@ -3535,8 +3820,18 @@ function tidy(items) {
   return out;
 }
 
+// Menu clicks run as the window the menu opened in.
+function inThisWindow(items) {
+  const c = cur;
+  return items.map((it) => {
+    const out = { ...it };
+    if (typeof it.click === 'function') out.click = (...a) => { enter(c); return it.click(...a); };
+    if (Array.isArray(it.submenu)) out.submenu = inThisWindow(it.submenu);
+    return out;
+  });
+}
 function popup(items) {
-  const menu = Menu.buildFromTemplate(tidy(items));
+  const menu = Menu.buildFromTemplate(inThisWindow(tidy(items)));
   if (win && !win.isDestroyed()) menu.popup({ window: win });
   return menu;
 }
@@ -3659,10 +3954,18 @@ function tabMenu(id) {
   const idx = tabs.indexOf(t);
   const url = t.url || t.view.webContents.getURL() || HOME;   // t.url is the real address, even on the error page
   const canPin = featureOn('pinned') && !t.peek && !t.burner && !t.sim && !t.settingsTab;
+  saveCur();
+  const others = [...ctxs].filter((c) => c !== cur && !c.dead && c.win && !c.win.isDestroyed());
+  const winName = (c) => { const a = c.tabs.find((x) => x.id === c.activeId) || c.tabs[0]; return short((a && a.title) || 'Window', 40) + ` (${c.tabs.length} tab${c.tabs.length === 1 ? '' : 's'})`; };
   return popup([
     // New
     { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => newTab() },
+    { label: 'New window', accelerator: 'CmdOrCtrl+N', click: () => newWindow() },
     { label: 'Duplicate tab', click: () => newTab(url, { peek: t.peek, burner: t.burner }) },
+    SEP,
+    // Windows
+    { label: 'Move to new window', enabled: tabs.length > 1, click: () => moveToNewWindow(t) },
+    ...(others.length ? [{ label: 'Move to window', submenu: others.map((c) => ({ label: winName(c), click: () => moveTab(t, c) })) }] : []),
     SEP,
     // This page
     { label: 'Reload tab', click: () => { activate(id); reload(); } },
@@ -3692,11 +3995,23 @@ function tabMenu(id) {
 }
 
 ipcMain.on('tab:menu', (_e, id) => tabMenu(id));
+// right-click on the sidebar's NEW TAB button
+ipcMain.on('newtab:menu', (e) => {
+  if (e.sender !== win.webContents) return;
+  popup([
+    { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => newTab() },
+    { label: 'New window', accelerator: 'CmdOrCtrl+N', click: () => newWindow() },
+    ...(featureOn('burner') ? [{ label: 'New burner tab', accelerator: 'CmdOrCtrl+Shift+N', click: () => openBurner() }] : [])
+  ]);
+});
 
 // ---------- shell <-> main ----------
 
-let lastState = '';
-function pushState() {
+let lastState = '';                   // (this window's)
+// Every window redraws: favorites, history, settings... are shared, and each
+// window shows its own tabs.
+function pushState() { forEachCtx(pushStateHere); }
+function pushStateHere() {
   if (!win || win.isDestroyed()) return;
   const t = activeTab();
   const state = {
@@ -3709,7 +4024,7 @@ function pushState() {
       burnEnds: burner && burners.has(burner.part) ? burners.get(burner.part).ends : 0 })),
     saved: saved.map(({ id, url, title, host, savedAt, file, md }) => ({ id, url, title, host, savedAt, offline: !!file, md: !!md })),
     loadouts: loadouts.map(({ id, name, urls }) => ({ id, name, count: urls.length,
-      hosts: urls.map((u) => u.startsWith('nodegrid://') ? u.slice(11) : hostOfUrl(u)).filter(Boolean).slice(0, 6) })),
+      hosts: urls.map((u) => u.startsWith('nullgrid://') ? u.slice(11) : hostOfUrl(u)).filter(Boolean).slice(0, 6) })),
     peek: !!(t && t.peek),
     favs: favs.map(({ id, url, title, favicon }) => ({ id, url, title, favicon })),
     history: history.map((e) => ({ host: e.host, count: e.count })),   // hostnames + visit counts
@@ -3739,8 +4054,11 @@ function pushState() {
   if (json === lastState) return;
   lastState = json;
   win.webContents.send('state', state);
+  const title = t && t.title ? `${t.title} - Null Grid` : 'Null Grid';   // taskbar previews and Alt+Tab tell the windows apart
+  if (win.getTitle() !== title) win.setTitle(title);
 }
 
+ipcMain.on('state:refresh', (e) => { if (e.sender === win.webContents) { lastState = ''; pushStateHere(); } });   // a frame asking for the whole picture again
 ipcMain.on('tab:new', () => newTab());
 ipcMain.on('tab:close', (_e, id) => closeTab(id));
 ipcMain.on('tab:activate', (_e, id) => activate(id));
@@ -3785,6 +4103,7 @@ function handleKeys(e, input) {
   let handled = true;
 
   if (ctrl && input.shift && k === 'n') openBurner();
+  else if (ctrl && k === 'n') newWindow();
   else if (ctrl && k === 's' && !input.shift) saveToVault(activeTab());
   else if (ctrl && input.shift && k === 'a') { if (featureOn('ai')) win.webContents.send('ai-toggle'); }
   else if (ctrl && k === 'p' && !input.shift) printTab(activeTab());
@@ -3828,8 +4147,8 @@ app.whenReady().then(async () => {
   setupSim();
   setupAiSession();
   hookAdblock(session.fromPartition(RADIO_PARTITION));
-  createWindow();
+  createWindow({ first: true });
   initAdblock();
 });
 app.on('window-all-closed', () => app.quit());
-app.on('activate', () => { if (!win) createWindow(); });
+app.on('activate', () => { if (!liveCtx()) createWindow({ first: !shellReady }); });

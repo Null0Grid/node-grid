@@ -20,7 +20,7 @@ const pw = require('playwright');
 
 const APP_DIR = __dirname + '/..';
 const electronPath = require(path.join(APP_DIR, 'node_modules', 'electron'));
-const BAD = /Electron\/|nullgrid-browser\/|NODE_GRID\//i;
+const BAD = /Electron\/|nullgrid-browser\/|Null Grid\//i;
 const SHOTS = process.env.MASKING_SHOTS || '';
 
 function startEchoSite() {
@@ -72,11 +72,11 @@ async function pickMasking(tab, shotName) {
 (async () => {
   const site = await startEchoSite();
   const base = 'http://127.0.0.1:' + site.address().port;
-  const userData = path.join(require('os').tmpdir(), 'node-grid-ci-mask-' + Date.now());
+  const userData = path.join(require('os').tmpdir(), 'null-grid-ci-mask-' + Date.now());
   const app = await pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + userData],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_SKIP_INTRO: '1' },
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_SKIP_INTRO: '1' },
   });
   let failed = false;
   const check = (label, fn) => { try { fn(); console.log('[pass] ' + label); } catch (e) { failed = true; console.log('[FAIL] ' + label + ': ' + e.message); } };

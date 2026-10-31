@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--suppress XmlUnusedNamespaceDeclaration -->
-<!-- NODE_GRID: electron-builder's appx template plus the uap3 namespace, which the
+<!-- Null Grid: electron-builder's appx template plus the uap3 namespace, which the
      browser registration in packaging/appx/browser-extensions.xml needs. -->
 <Package
    xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"

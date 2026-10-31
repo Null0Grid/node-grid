@@ -13,7 +13,7 @@ labels: bug
 2.
 
 **Version and system**
-- NODE_GRID version (Settings → About, or the Store page):
+- Null Grid version (Settings → About, or the Store page):
 - Windows / Ubuntu / Debian version:
 - Null Drive connected? Normal, end-to-end encrypted, or a search-only token?
 

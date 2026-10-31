@@ -3,7 +3,7 @@
 //   1. an http site (not this computer) stops at the warning, showing its address
 //   2. CLOSE never goes in: back to the page you were on
 //   3. PROCEED, DON'T TRUST opens it; logins are never offered or filled there;
-//      the same site doesn't warn again until NODE_GRID closes, and Back skips the warning
+//      the same site doesn't warn again until Null Grid closes, and Back skips the warning
 //   4. PROCEED, I TRUST IT opens it and remembers it: logins are offered and filled,
 //      and after a restart there's no warning
 //   5. after a restart, a site you didn't trust warns again
@@ -42,11 +42,11 @@ const LOGIN = '<!doctype html><title>router login</title><body style="background
   const P = `http://${ip.address}:${s1.address().port}`, T = `http://${ip.address}:${s2.address().port}`;   // P: proceed only, T: trusted
   const home = http.createServer(handler); await new Promise((r) => home.listen(0, '127.0.0.1', r));
   const L = 'http://127.0.0.1:' + home.address().port;                     // this computer: never warned
-  const ud = path.join(os.tmpdir(), 'node-grid-ci-insecure-' + Date.now());
+  const ud = path.join(os.tmpdir(), 'null-grid-ci-insecure-' + Date.now());
   fs.mkdirSync(ud, { recursive: true });
   fs.writeFileSync(path.join(ud, 'settings.json'), JSON.stringify({ seenVersion: require(path.join(APP_DIR, 'package.json')).version }));
   const launch = () => pw._electron.launch({ args: [APP_DIR, '--user-data-dir=' + ud], executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1' } });
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_UPDATE_URL: 'http://127.0.0.1:1/', NULLGRID_SKIP_INTRO: '1' } });
   let app = await launch(), shell;
   const attach = async () => {
     shell = await waitFor(() => app.windows().find((w) => /shell\.html$/.test(w.url())), 15000);

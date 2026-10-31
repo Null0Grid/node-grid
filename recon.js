@@ -62,7 +62,7 @@
 
   // Plain-text report for the clipboard
   $('copy').onclick = () => {
-    const lines = [`NODE_GRID RECON :: ${data.target ? data.target.url : ''}`, `Taken ${new Date().toISOString()}`, ''];
+    const lines = [`Null Grid RECON :: ${data.target ? data.target.url : ''}`, `Taken ${new Date().toISOString()}`, ''];
     for (const s of document.querySelectorAll('section')) {
       lines.push('[' + s.querySelector('h3').textContent + ']');
       for (const r of s.querySelectorAll('.row')) lines.push('  ' + r.querySelector('.k').textContent.padEnd(12) + r.querySelector('.val').textContent);

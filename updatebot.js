@@ -1,4 +1,4 @@
-// NODE_GRID update bot: Packet (BT-0404), the Null Grid mascot. He walks in from
+// Null Grid update bot: Packet (BT-0404), the Null Grid mascot. He walks in from
 // the left, hops twice with happy eyes, then waves while he tells you there's an
 // update. Drawn to his character sheet (project doc "mascot-packet.md"): 12x14
 // pixel grid with some half-pixel details, whole-step scale (x6), his own
@@ -108,7 +108,7 @@
   }
   function fill(i) {
     if (!i || !['available', 'downloading', 'ready', 'installing'].includes(i.state)) return;
-    const v = document.createElement('b'); v.textContent = 'NODE_GRID ' + i.latest;
+    const v = document.createElement('b'); v.textContent = 'Null Grid ' + i.latest;
     const p = $('bx'); p.replaceChildren();
     const h = $('bt'); if (h) h.textContent = i.state === 'downloading' ? '// DOWNLOADING' : i.state === 'ready' ? '// UPDATE READY' : i.state === 'installing' ? '// INSTALLING' : '// UPDATE AVAILABLE';
     if (i.self) {                              // this copy updates itself
@@ -116,11 +116,11 @@
         p.append('Downloading ', v, '… ', String(i.progress || 0) + '%');
         $('btns').replaceChildren(btn('HIDE', () => leave(false)));
       } else if (i.state === 'ready') {
-        p.append(v, i.needsPassword ? ' is downloaded and checked. Restart to install it (your password is needed).' : ' is downloaded and checked. Restart now, or it installs when you close NODE_GRID.');
+        p.append(v, i.needsPassword ? ' is downloaded and checked. Restart to install it (your password is needed).' : ' is downloaded and checked. Restart now, or it installs when you close Null Grid.');
         if (i.error) { const e = document.createElement('span'); e.className = 'err'; e.textContent = ' ' + i.error + '.'; p.append(e); }
         $('btns').replaceChildren(btn('RESTART NOW', () => window.updbot.restart(), true), btn('LATER', () => leave(false)));
       } else if (i.state === 'installing') {
-        p.append('Installing ', v, '. NODE_GRID reopens in a moment, with your tabs.');
+        p.append('Installing ', v, '. Null Grid reopens in a moment, with your tabs.');
         $('btns').replaceChildren();
       } else {
         p.append(v, ` is out. You're on ${i.current}.`);

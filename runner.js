@@ -1,4 +1,4 @@
-// NODE_GRID ROOFTOP RUNNER — the error page's offline game.
+// NULL GRID ROOFTOP RUNNER — the error page's offline game.
 // A little guy auto-runs across neon rooftops; jump the gaps, don't hit the walls.
 // Space / Up / W / click to jump. Hold for a higher jump, tap for a short hop.
 (() => {
@@ -29,7 +29,7 @@
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   let hi = 0;
-  try { hi = Number(localStorage.getItem('nodegrid-runner-hi')) || 0; } catch {}
+  try { hi = Number(localStorage.getItem('nullgrid-runner-hi') || localStorage.getItem('nodegrid-runner-hi')) || 0; } catch {}   // (the old key: a score from before the rename)
 
   let state, speed, dist, blds, p, holding, buffer, coyote, frame, particles, deadAt, glitch;
 
@@ -158,7 +158,7 @@
     state = 'dead'; deadAt = performance.now(); glitch = 18;
     for (let i = 0; i < 24; i++) particles.push({ x: PX + 4, y: p.y + 6, vx: rnd(-1.5, 1.5), vy: rnd(-2.5, 0.5), life: rnd(20, 45), c: Math.random() < 0.5 ? C.cyan : C.pink });
     const m = Math.floor(dist / 10);
-    if (m > hi) { hi = m; try { localStorage.setItem('nodegrid-runner-hi', String(hi)); } catch {} }
+    if (m > hi) { hi = m; try { localStorage.setItem('nullgrid-runner-hi', String(hi)); } catch {} }
     hud();
     show(m >= hi && m > 0 ? `NEW RECORD ${m} m  ::  SPACE TO RUN AGAIN` : 'SIGNAL DROPPED  ::  SPACE TO RUN AGAIN');
   }

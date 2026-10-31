@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 'use strict';
-// A stand-in Null Drive server for testing NODE_GRID's Drive connection
+// A stand-in Null Drive server for testing Null Grid's Drive connection
 // without a real server. Implements just the three endpoints null-drive.js
 // calls (GET /api/v1/me, /api/v1/search, /api/v1/files/{path}) in one of
 // three modes, matching the three account states documented in
-// docs/handoffs/node-grid-v3.0-drive-vault.md:
+// docs/handoffs/null-grid-v3.0-drive-vault.md:
 //
 //   normal     - e2ee off, search returns matches, view/download succeed
 //   encrypted  - e2ee on, search returns [] with X-NullDrive-Search: encrypted
@@ -14,7 +14,7 @@
 //   node tools/mock-drive.js [port] [mode]
 //   node tools/mock-drive.js 8081 encrypted
 //
-// Then in NODE_GRID's Settings > NULL DRIVE, connect to 127.0.0.1:<port>
+// Then in Null Grid's Settings > NULL DRIVE, connect to 127.0.0.1:<port>
 // with any token (mode "scope" expects you to pretend it's a search-only
 // token; the mock doesn't actually check scope by token, only by mode).
 const http = require('http');

@@ -1,10 +1,13 @@
 // Narrow bridge between the shell UI and the main process.
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Only on NODE_GRID's own frame page (shell.html): if anything else ever loads
+// Only on Null Grid's own frame page (shell.html): if anything else ever loads
 // here, it gets no bridge at all.
 if (location.protocol === 'file:' && /\/shell\.html$/.test(location.pathname)) contextBridge.exposeInMainWorld('shell', {
   newTab:      ()   => ipcRenderer.send('tab:new'),
+  newTabMenu:  ()   => ipcRenderer.send('newtab:menu'),
+  tabToNewWindow: (id, at) => ipcRenderer.send('tab:to-new-window', id, at),
+  adoptTab:    (id) => ipcRenderer.send('tab:adopt', id),
   closeTab:    (id) => ipcRenderer.send('tab:close', id),
   activate:    (id) => ipcRenderer.send('tab:activate', id),
   tabMenu:     (id) => ipcRenderer.send('tab:menu', id),
@@ -14,6 +17,7 @@ if (location.protocol === 'file:' && /\/shell\.html$/.test(location.pathname)) c
   setViewport: (r)  => ipcRenderer.send('viewport', r),
   setPipDockBounds: (r) => ipcRenderer.send('pipdock:bounds', r),
   onState:          (cb) => ipcRenderer.on('state', (_e, s) => cb(s)),
+  refreshState:     ()   => ipcRenderer.send('state:refresh'),
   onToggleSidebar:  (cb) => ipcRenderer.on('toggle-sidebar', () => cb()),
   onPageHover:      (cb) => ipcRenderer.on('page-hover', () => cb()),
   // favorites

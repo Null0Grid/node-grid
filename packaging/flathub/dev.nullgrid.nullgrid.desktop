@@ -1,10 +1,10 @@
 [Desktop Entry]
-Name=NODE_GRID
+Name=Null Grid
 Comment=Vertical tab sidebar browser with ad blocking and a login vault
 Exec=node-grid %U
 Terminal=false
 Type=Application
-Icon=dev.nullgrid.nodegrid
+Icon=dev.nullgrid.nullgrid
 Categories=Network;WebBrowser;
 MimeType=text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
 StartupWMClass=node-grid

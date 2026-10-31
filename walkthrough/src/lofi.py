@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Original lo-fi jazz bed for Packet's walkthrough, written for NODE_GRID (no
+"""Original lo-fi jazz bed for Packet's walkthrough, written for Null Grid (no
 samples, no outside recordings: every sound is synthesised here, so the track
 belongs to the project and needs no licence or credit).
 

@@ -58,7 +58,7 @@ jobs:
           v=$(node -p "require('./package.json').version")
           tag="store-$v"
           gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
-          cp store-dist/*.appx "NODE_GRID-$v-store.appx"
-          gh release create "$tag" "NODE_GRID-$v-store.appx" --draft --target "$GITHUB_SHA" \
+          cp store-dist/*.appx "Null Grid-$v-store.appx"
+          gh release create "$tag" "Null Grid-$v-store.appx" --draft --target "$GITHUB_SHA" \
             --title "Store package $v (draft, not for the public)" \
             --notes "Unsigned Microsoft Store package for Partner Center. Upload the .appx there; it signs it. Kept as a draft so it is not public."

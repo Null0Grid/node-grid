@@ -40,6 +40,12 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:insecure
       - name: Tabs across the top (live in the app)
         run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:tabstop
+      - name: Several windows (live in the app)
+        run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:windows
+      - name: Renamed to Null Grid (no old name left; updating from before the rename keeps everything)
+        run: |
+          npm run test:rename
+          xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:rename
       - name: Self-update, end to end (old .tar.gz build updates itself to a new one)
         run: |
           npx electron-builder --linux dir --x64 --publish never -c.directories.output="$RUNNER_TEMP/old" > "$RUNNER_TEMP/b1.log" 2>&1 || { echo "::error title=build::$(tail -c 800 "$RUNNER_TEMP/b1.log" | tr '\n' ' ')"; exit 1; }
@@ -65,10 +71,10 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           npm run dist *> "$env:RUNNER_TEMP/b1.log"; if ($LASTEXITCODE) { $t = (Get-Content "$env:RUNNER_TEMP/b1.log" -Raw) -replace "`r?`n", ' '; Write-Output ("::error title=build::" + $t.Substring([Math]::Max(0, $t.Length - 800))); exit 1 }
-          Move-Item dist/NODE_GRID-win32-x64 "$env:RUNNER_TEMP/old"
+          Move-Item "dist/Null Grid-win32-x64" "$env:RUNNER_TEMP/old"
           npm pkg set version=9.9.9
           npm run dist *> "$env:RUNNER_TEMP/b2.log"; if ($LASTEXITCODE) { Write-Output "::error title=build::second build failed"; exit 1 }
-          Compress-Archive -Path dist/NODE_GRID-win32-x64 -DestinationPath "$env:RUNNER_TEMP/NODE_GRID-9.9.9-win32-x64.zip"
+          Compress-Archive -Path "dist/Null Grid-win32-x64" -DestinationPath "$env:RUNNER_TEMP/Null-Grid-9.9.9-win32-x64.zip"
           git checkout -- package.json
-          $env:SU_OLD = "$env:RUNNER_TEMP/old"; $env:SU_NEW = "$env:RUNNER_TEMP/NODE_GRID-9.9.9-win32-x64.zip"; $env:SU_NEW_VERSION = "9.9.9"
+          $env:SU_OLD = "$env:RUNNER_TEMP/old"; $env:SU_NEW = "$env:RUNNER_TEMP/Null-Grid-9.9.9-win32-x64.zip"; $env:SU_NEW_VERSION = "9.9.9"
           node tests/selfupdate.test.js

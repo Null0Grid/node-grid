@@ -512,7 +512,7 @@ body.show-downloads .dlbtn { color: var(--green); border-color: var(--green); bo
 .dlbadge[hidden] { display: none; }
 body.collapsed:not(.peek) .dlbadge { position: absolute; top: 2px; right: 2px; min-width: 14px; height: 14px; font-size: 12px; margin: 0; }
 
-/* NODE_GRID SIM button */
+/* Null Grid SIM button */
 #simbtn { color: var(--pink); }
 #simbtn.on { border-color: var(--pink); box-shadow: 0 0 8px rgba(255, 46, 136, .35); }
 
@@ -841,3 +841,6 @@ body.tabs-top.size-large #topstrip #pins .tab { flex-basis: 48px; width: 48px; m
 body.tabs-top.size-xl #topstrip #pins .tab { flex-basis: 60px; width: 60px; min-width: 60px; }
 body.tabs-top.size-large #topstrip .newtab { width: 40px; }
 body.tabs-top.size-xl #topstrip .newtab { width: 48px; }
+
+/* a tab being dragged (out to its own window, or over to another window) */
+.tab.dragging { opacity: .4; }

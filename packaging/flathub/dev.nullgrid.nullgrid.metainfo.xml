@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>dev.nullgrid.nodegrid</id>
-  <name>NODE_GRID</name>
+  <id>dev.nullgrid.nullgrid</id>
+  <name>Null Grid</name>
   <summary>Vertical tab sidebar browser with ad blocking and a login vault</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <!-- NODE_GRID bundles doomgeneric (GPL-2.0); update this if the app's own
+  <!-- Null Grid bundles doomgeneric (GPL-2.0); update this if the app's own
        license changes — see the main repo's README "Why this repo is
        public" section. -->
   <project_license>GPL-2.0-only</project_license>
   <developer id="dev.nullgrid">
-    <name>NODE_GRID</name>
+    <name>Null Grid</name>
   </developer>
   <url type="homepage">https://search.nullgrid.dev</url>
-  <url type="bugtracker">https://github.com/Null0Grid/node-grid/issues</url>
+  <url type="bugtracker">https://github.com/Null0Grid/null-grid/issues</url>
 
   <description>
     <p>
-      NODE_GRID is a vertical-tab desktop browser with ad and tracker
+      Null Grid is a vertical-tab desktop browser with ad and tracker
       blocking, a safeStorage-encrypted login vault, hostname-only history,
       burner tabs, a built-in radio player, and an AI side panel. It's part
       of Null Grid, alongside Null Search and Null Drive.
@@ -28,18 +28,19 @@
     </p>
   </description>
 
-  <launchable type="desktop-id">dev.nullgrid.nodegrid.desktop</launchable>
+  <launchable type="desktop-id">dev.nullgrid.nullgrid.desktop</launchable>
 
   <screenshots>
     <screenshot type="default">
       <caption>Settings → Null Drive, connected</caption>
-      <image>https://raw.githubusercontent.com/Null0Grid/node-grid/main/docs/screenshots/null-drive-settings.png</image>
+      <image>https://raw.githubusercontent.com/Null0Grid/null-grid/main/docs/screenshots/null-drive-settings.png</image>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="5.2.0" date="2026-10-31" />
     <release version="5.1.7" date="2026-10-27" />
     <release version="5.1.6" date="2026-10-26" />
     <release version="5.1.5" date="2026-10-25" />

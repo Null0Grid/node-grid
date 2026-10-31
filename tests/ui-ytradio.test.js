@@ -6,7 +6,7 @@
 //      (YouTube's minimum for embedded players), and it plays
 //   3. minimising the player pauses it (YouTube's terms: no hidden player)
 //   4. showing the player again carries on playing
-// NODEGRID_YT_EMBED points the player at a local stand-in for YouTube's embed
+// NULLGRID_YT_EMBED points the player at a local stand-in for YouTube's embed
 // page (a short red video), so no network is needed. Needs an X display
 // (xvfb-run) and ImageMagick's `import` for the on-screen pixel check.
 // Set YT_SHOTS=<dir> to also save a screenshot of the playing player.
@@ -31,7 +31,7 @@ function startFakeYouTube() {
       if (req.url.startsWith('/red.mp4')) { res.setHeader('Content-Type', 'video/mp4'); return fs.createReadStream(VIDEO).pipe(res); }
       res.setHeader('Content-Type', 'text/html');
       // laid out like YouTube's own player: a 16:9 video letterboxed in the middle of
-      // the box, with black above and below (NODE_GRID stretches it to fill the box)
+      // the box, with black above and below (Null Grid stretches it to fill the box)
       res.end('<!doctype html><title>fake-yt</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#000}</style>'
         + '<div id="player" style="width:100%;height:100%"><div class="html5-video-player" style="position:relative;width:100%;height:100%;background:#000"><div class="html5-video-container">'
         + '<video class="html5-main-video" style="position:absolute;width:100%;height:56%;left:0;top:22%;object-fit:contain" src="/red.mp4" autoplay loop playsinline></video></div></div></div>');
@@ -58,9 +58,9 @@ function screenPixel(x, y) {
   const yt = await startFakeYouTube();
   const base = 'http://127.0.0.1:' + yt.address().port;
   const app = await pw._electron.launch({
-    args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'node-grid-ci-yt-' + Date.now())],
+    args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'null-grid-ci-yt-' + Date.now())],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_SKIP_INTRO: '1', NODEGRID_YT_EMBED: base + '/embed/' },
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_SKIP_INTRO: '1', NULLGRID_YT_EMBED: base + '/embed/' },
   });
   let failed = false;
   const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + label); } catch (e) { failed = true; console.log('[FAIL] ' + label + ': ' + e.message); } };

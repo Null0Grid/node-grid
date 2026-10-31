@@ -1,4 +1,4 @@
-// NODE_GRID animated tab icon.
+// Null Grid animated tab icon.
 // Draws the "//" mark to an offscreen canvas on a loop — the slashes pulse
 // brightness and a soft pink glow breathes behind them, matching the site's
 // existing pulse/blink motifs (status dots, the hero cursor) — then pushes

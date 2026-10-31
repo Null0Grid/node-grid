@@ -1,4 +1,4 @@
-// NODE_GRID settings: one place for every switch. Each change is saved right away.
+// Null Grid settings: one place for every switch. Each change is saved right away.
 (() => {
   const S = window.ngSettings;
   const $ = (id) => document.getElementById(id);
@@ -74,7 +74,7 @@
     eggs: ['Easter eggs', 'Hidden surprises'],
     recon: ['Recon', 'DNS, TLS and security grade'],
     mobile: ['Mobile view', 'See a page as a phone would'],
-    sim: ['NODE_GRID SIM', 'The mini-game'],
+    sim: ['Null Grid SIM', 'The mini-game'],
   };
   // Order of the sections, most-used first.
   const ORDER = ['search', 'look', 'tabs', 'browser', 'ai', 'features', 'privacy', 'sites', 'logins', 'drive', 'updates', 'about'];
@@ -87,7 +87,7 @@
 
   // NULL DRIVE: the Vault on the results page searches your own Null Drive.
   const DRIVE_STATE = {
-    off:         ['', 'Not set up. Vault searches the NODE_GRID GitHub vault.'],
+    off:         ['', 'Not set up. Vault searches the Null Grid GitHub vault.'],
     checking:    ['wait', 'Connecting…'],
     connected:   ['ok', 'Connected'],
     encrypted:   ['warn', "Connected, but this account is end-to-end encrypted, so Drive can't search it"],
@@ -98,7 +98,7 @@
   };
   function driveSection() {
     const D = M.drive;
-    const s = section('drive', 'NULL DRIVE', 'Vault search uses your own Null Drive: on this computer or a server on your network. NODE_GRID connects to it directly.', 'DRIVE');
+    const s = section('drive', 'NULL DRIVE', 'Vault search uses your own Null Drive: on this computer or a server on your network. Null Grid connects to it directly.', 'DRIVE');
     const st = D.configured ? D.state : 'off';
     const [cls, text] = DRIVE_STATE[st] || ['bad', st];
     const stat = el('div', 'dstat ' + cls);
@@ -137,7 +137,7 @@
   }
 
   function render() {
-    $('ver').textContent = `NODE_GRID v${M.version}${M.devMode ? '  ::  developer mode ON' : ''}`;
+    $('ver').textContent = `Null Grid v${M.version}${M.devMode ? '  ::  developer mode ON' : ''}`;
     const out = [];
 
     // FEATURES: every extra, on or off, grouped by what it's for
@@ -179,7 +179,7 @@
     // SEARCH
     const s1 = section('search', 'START PAGE SEARCH', 'What the search box on your start page uses.', 'SEARCH');
     s1.append(row('Search engine', null, select(ENGINES, M.search.engine, (v) => act('search', v, M.search.vault, 'Saved'))));
-    s1.append(row('Vault', 'Search through NODE_GRID (Startpage only)', toggle(M.search.engine === 'startpage' && M.search.vault, (on) => {
+    s1.append(row('Vault', 'Search through Null Grid (Startpage only)', toggle(M.search.engine === 'startpage' && M.search.vault, (on) => {
       if (M.search.engine !== 'startpage') { toast('Vault only works with Startpage', true); return; }
       act('search', 'startpage', on, on ? 'Vault on' : 'Vault off');
     })));
@@ -194,7 +194,7 @@
     s2.append(row('History', `${M.historyCount} site name${M.historyCount === 1 ? '' : 's'} kept (no pages, no searches; last 100 sites / 7 days)`,
       button('CLEAR HISTORY', () => act('history-clear', null, null, 'History cleared'), 'danger')));
     s2.append(el('h3', null, 'Stay signed in on'));
-    s2.append(el('p', 'hint', 'These sites keep their sign-in and site data when NODE_GRID closes. Every other site is wiped, as always. Add one with right-click > "Keep me signed in on this site", or when you save a login.'));
+    s2.append(el('p', 'hint', 'These sites keep their sign-in and site data when Null Grid closes. Every other site is wiped, as always. Add one with right-click > "Keep me signed in on this site", or when you save a login.'));
     s2.append(list(M.keepSignedIn, 'No sites yet.', (h) => li(h, null, 'SIGN OUT + REMOVE', () => act('keep-remove', h, null, h + ' removed and signed out'))));
     s2.append(el('h3', null, 'Trusted http sites'));
     s2.append(el('p', 'hint', 'Plain http sites you chose "Proceed, I trust it" for: no warning, and logins can be saved and filled there.'));
@@ -205,7 +205,7 @@
     out.push(s2);
 
     // PERMISSIONS + CERTS
-    const s3 = section('sites', 'SITE PERMISSIONS + DEVICES', 'Choices you told NODE_GRID to remember.', 'PERMISSIONS');
+    const s3 = section('sites', 'SITE PERMISSIONS + DEVICES', 'Choices you told Null Grid to remember.', 'PERMISSIONS');
     s3.append(list(M.permissions, 'No remembered permissions.', (p) => li(`${p.origin.replace(/^https?:\/\//, '')}`, `${KIND[p.kind] || p.kind}: ${p.allow ? 'ALLOWED' : 'BLOCKED'}`, 'FORGET', () => act('perm-remove', p.key, null, 'Forgotten'))));
     if (M.permissions.length) s3.append(button('FORGET ALL', () => act('perm-clear', null, null, 'All permissions forgotten'), 'danger'));
     s3.append(el('h3', null, 'Trusted local devices (self-signed certificates)'));
@@ -231,14 +231,14 @@
       rem.onclick = () => act('pin-clear', o.value, null, 'PIN removed');
       s4.append(f);
     }
-    s4.append(row('Offer to save logins', 'When you sign in to a site, ask whether to save the login', toggle(M.loginOffer, (on) => act('login-offer', on, null, on ? 'NODE_GRID will offer to save logins' : "NODE_GRID won't offer to save logins"))));
+    s4.append(row('Offer to save logins', 'When you sign in to a site, ask whether to save the login', toggle(M.loginOffer, (on) => act('login-offer', on, null, on ? 'Null Grid will offer to save logins' : "Null Grid won't offer to save logins"))));
     s4.append(row('Fill in logins automatically', "A site's saved login goes into its sign-in form when it opens (not while logins are locked)", toggle(M.loginAutofill, (on) => act('login-autofill', on, null, on ? 'Auto-fill on' : 'Auto-fill off'))));
     if (M.loginNever.length) { s4.append(el('h3', null, 'Never offer to save on')); s4.append(list(M.loginNever, '', (h) => li(h, null, 'REMOVE', () => act('login-never-remove', h, null, 'Removed')))); }
     out.push(s4);
 
     // LOOK
     const s5 = section('look', 'APPEARANCE + LANGUAGE', null, 'APPEARANCE');
-    s5.append(row('Theme', 'How NODE_GRID itself looks. Match my computer follows your system light or dark mode', select([['dark', 'Dark'], ['light', 'Light'], ['system', 'Match my computer']], M.theme, (v) => act('theme', v, null, 'Theme: ' + ({ dark: 'Dark', light: 'Light', system: 'Match my computer' })[v]))));
+    s5.append(row('Theme', 'How Null Grid itself looks. Match my computer follows your system light or dark mode', select([['dark', 'Dark'], ['light', 'Light'], ['system', 'Match my computer']], M.theme, (v) => act('theme', v, null, 'Theme: ' + ({ dark: 'Dark', light: 'Light', system: 'Match my computer' })[v]))));
     s5.append(row('Tabs', 'Show your tabs down the left side, or in a row across the top like other browsers', select([['side', 'On the side'], ['top', 'Across the top']], M.tabsPos, (v) => act('tabs-pos', v, null, v === 'top' ? 'Tabs: across the top' : 'Tabs: on the side'))));
     s5.append(row('Sidebar size', 'Bigger tab icons and text in the sidebar, easier to see', select([['normal', 'Normal'], ['large', 'Large'], ['xl', 'Extra large']], M.uiSize, (v) => act('ui-size', v, null, 'Sidebar size: ' + ({ normal: 'Normal', large: 'Large', xl: 'Extra large' })[v]))));
     s5.append(row('Dark pages', 'Turns bright websites dark (the moon button)', toggle(M.dark.on, (on) => act('dark', on, null, on ? 'Dark pages on' : 'Dark pages off'))));
@@ -260,18 +260,18 @@
     s7.append(row('Wipe burner tabs', 'Closes and wipes a burner tab group after this long', select(M.burnerChoices.map((m) => [m, `After ${m} minutes`]), M.burnerMinutes, (v) => act('burner', Number(v), null, 'Saved'))));
     out.push(s7);
 
-    // DEFAULT BROWSER: open web links from other apps in NODE_GRID
+    // DEFAULT BROWSER: open web links from other apps in Null Grid
     const B = M.browser || {};
-    const sb = section('browser', 'DEFAULT BROWSER', 'Open web links from other apps (mail, chat, the terminal) in NODE_GRID.', 'DEFAULT');
+    const sb = section('browser', 'DEFAULT BROWSER', 'Open web links from other apps (mail, chat, the terminal) in Null Grid.', 'DEFAULT');
     if (B.platform === 'win32' && B.state === 'portable') {
-      sb.append(el('p', 'hint', "This is the portable version, which isn't installed, so Windows can't list it as a browser. To make NODE_GRID your default browser, install it from the Microsoft Store, then pick it here."));
+      sb.append(el('p', 'hint', "This is the portable version, which isn't installed, so Windows can't list it as a browser. To make Null Grid your default browser, install it from the Microsoft Store, then pick it here."));
     } else if (B.platform === 'win32') {
-      sb.append(row('Make NODE_GRID your default browser', 'Windows asks you to choose: in Default apps, pick NODE_GRID, then set it for HTTP, HTTPS and .html.',
+      sb.append(row('Make Null Grid your default browser', 'Windows asks you to choose: in Default apps, pick Null Grid, then set it for HTTP, HTTPS and .html.',
         button('OPEN DEFAULT APPS', () => act('default-browser', null, null, 'Opened Windows Default apps'), 'primary')));
     } else if (B.platform === 'linux' && B.state !== 'sandboxed') {
       const bst = el('div', 'dstat ' + (B.state === 'yes' ? 'ok' : B.state === 'no' ? 'warn' : ''));
       bst.id = 'browserstat';
-      bst.append(el('span', 'ddot'), el('span', null, B.state === 'yes' ? 'NODE_GRID is your default browser.'
+      bst.append(el('span', 'ddot'), el('span', null, B.state === 'yes' ? 'Null Grid is your default browser.'
         : B.state === 'no' ? 'Another browser is the default' + (B.current ? ` (${B.current.replace(/\.desktop$/, '')})` : '') + '.'
         : "Couldn't check. Is xdg-utils installed?"));
       sb.append(bst);
@@ -280,22 +280,22 @@
           let r = null;
           try { r = await S.do('default-browser'); } catch { r = null; }
           if (r && r.model) { M = r.model; render(); }
-          toast(r && r.ok ? 'NODE_GRID is now your default browser' : r && r.reason === 'write' ? "Couldn't write the launcher file in ~/.local/share/applications" : "Couldn't set it. Try: xdg-settings set default-web-browser node-grid.desktop", !(r && r.ok));
+          toast(r && r.ok ? 'Null Grid is now your default browser' : r && r.reason === 'write' ? "Couldn't write the launcher file in ~/.local/share/applications" : "Couldn't set it. Try: xdg-settings set default-web-browser node-grid.desktop", !(r && r.ok));
         }, 'primary');
         mk.id = 'browsermake';
         const br = el('div', 'drow'); br.append(mk); sb.append(br);
       }
       sb.append(el('p', 'hint', 'Uses your system settings (xdg-settings), the same ones Omarchy and other desktops read. A copy run from an AppImage or .tar.gz is registered for your user first.'));
     } else {
-      sb.append(el('p', 'hint', B.state === 'sandboxed' ? 'Flatpak and Snap builds are set as the default from your desktop\'s own settings.' : 'Set NODE_GRID as the default from your system settings.'));
+      sb.append(el('p', 'hint', B.state === 'sandboxed' ? 'Flatpak and Snap builds are set as the default from your desktop\'s own settings.' : 'Set Null Grid as the default from your system settings.'));
     }
     out.push(sb);
 
-    // UPDATES: ask GitHub whether a newer NODE_GRID is out
+    // UPDATES: ask GitHub whether a newer Null Grid is out
     const U = M.update;
     const su = section('updates', 'UPDATES', U.store
-      ? 'This is the Microsoft Store copy, so the Store installs your updates. NODE_GRID still asks GitHub, so you hear about a new version as soon as it is out.'
-      : 'NODE_GRID asks GitHub (github.com/Null0Grid/node-grid) whether a newer version is out. Only that question is sent.');
+      ? 'This is the Microsoft Store copy, so the Store installs your updates. Null Grid still asks GitHub, so you hear about a new version as soon as it is out.'
+      : 'Null Grid asks GitHub (github.com/Null0Grid/null-grid) whether a newer version is out. Only that question is sent.');
     su.append(row('Check automatically', 'At launch and once a day', toggle(U.auto, async (on) => {
       const r = await S.feature('updates', on);
       if (r && r.ok) { M = r.model; render(); toast(on ? 'Automatic update checks on' : 'Automatic update checks off'); }
@@ -305,11 +305,11 @@
     const when = U.checkedAt ? ' :: checked ' + new Date(U.checkedAt).toLocaleString() : '';
     ust.append(el('span', 'ddot'), el('span', null,
       U.state === 'checking' ? 'Checking GitHub…'
-        : U.state === 'downloading' ? `Downloading NODE_GRID ${U.latest}… ${U.progress || 0}%`
-        : U.state === 'ready' ? `NODE_GRID ${U.latest} is downloaded and checked${U.error ? '. ' + U.error : ''}.`
-        : U.state === 'installing' ? `Installing NODE_GRID ${U.latest}…`
-        : U.state === 'available' && U.error ? `NODE_GRID ${U.latest} is available. Couldn't update: ${U.error}.`
-        : U.state === 'available' ? `NODE_GRID ${U.latest} is available. You have ${U.current}.`
+        : U.state === 'downloading' ? `Downloading Null Grid ${U.latest}… ${U.progress || 0}%`
+        : U.state === 'ready' ? `Null Grid ${U.latest} is downloaded and checked${U.error ? '. ' + U.error : ''}.`
+        : U.state === 'installing' ? `Installing Null Grid ${U.latest}…`
+        : U.state === 'available' && U.error ? `Null Grid ${U.latest} is available. Couldn't update: ${U.error}.`
+        : U.state === 'available' ? `Null Grid ${U.latest} is available. You have ${U.current}.`
         : U.state === 'current' ? `You're up to date (${U.current})${when}`
         : U.state === 'error' ? `Couldn't check: ${U.error}${when}`
         : `You have ${U.current}. Not checked yet.`));
@@ -335,11 +335,11 @@
       }
     }
     su.append(ub);
-    if (U.self && U.state === 'available') su.append(el('p', 'hint', `Downloads ${U.asset.name}, checks it against GitHub's checksum, then installs it when NODE_GRID restarts or closes. Your settings, logins and tabs stay.`));
-    if (U.self && U.state === 'ready') su.append(el('p', 'hint', U.needsPassword ? 'Restarting installs it with your system package manager, which asks for your password.' : 'Or just keep browsing: it installs the next time you close NODE_GRID.'));
-    if (!U.self && U.state === 'available' && !U.store && U.asset) su.append(el('p', 'hint', `Downloads ${U.asset.name} to your Downloads folder. Close NODE_GRID and install it like the version you have now.`));
+    if (U.self && U.state === 'available') su.append(el('p', 'hint', `Downloads ${U.asset.name}, checks it against GitHub's checksum, then installs it when Null Grid restarts or closes. Your settings, logins and tabs stay.`));
+    if (U.self && U.state === 'ready') su.append(el('p', 'hint', U.needsPassword ? 'Restarting installs it with your system package manager, which asks for your password.' : 'Or just keep browsing: it installs the next time you close Null Grid.'));
+    if (!U.self && U.state === 'available' && !U.store && U.asset) su.append(el('p', 'hint', `Downloads ${U.asset.name} to your Downloads folder. Close Null Grid and install it like the version you have now.`));
     if (U.state === 'available' && (U.kind === 'flatpak' || U.kind === 'snap')) su.append(el('p', 'hint', U.kind === 'flatpak' ? 'This is the Flatpak copy: run "flatpak update" (or your software center) to update it.' : 'This is the Snap copy: snapd updates it automatically.'));
-    if (U.state === 'available' && U.store) su.append(el('p', 'hint', "The Store update usually arrives within a few days. A GitHub download would install as a second, separate NODE_GRID without your settings, so it's better to wait."));
+    if (U.state === 'available' && U.store) su.append(el('p', 'hint', "The Store update usually arrives within a few days. A GitHub download would install as a second, separate Null Grid without your settings, so it's better to wait."));
     out.push(su);
 
     // ABOUT

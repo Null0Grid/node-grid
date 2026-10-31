@@ -1,7 +1,7 @@
 'use strict';
 // ---------- Null Drive connection ----------
 // The browser itself talks to your Null Drive (on this PC or a homelab server), never
-// the web page and never the NODE_GRID search server. The Drive address and token are
+// the web page and never the Null Grid search server. The Drive address and token are
 // saved on this PC only; the token is encrypted by Windows.
 //
 // Handshake = GET /api/v1/me with the token. It tells us, in one call: the address
@@ -53,7 +53,7 @@ module.exports = function createDrive({ getSettings, saveSettings, enc, dec, can
   const configured = () => !!(S().url && S().token);
 
   // One request to Drive. Accepts self-signed HTTPS only for devices you already trusted
-  // in NODE_GRID (Settings > Trusted local devices), same as for web pages.
+  // in Null Grid (Settings > Trusted local devices), same as for web pages.
   // For https the TLS handshake is done first and the certificate checked before a
   // single byte (and so the token) is sent; only then does the request go out on
   // that socket.
@@ -84,7 +84,7 @@ module.exports = function createDrive({ getSettings, saveSettings, enc, dec, can
       const req = http.request({
         host: u.hostname.replace(/^\[|\]$/g, ''), port: Number(u.port) || (sock ? 443 : 80), path: u.pathname + u.search,
         method: 'GET', timeout,
-        headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json, */*', 'User-Agent': 'NODE_GRID' },
+        headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json, */*', 'User-Agent': 'NullGrid' },
         ...(sock ? { createConnection: () => sock } : {})
       }, (res) => {
         if (stream) { resolve(res); return; }

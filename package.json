@@ -1,15 +1,15 @@
 {
   "name": "nullgrid-browser",
-  "productName": "NODE_GRID",
-  "version": "5.1.7",
-  "description": "NODE_GRID browser: vertical tab sidebar, favorites, hostname-only history, ad blocking, login vault.",
+  "productName": "Null Grid",
+  "version": "5.2.0",
+  "description": "Null Grid browser: vertical tab sidebar, favorites, hostname-only history, ad blocking, login vault.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "test": "node tests/drive.test.js",
     "test:ui": "node tests/ui-drive.test.js",
     "test:ui:pipdock": "node tests/ui-pipdock.test.js",
-    "dist": "electron-packager . NODE_GRID --platform=win32 --arch=x64 --icon=icon.ico --out=dist --overwrite --asar --ignore=\"^/dist\" --ignore=\"^/build\" --ignore=\"^/store-dist\" --ignore=\"^/walkthrough/src\" --ignore=\"INSTALL\\.bat\" --ignore=\"README\\.txt\"",
+    "dist": "electron-packager . \"Null Grid\" --executable-name=NODE_GRID --platform=win32 --arch=x64 --icon=icon.ico --out=dist --overwrite --asar --ignore=\"^/dist\" --ignore=\"^/build\" --ignore=\"^/store-dist\" --ignore=\"^/walkthrough/src\" --ignore=\"INSTALL\\.bat\" --ignore=\"README\\.txt\"",
     "store": "electron-builder --win appx --x64 --publish never",
     "dist:linux": "electron-builder --linux deb rpm AppImage tar.gz --x64 --arm64 --publish never",
     "dist:linux:flatpak": "electron-builder --linux flatpak --x64 --publish never",
@@ -30,7 +30,10 @@
     "test:ui:515": "node tests/ui-515.test.js",
     "test:ui:whatsnew": "node tests/ui-whatsnew.test.js",
     "test:ui:insecure": "node tests/ui-insecure.test.js",
-    "test:ui:tabstop": "node tests/ui-tabstop.test.js"
+    "test:ui:tabstop": "node tests/ui-tabstop.test.js",
+    "test:ui:windows": "node tests/ui-windows.test.js",
+    "test:rename": "node tests/rename.test.js",
+    "test:ui:rename": "node tests/ui-rename.test.js"
   },
   "devDependencies": {
     "@electron/asar": "^3.4.1",
@@ -45,8 +48,8 @@
     "qrcode": "^1.5.4"
   },
   "build": {
-    "appId": "dev.nullgrid.nodegrid",
-    "productName": "NODE_GRID",
+    "appId": "dev.nullgrid.nullgrid",
+    "productName": "Null Grid",
     "directories": {
       "output": "store-dist",
       "buildResources": "build"
@@ -80,7 +83,7 @@
       "publisher": "CN=FILLED_IN_BY_THE_STORE_KIT",
       "publisherDisplayName": "FILLED_IN_BY_THE_STORE_KIT",
       "applicationId": "NODEGRID",
-      "displayName": "NODE_GRID",
+      "displayName": "Null Grid",
       "backgroundColor": "#0a0a0f",
       "languages": [
         "en-US"
@@ -137,8 +140,8 @@
       ],
       "icon": "home/icon-512.png",
       "category": "Network;WebBrowser",
-      "synopsis": "NODE_GRID: vertical tab sidebar browser with ad blocking and a login vault.",
-      "maintainer": "NODE_GRID <support@nullgrid.dev>",
+      "synopsis": "Null Grid: vertical tab sidebar browser with ad blocking and a login vault.",
+      "maintainer": "Null Labs <support@nullgrid.dev>",
       "executableName": "node-grid",
       "syncDesktopName": true,
       "mimeTypes": [
@@ -191,13 +194,15 @@
         "--socket=pulseaudio",
         "--socket=wayland",
         "--device=dri",
-        "--filesystem=home"
-      ]
+        "--filesystem=home",
+        "--filesystem=~/.var/app/dev.nullgrid.nodegrid:ro"
+      ],
+      "artifactName": "Null-Grid-${version}-${arch}.${ext}"
     },
     "snap": {
       "confinement": "strict",
       "grade": "stable",
-      "summary": "NODE_GRID: vertical tab sidebar browser with ad blocking and a login vault.",
+      "summary": "Null Grid: vertical tab sidebar browser with ad blocking and a login vault.",
       "plugs": [
         "default",
         "home",
@@ -214,9 +219,12 @@
         "browser-support",
         "password-manager-service"
       ]
+    },
+    "appImage": {
+      "artifactName": "Null-Grid-${version}-${arch}.${ext}"
     }
   },
-  "author": "NODE_GRID",
+  "author": "Null Labs",
   "homepage": "https://search.nullgrid.dev",
   "desktopName": "node-grid.desktop"
 }

@@ -1,7 +1,7 @@
 // HTML -> Markdown for saving text pages to the Vault. Works on a DOM element (the
 // reader view's article, or a page's main content). Plain function, no dependencies;
 // the app also injects this file into pages to convert them in place.
-function nodegridToMarkdown(root, baseUrl) {
+function nullgridToMarkdown(root, baseUrl) {
   const abs = (u) => { try { return new URL(u, baseUrl || location.href).href; } catch { return u || ''; } };
   const esc = (t) => t.replace(/([\\`*_[\]#])/g, '\\$1');
   const inline = (node) => {
@@ -31,7 +31,7 @@ function nodegridToMarkdown(root, baseUrl) {
       if (/^h[1-6]$/.test(tag)) { const t = inline(n).trim(); if (t) blocks.push('#'.repeat(Number(tag[1])) + ' ' + t); }
       else if (tag === 'p') { const t = inline(n).trim(); if (t) blocks.push(t); }
       else if (tag === 'pre') blocks.push('```\n' + n.textContent.replace(/\n+$/, '') + '\n```');
-      else if (tag === 'blockquote') { const sub = nodegridToMarkdown(n, baseUrl); if (sub) blocks.push(sub.split('\n').map((l) => '> ' + l).join('\n')); }
+      else if (tag === 'blockquote') { const sub = nullgridToMarkdown(n, baseUrl); if (sub) blocks.push(sub.split('\n').map((l) => '> ' + l).join('\n')); }
       else if (tag === 'ul' || tag === 'ol') {
         let i = 1; const lines = [];
         for (const li of n.children) {
@@ -65,4 +65,4 @@ function nodegridToMarkdown(root, baseUrl) {
   walk(root, 0);
   return blocks.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
 }
-if (typeof module === 'object' && module.exports) module.exports = nodegridToMarkdown;
+if (typeof module === 'object' && module.exports) module.exports = nullgridToMarkdown;

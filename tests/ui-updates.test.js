@@ -1,7 +1,7 @@
 'use strict';
 // End-to-end check of update checks, the update bot, and the Settings controls,
 // through the real app. A local stand-in for GitHub's "latest release" API
-// (NODEGRID_UPDATE_URL) answers with a newer or the same version, so no
+// (NULLGRID_UPDATE_URL) answers with a newer or the same version, so no
 // network is needed.
 //   1. at launch, a newer release brings out the bot (updatebot.html), whose
 //      bubble names the new version and offers GET IT / WHAT'S NEW / LATER
@@ -36,10 +36,10 @@ function startFakeGitHub() {
       res.setHeader('Content-Type', 'application/json');
       const v = answer;
       res.end(JSON.stringify({
-        tag_name: v, html_url: 'https://github.com/Null0Grid/node-grid/releases/tag/' + v, body: 'Test release notes.',
-        assets: ['NODE_GRID-' + v + '-win32-x64.zip', 'NODE_GRID-' + v + '.AppImage', 'nullgrid-browser_' + v + '_amd64.deb',
+        tag_name: v, html_url: 'https://github.com/Null0Grid/null-grid/releases/tag/' + v, body: 'Test release notes.',
+        assets: ['Null Grid-' + v + '-win32-x64.zip', 'Null Grid-' + v + '.AppImage', 'nullgrid-browser_' + v + '_amd64.deb',
           'nullgrid-browser-' + v + '.x86_64.rpm', 'nullgrid-browser-' + v + '.tar.gz']
-          .map((name) => ({ name, size: 1000, browser_download_url: 'https://github.com/Null0Grid/node-grid/releases/download/' + v + '/' + name })),
+          .map((name) => ({ name, size: 1000, browser_download_url: 'https://github.com/Null0Grid/null-grid/releases/download/' + v + '/' + name })),
       }));
     });
     server.listen(0, '127.0.0.1', () => resolve(server));
@@ -55,9 +55,9 @@ async function waitFor(fn, timeoutMs = 10000) {
 (async () => {
   const gh = await startFakeGitHub();
   const app = await pw._electron.launch({
-    args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'node-grid-ci-upd-' + Date.now())],
+    args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'null-grid-ci-upd-' + Date.now())],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_SKIP_INTRO: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:' + gh.address().port + '/latest', NODEGRID_UPDATE_DELAY_MS: '1500' },
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_SKIP_INTRO: '1', NULLGRID_UPDATE_URL: 'http://127.0.0.1:' + gh.address().port + '/latest', NULLGRID_UPDATE_DELAY_MS: '1500' },
   });
   let failed = false;
   const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + label); } catch (e) { failed = true; console.log('[FAIL] ' + label + ': ' + e.message); } };
@@ -77,7 +77,7 @@ async function waitFor(fn, timeoutMs = 10000) {
       const said = await bot.evaluate(() => document.getElementById('bubble').innerText);
       console.log('  bot says:', said.replace(/\s+/g, ' '));
       await check('its bubble names the new version and offers GET IT / LATER', () => {
-        assert.ok(said.includes('NODE_GRID 9.9.9') && said.includes(CURRENT), said);
+        assert.ok(said.includes('Null Grid 9.9.9') && said.includes(CURRENT), said);
         assert.ok(/GET IT/.test(said) && /LATER/.test(said), said);
       });
       // 2. LATER: it runs off and its view closes

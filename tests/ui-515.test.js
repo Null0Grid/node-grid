@@ -44,7 +44,7 @@ const LOGIN = '<!doctype html><title>sign in</title><body style="background:#fff
     r.end('<!doctype html><title>page</title>page');
   };
   // logins are only saved and filled on https: a self-signed test site, trusted
-  // the way NODE_GRID trusts homelab devices (Settings > Trusted devices)
+  // the way Null Grid trusts homelab devices (Settings > Trusted devices)
   const certDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ng-515-cert-'));
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(certDir, 'k.pem'), '-out', path.join(certDir, 'c.pem'), '-days', '2', '-subj', '/CN=localhost'], { stdio: 'ignore' });
   const certPem = fs.readFileSync(path.join(certDir, 'c.pem'));
@@ -56,12 +56,12 @@ const LOGIN = '<!doctype html><title>sign in</title><body style="background:#fff
   const port = site.address().port;
   const A = 'https://127.0.0.1:' + port, B = 'https://localhost:' + port;   // A gets kept, B doesn't
   const H = 'http://127.0.0.1:' + plain.address().port;                       // a plain http copy of the same site
-  const ud = path.join(os.tmpdir(), 'node-grid-ci-515-' + Date.now());
+  const ud = path.join(os.tmpdir(), 'null-grid-ci-515-' + Date.now());
   fs.mkdirSync(ud, { recursive: true });
   fs.writeFileSync(path.join(ud, 'settings.json'), JSON.stringify({ seenVersion: require(path.join(APP_DIR, 'package.json')).version, trustedCerts: { '127.0.0.1': { fingerprint }, localhost: { fingerprint } } }));
   const launch = () => pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + ud], executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1' },
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_UPDATE_URL: 'http://127.0.0.1:1/', NULLGRID_SKIP_INTRO: '1' },
   });
   const settingsFile = () => { try { return JSON.parse(fs.readFileSync(path.join(ud, 'settings.json'), 'utf8')); } catch { return {}; } };
   let app = await launch();
@@ -166,7 +166,7 @@ const LOGIN = '<!doctype html><title>sign in</title><body style="background:#fff
     const s = await page(/settings\.html/);
     await s.waitForSelector('#sections section');
     await s.evaluate(() => window.ngSettings.do('theme', 'light'));
-    await check('Theme: Light turns NODE_GRID light at once (sidebar, Settings, start page)', async () => assert.ok(await waitFor(async () =>
+    await check('Theme: Light turns Null Grid light at once (sidebar, Settings, start page)', async () => assert.ok(await waitFor(async () =>
       (await shell.evaluate(() => document.documentElement.dataset.theme)) === 'light' && (await s.evaluate(() => document.documentElement.dataset.theme)) === 'light'
       && (await shell.evaluate(() => getComputedStyle(document.body).backgroundColor)) !== 'rgb(10, 10, 15)', 4000)));
     if (SHOTS) { await s.evaluate(() => document.getElementById('look').scrollIntoView()); await wait(500); execFileSync('import', ['-window', 'root', path.join(SHOTS, 'light-settings.png')]); }
@@ -189,7 +189,7 @@ const LOGIN = '<!doctype html><title>sign in</title><body style="background:#fff
     await shell.evaluate(() => { const b = document.getElementById('keybtn').getBoundingClientRect(); window.shell.toggleVault({ left: b.left, right: b.right, top: b.top, bottom: b.bottom }); });
     const vw = await waitFor(() => app.windows().find((w) => /vault\.html/.test(w.url())), 6000);
     await vw.evaluate(() => window.vault.lock()); await wait(300);
-    // ...and while it's open: a NODE_GRID pop-over can't be navigated away to a website
+    // ...and while it's open: a Null Grid pop-over can't be navigated away to a website
     await vw.evaluate(() => { location.href = 'https://example.com/'; }).catch(() => {});
     await wait(800);
     await check("a pop-over (the key popover) can't be navigated to a website", () => assert.ok(app.windows().some((w) => /vault\.html/.test(w.url())) && !app.windows().some((w) => /example\.com/.test(w.url()))));
@@ -211,7 +211,7 @@ const LOGIN = '<!doctype html><title>sign in</title><body style="background:#fff
     // 8. the frame itself can't be navigated away (a dropped link, a script)
     await shell.evaluate(() => { location.href = 'https://example.com/'; }).catch(() => {});
     await wait(1000);
-    await check("NODE_GRID's own frame can't be replaced by a website", async () => assert.ok(app.windows().some((w) => /shell\.html$/.test(w.url())) && await shell.evaluate(() => !!window.shell)));
+    await check("Null Grid's own frame can't be replaced by a website", async () => assert.ok(app.windows().some((w) => /shell\.html$/.test(w.url())) && await shell.evaluate(() => !!window.shell)));
 
     // 4 (setup). a cookie on the site you didn't keep
     await shell.evaluate(() => window.shell.newTab()); await wait(300);

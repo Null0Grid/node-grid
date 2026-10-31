@@ -1,6 +1,6 @@
-# NODE_GRID
+# Null Grid
 
-**A vertical-tab desktop browser with ad blocking, a login vault, and a direct line to your own files.** It's part of **[Null Grid](https://nullgrid.dev)**, alongside Null Search and Null Drive.
+**A vertical-tab desktop browser with ad blocking, a login vault, and a direct line to your own files.** It's part of the **[Null](https://nullgrid.dev)** Suite by Null Labs, alongside Null Search, Null Notes and Null Drive. (Formerly NODE_GRID.)
 
 ![Settings → Null Drive, connected](docs/screenshots/null-drive-settings.png)
 
@@ -16,7 +16,7 @@
 - **A direct Null Drive connection.** The browser itself — not the web page — handshakes with your Null Drive, so your address and token never reach the search origin. See [How it connects to Null Grid](#how-it-connects-to-null-grid).
 - **Picture-in-picture, docked in the sidebar.** Pop a video out and, if the sidebar is expanded, it docks into the empty strip below the tab list instead of a floating OS window — it stays there as long as the sidebar stays expanded, with a small restore/close bar over it. Collapse the sidebar (or there's no room) and it falls back to a normal floating PiP window automatically. Toggle it off in Settings if you'd rather always get the floating window.
 - **Masking, per tab.** Right-click a page (or its tab) → **Masking**, and that one tab tells sites it's the current Google Chrome instead of an Electron app — for sites like WhatsApp Web that turn away browsers they don't recognise. Every other tab is untouched; pick it again to turn it off.
-- **Update bot.** NODE_GRID asks GitHub once a day whether a newer version is out. If one is, a little pixel robot runs in, hops, and tells you, with a button to get it. Settings → UPDATES has CHECK FOR UPDATES any time and a switch for the daily check. Microsoft Store copies hear about it too, and get the update itself through the Store.
+- **Update bot.** Null Grid asks GitHub once a day whether a newer version is out. If one is, a little pixel robot runs in, hops, and tells you, with a button to get it. Settings → UPDATES has CHECK FOR UPDATES any time and a switch for the daily check. Microsoft Store copies hear about it too, and get the update itself through the Store.
 - **YouTube radio stations** play in a small visible player (200 × 200, YouTube's minimum) in the radio panel, and pause while the player is hidden.
 
 ## Install
@@ -24,35 +24,35 @@
 - **Windows:** [Microsoft Store](https://apps.microsoft.com/detail/9PL3D6SNHMLS), or the portable build from [Releases](../../releases).
 - **Linux, any distro, no install needed:** download the `.AppImage` for your architecture from [Releases](../../releases), then
   ```
-  chmod +x NODE_GRID-5.1.7.AppImage          # or NODE_GRID-5.1.7-arm64.AppImage
-  ./NODE_GRID-5.1.7.AppImage
+  chmod +x Null-Grid-5.2.0-x86_64.AppImage          # or Null-Grid-5.2.0-arm64.AppImage
+  ./Null-Grid-5.2.0-x86_64.AppImage
   ```
 - **Ubuntu 24.04+ / Debian 13+ (x64 or arm64):** download the `.deb` from [Releases](../../releases), then
   ```
-  sudo apt install ./nullgrid-browser_5.1.7_amd64.deb   # or _arm64.deb
+  sudo apt install ./nullgrid-browser_5.2.0_amd64.deb   # or _arm64.deb
   ```
 - **Fedora / openSUSE / RHEL (x64 or arm64):** download the `.rpm` from [Releases](../../releases), then
   ```
-  sudo rpm -i nullgrid-browser-5.1.7.x86_64.rpm   # or .aarch64.rpm
+  sudo rpm -i nullgrid-browser-5.2.0.x86_64.rpm   # or .aarch64.rpm
   ```
 - **Arch (AUR):** [`nullgrid-browser-bin`](packaging/aur/) — `yay -S nullgrid-browser-bin` (or your AUR helper of choice; `aarch64` is listed too). The PKGBUILD/`.SRCINFO` live in this repo; a maintainer pushes them to the actual AUR package repo.
-- **Flatpak / Snap (x64):** if a release built them, grab the `.flatpak` or `.snap` from [Releases](../../releases) and install with `flatpak install` / `snap install --dangerous`. Both build in best-effort CI jobs — see [Build from source](#build-from-source) if a given release doesn't have them and you want to build locally. A submission-ready Flathub manifest is at [`packaging/flathub/dev.nullgrid.nodegrid.yml`](packaging/flathub/dev.nullgrid.nodegrid.yml) for getting onto Flathub proper.
-- **Any other Linux:** download the `.tar.gz` for your architecture from [Releases](../../releases), unpack it, and run the `node-grid` binary inside.
+- **Flatpak / Snap (x64):** if a release built them, grab the `.flatpak` or `.snap` from [Releases](../../releases) and install with `flatpak install` / `snap install --dangerous`. Both build in best-effort CI jobs — see [Build from source](#build-from-source) if a given release doesn't have them and you want to build locally. A submission-ready Flathub manifest is at [`packaging/flathub/dev.nullgrid.nullgrid.yml`](packaging/flathub/dev.nullgrid.nullgrid.yml) for getting onto Flathub proper.
+- **Any other Linux:** download the `.tar.gz` for your architecture from [Releases](../../releases), unpack it, and run the program inside.
 
 ## Make it your default browser
 
 - **Linux (incl. Omarchy):** Settings → DEFAULT BROWSER → **MAKE DEFAULT**. Or by hand: `xdg-settings set default-web-browser node-grid.desktop`
-- **Windows (Microsoft Store version):** Settings → DEFAULT BROWSER → **OPEN DEFAULT APPS**, pick NODE_GRID, and set it for HTTP, HTTPS and .html. (Windows only lets you choose this yourself.)
+- **Windows (Microsoft Store version):** Settings → DEFAULT BROWSER → **OPEN DEFAULT APPS**, pick Null Grid, and set it for HTTP, HTTPS and .html. (Windows only lets you choose this yourself.)
 
 ## How it connects to Null Grid
 
-NODE_GRID's main process is the only thing that ever talks to Null Drive — never the web page, and never Null Search's own server. `null-drive.js` does the handshake (`GET /api/v1/me`), search, view and download; `window.nodegridDrive`, exposed by `tab-preload.js`, is the one bridge a page can call, and only when it's running inside a NODE_GRID tab on the configured search origin.
+Null Grid's main process is the only thing that ever talks to Null Drive — never the web page, and never Null Search's own server. `null-drive.js` does the handshake (`GET /api/v1/me`), search, view and download; `window.nullgridDrive`, exposed by `tab-preload.js`, is the one bridge a page can call, and only when it's running inside a Null Grid tab on the configured search origin.
 
 1. Settings → **NULL DRIVE** → enter your address and an API token (Null Drive: Settings → Devices → Add device → Create an API token, scope **Everything** — needed to view and download files; a search-only token can search but not open or download).
-2. **If your Drive account is end-to-end encrypted:** Drive turns its search index off for that account by design — NODE_GRID shows "connected, but this account is end-to-end encrypted, so Drive can't search it," not an empty result list. Opening encrypted files isn't supported (search never surfaces a path to one, so there's nothing to open).
+2. **If your Drive account is end-to-end encrypted:** Drive turns its search index off for that account by design — Null Grid shows "connected, but this account is end-to-end encrypted, so Drive can't search it," not an empty result list. Opening encrypted files isn't supported (search never surfaces a path to one, so there's nothing to open).
 3. Connected, your Drive files show up in Vault Matches on the Null Search results page (badge `drive`), right alongside your Null Search vault and Null Notes.
 
-See [docs/handoffs/node-grid-v3.0-drive-vault.md](docs/handoffs/node-grid-v3.0-drive-vault.md) for the full API contract and how all three account states are tested.
+See [docs/handoffs/null-grid-v3.0-drive-vault.md](docs/handoffs/null-grid-v3.0-drive-vault.md) for the full API contract and how all three account states are tested.
 
 ## Build from source
 
@@ -72,13 +72,13 @@ npm run test:ui:updates # update check, update bot, Settings > UPDATES, sidebar 
 npm run test:ui:railclose # closing tabs from the shrunk sidebar with hover-to-expand off (needs a display)
 npm run test:ui:pinned # pin a tab through the right-click menu and open it (needs a display and xdotool)
 npm run test:ui:favicons # site icons served every way, including the ones sites lock to their own pages (needs a display)
-npm run test:ui:openlinks # links and .html files handed to NODE_GRID open in tabs (needs a display)
+npm run test:ui:openlinks # links and .html files handed to Null Grid open in tabs (needs a display)
 npm run test:ui:defaultbrowser # Settings > DEFAULT BROWSER on Linux, in a throwaway home folder (needs a display and xdg-utils)
 ```
 
 **Packages:**
 ```bash
-npm run dist              # portable Windows build (electron-packager), dist/NODE_GRID-win32-x64/
+npm run dist              # portable Windows build (electron-packager), dist/Null Grid-win32-x64/
 npm run dist:linux        # Linux .deb, .rpm, AppImage, .tar.gz — x64 + arm64 (electron-builder), store-dist/
 npm run dist:linux:flatpak # .flatpak — x64 + arm64. Needs flatpak-builder and the Flathub remote
                            # (flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo)
@@ -107,11 +107,11 @@ Then connect to `127.0.0.1:8081` in Settings → NULL DRIVE with any token.
 |---|---|
 | `main.js` | the main process: window + tab chrome, all IPC handlers |
 | `null-drive.js` | the only place the app talks to Null Drive — handshake, search, view, download |
-| `tab-preload.js` | per-tab preload; exposes `window.nodegridDrive` only on the configured search origin |
+| `tab-preload.js` | per-tab preload; exposes `window.nullgridDrive` only on the configured search origin |
 | `shell.html` / `shell.css` / `shell.js` | the browser chrome: sidebar, tabs, AI panel, radio player |
 | `settings.html` / `settings.js` / `settings.css` | the native Settings page, including the NULL DRIVE section |
 | `home/` | the bundled start page |
-| `doom/` | the NODE_GRID SIM mini-game (`doomgeneric`, GPL-2.0 — see below) |
+| `doom/` | the Null Grid SIM mini-game (`doomgeneric`, GPL-2.0 — see below) |
 | `build/` | Microsoft Store (MSIX) assets and manifest |
 | `packaging/aur/` | hand-maintained AUR `PKGBUILD` + `.SRCINFO` for `nullgrid-browser-bin` |
 | `packaging/flathub/` | hand-maintained Flathub submission manifest, `.desktop` file, and AppStream metainfo |
@@ -120,11 +120,11 @@ Then connect to `127.0.0.1:8081` in Settings → NULL DRIVE with any token.
 | `pipdock.html` / `pipdock.js` / `pipdock-preload.js` | the tiny restore/close bar drawn over a tab docked in the sidebar's PiP strip |
 | `updatebot.html` / `updatebot.js` / `updatebot-preload.js` | the update bot: a see-through overlay where a pixel robot announces a new version |
 | `docs/HISTORY.md` | technical history, phase by phase |
-| `docs/handoffs/` | handoff notes for the Null Grid apps |
+| `docs/handoffs/` | handoff notes for the Null apps |
 
 ## Why this repo is public
 
-`store-identity.txt` notes that NODE_GRID's built-in SIM game uses `doomgeneric` (GPL-2.0), and that shipping it requires NODE_GRID's own source to be publicly available — this repo is that source.
+`store-identity.txt` notes that Null Grid's built-in SIM game uses `doomgeneric` (GPL-2.0), and that shipping it requires Null Grid's own source to be publicly available — this repo is that source.
 
 ## Security
 

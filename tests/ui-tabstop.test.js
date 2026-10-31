@@ -36,12 +36,12 @@ const shot = (name) => { if (SHOTS) execFileSync('import', ['-window', 'root', p
   const site = http.createServer((q, r) => { r.setHeader('Content-Type', 'text/html'); const p = new URL(q.url, 'http://x').pathname; r.end(`<!doctype html><title>${p.slice(1) || 'home'} dashboard</title><body style="background:${COLORS[p] || '#fff'};color:#fff;font:28px sans-serif;padding:30px">${p}`); });
   await new Promise((r) => site.listen(0, '127.0.0.1', r));
   const base = 'http://127.0.0.1:' + site.address().port;
-  const ud = path.join(os.tmpdir(), 'node-grid-ci-tabstop-' + Date.now());
+  const ud = path.join(os.tmpdir(), 'null-grid-ci-tabstop-' + Date.now());
   fs.mkdirSync(ud, { recursive: true });
   fs.writeFileSync(path.join(ud, 'settings.json'), JSON.stringify({ seenVersion: require(path.join(APP_DIR, 'package.json')).version }));
   const settingsFile = () => JSON.parse(fs.readFileSync(path.join(ud, 'settings.json'), 'utf8'));
   const launch = () => pw._electron.launch({ args: [APP_DIR, '--user-data-dir=' + ud], executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1' } });
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_UPDATE_URL: 'http://127.0.0.1:1/', NULLGRID_SKIP_INTRO: '1' } });
   let app = await launch(), shell;
   const errors = [];
   const attach = async () => {

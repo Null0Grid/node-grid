@@ -2,7 +2,7 @@
 // comes from a website, so it's rebuilt here tag by tag from a short allow-list:
 // no scripts, no styles, no event handlers, no iframes; links and images only.
 (() => {
-  const R = window.nodegridReader;
+  const R = window.nullgridReader;
   const $ = (id) => document.getElementById(id);
   const id = new URLSearchParams(location.search).get('id');
   const data = R && R.get(id);
@@ -67,7 +67,7 @@
   const toast = (t) => { const n = $('toast'); n.textContent = t; n.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => n.classList.remove('on'), 2000); };
   if (!data.md) $('savemd').hidden = true;
   $('savemd').onclick = async () => {
-    const md = nodegridToMarkdown($('content'), art.url);
+    const md = nullgridToMarkdown($('content'), art.url);
     const r = await R.saveMd(id, md);
     toast(r && r.ok ? 'Saved to your Vault as Markdown' : "Couldn't save");
   };

@@ -1,5 +1,5 @@
 'use strict';
-// End-to-end check: drives the real NODE_GRID app (via Playwright's
+// End-to-end check: drives the real Null Grid app (via Playwright's
 // Electron support) against the real null-drive.js and tab-preload.js
 // bridge, with the test fixture at tests/fixtures/search-site/ standing in
 // for the real Null Search results page (that page lives in a different
@@ -50,15 +50,15 @@ async function runScenario(label, mode, tokenValue) {
   const drivePort = driveServer.address().port;
   const siteServer = await startFixtureSite();
   const sitePort = siteServer.address().port;
-  const userData = path.join(require('os').tmpdir(), 'node-grid-ci-' + label + '-' + Date.now());
+  const userData = path.join(require('os').tmpdir(), 'null-grid-ci-' + label + '-' + Date.now());
 
   const electronApp = await pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + userData],
     executablePath: electronPath,
     env: {
       ...process.env,
-      NODEGRID_SEARCH: 'http://127.0.0.1:' + sitePort,
-      NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_SKIP_INTRO: '1', // Linux CI has no OS keychain
+      NULLGRID_SEARCH: 'http://127.0.0.1:' + sitePort,
+      NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_SKIP_INTRO: '1', // Linux CI has no OS keychain
     },
   });
 

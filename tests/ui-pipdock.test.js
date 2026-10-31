@@ -1,5 +1,5 @@
 'use strict';
-// End-to-end check: drives the real NODE_GRID app (via Playwright's Electron
+// End-to-end check: drives the real Null Grid app (via Playwright's Electron
 // support) to confirm that toggling picture-in-picture docks the active
 // tab's video into the sidebar's .tabspacer strip (instead of only ever
 // opening a floating OS PiP window), that the dock can be restored or
@@ -77,12 +77,12 @@ async function tabCount(shell) {
 (async () => {
   const siteServer = await startFixtureSite();
   const sitePort = siteServer.address().port;
-  const userData = path.join(require('os').tmpdir(), 'node-grid-ci-pipdock-' + Date.now());
+  const userData = path.join(require('os').tmpdir(), 'null-grid-ci-pipdock-' + Date.now());
 
   const electronApp = await pw._electron.launch({
     args: [APP_DIR, '--user-data-dir=' + userData],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_SKIP_INTRO: '1' },
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_SKIP_INTRO: '1' },
   });
 
   try {

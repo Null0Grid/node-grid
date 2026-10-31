@@ -1,6 +1,6 @@
 // Runs in every normal tab, isolated from the website's own code.
 // 1) Tells the shell when the mouse is over the page (so a peeked sidebar collapses).
-// 2) Easter eggs, active ONLY on the NODE_GRID start page. An egg replaces the search
+// 2) Easter eggs, active ONLY on the Null Grid start page. An egg replaces the search
 //    completely: nothing is submitted, stored, sent or logged.
 const { ipcRenderer, contextBridge } = require('electron');
 
@@ -18,7 +18,7 @@ window.addEventListener('mousemove', (e) => {
 // ===================================================================================
 //  SIGN-INS: when you sign in to a website, the app may offer to save the login
 //  (the app decides: never in burner tabs, never for sites you said "never" to).
-//  Only the username and password you just submitted are passed on, to NODE_GRID
+//  Only the username and password you just submitted are passed on, to Null Grid
 //  itself, never to any website.
 // ===================================================================================
 (() => {
@@ -64,21 +64,21 @@ window.addEventListener('mousemove', (e) => {
 })();
 
 // ===================================================================================
-//  EASTER EGGS (NODE_GRID start page only)
+//  EASTER EGGS (Null Grid start page only)
 // ===================================================================================
 let cfg = null;
 try { cfg = ipcRenderer.sendSync('egg:config'); } catch {}
 // The start page is bundled in the app (file://.../home/index.html); results and notes
-// come from the NODE_GRID server. The server's own start page counts as home too.
+// come from the Null Grid server. The server's own start page counts as home too.
 const onHomePage = () => !!cfg && cfg.eggs !== false && (
   (location.protocol === 'file:' && location.href.split(/[?#]/)[0] === cfg.homeFile) ||
   (location.host === cfg.searchHost && /^\/(index\.html)?$/.test(location.pathname)));
-const onStartPage = () => !!cfg && cfg.eggs !== false && (onHomePage() || location.host === cfg.searchHost);   // any NODE_GRID page (eggs can be switched off in Settings)
+const onStartPage = () => !!cfg && cfg.eggs !== false && (onHomePage() || location.host === cfg.searchHost);   // any Null Grid page (eggs can be switched off in Settings)
 
 // Reader mode page (reader.html): gets the cleaned-up article from the app.
 if (cfg && cfg.readerPage && location.href.startsWith(cfg.readerPage)) {
   try {
-    contextBridge.exposeInMainWorld('nodegridReader', {
+    contextBridge.exposeInMainWorld('nullgridReader', {
       get: (id) => ipcRenderer.sendSync('reader:get', String(id)),
       prefs: (p) => ipcRenderer.send('reader:prefs', p),
       exit: () => ipcRenderer.send('reader:exit'),
@@ -90,7 +90,7 @@ if (cfg && cfg.readerPage && location.href.startsWith(cfg.readerPage)) {
 // Error page, certificate problem on one of YOUR local devices: lets it offer "Proceed anyway".
 if (cfg && cfg.errorPage && location.href.startsWith(cfg.errorPage)) {
   try {
-    contextBridge.exposeInMainWorld('nodegridCert', {
+    contextBridge.exposeInMainWorld('nullgridCert', {
       info: () => ipcRenderer.sendSync('cert:info'),
       trust: () => ipcRenderer.send('cert:trust')
     });
@@ -100,7 +100,7 @@ if (cfg && cfg.errorPage && location.href.startsWith(cfg.errorPage)) {
 // The "not secure" warning page (insecure.html): which address, and your choice.
 if (cfg && cfg.insecurePage && location.href.startsWith(cfg.insecurePage)) {
   try {
-    contextBridge.exposeInMainWorld('nodegridInsecure', {
+    contextBridge.exposeInMainWorld('nullgridInsecure', {
       info: () => ipcRenderer.sendSync('insecure:info'),
       choose: (c) => ipcRenderer.send('insecure:choose', String(c))
     });
@@ -111,25 +111,27 @@ if (cfg && cfg.insecurePage && location.href.startsWith(cfg.insecurePage)) {
 // (Only those two choices are saved, never what you searched for.)
 if (cfg && location.protocol === 'file:' && location.href.split(/[?#]/)[0] === cfg.homeFile) {
   try {
-    contextBridge.exposeInMainWorld('nodegridPrefs', {
+    contextBridge.exposeInMainWorld('nullgridPrefs', {
       search: cfg.searchPrefs || null,
       dashboard: cfg.dashboard || '',
       saveSearch: (engine, vault) => ipcRenderer.send('prefs:search', String(engine), !!vault)
     });
   } catch {}
 }
-// NODE_GRID search results + note viewer (the search site only, top frame only): ask the
+// Null Grid search results + note viewer (the search site only, top frame only): ask the
 // browser for matches from YOUR Null Drive. The browser makes the connection; the page
 // never sees the Drive address or token. Files can only be opened if a search returned them.
 if (cfg && location.host === cfg.searchHost && window.top === window) {
   try {
-    contextBridge.exposeInMainWorld('nodegridDrive', {
+    const driveBridge = {
       status:   ()  => ipcRenderer.invoke('drive:status'),
       search:   (q) => ipcRenderer.invoke('drive:search', String(q || '')),
       view:     (p) => ipcRenderer.invoke('drive:view', String(p || '')),
       download: (p) => ipcRenderer.invoke('drive:download', String(p || '')),
       showDownload: (name) => ipcRenderer.send('drive:show-download', String(name || ''))
-    });
+    };
+    contextBridge.exposeInMainWorld('nullgridDrive', driveBridge);
+    contextBridge.exposeInMainWorld('nodegridDrive', driveBridge);   // the Null Search site still calls it by its old name; remove once it uses nullgridDrive
   } catch {}
 }
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -138,7 +140,7 @@ const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matche
 let layer = null;
 function root() {
   if (layer && layer.isConnected) return layer.shadow;
-  layer = document.createElement('nodegrid-eggs');
+  layer = document.createElement('nullgrid-eggs');
   layer.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none;display:block;';
   layer.shadow = layer.attachShadow({ mode: 'open' });
   const css = new CSSStyleSheet();
@@ -236,7 +238,7 @@ async function ping() {
 // ---------- rm -rf / ----------------------------------------------------------
 const FAKE_PATHS = [
   '/bin/bash', '/boot/vmlinuz', '/etc/passwd', '/etc/hosts', '/home/user/.bashrc', '/home/user/photos/',
-  '/lib/systemd/', '/opt/node_grid/', '/root/.ssh/', '/sbin/init', '/srv/www/', '/tmp/', '/usr/bin/python3',
+  '/lib/systemd/', '/opt/null_grid/', '/root/.ssh/', '/sbin/init', '/srv/www/', '/tmp/', '/usr/bin/python3',
   '/usr/lib/firmware/', '/usr/share/fonts/', '/var/log/syslog', '/var/lib/docker/', '/etc/nginx/', '/dev/null (somehow)',
   '/home/user/Documents/taxes_FINAL_v3.pdf', '/usr/bin/sudo', '/etc/fstab', '/proc/self', '/sys/kernel/'
 ];
@@ -252,7 +254,7 @@ async function rmrf() {
   r.appendChild(term);
   const line = (t) => { out.textContent += t + '\n'; out.scrollTop = out.scrollHeight; };
 
-  line('root@node_grid:~# rm -rf /');
+  line('root@null_grid:~# rm -rf /');
   await sleep(500);
   const total = reduceMotion() ? 10 : 46;
   for (let i = 0; i < total; i++) {
@@ -317,11 +319,11 @@ async function fsociety() {
 
   // stage 1: fake crash, error dialogs cascade
   const msgs = [
-    ['NODE_GRID.exe', 'NODE_GRID.exe has stopped working.'],
+    ['Null Grid.exe', 'Null Grid.exe has stopped working.'],
     ['Fatal Exception 0x0000DEAD', 'The instruction at 0x7ff6a3c1 referenced memory at 0x00000000.\nThe memory could not be read.'],
     ['renderer.dll', 'Unhandled exception in module renderer.dll'],
     ['Integrity check', 'Tab data checksum mismatch. Profile may be corrupted.'],
-    ['NODE_GRID.exe', 'Recovering session... failed.'],
+    ['Null Grid.exe', 'Recovering session... failed.'],
     ['\u2588\u2588\u2588\u2588\u2588', 'unknown process requested SYSTEM access.']
   ];
   for (let i = 0; i < msgs.length; i++) {
@@ -490,7 +492,7 @@ async function btCameo() {
 // ---------- 2: Stratagem takeover (Helldivers-style input) --------------------
 // On the start page: HOLD Ctrl, a STRATAGEM panel shows the code, then enter the
 // arrows while still holding Ctrl. Releasing Ctrl cancels. Nothing is stored.
-const STRAT = { name: 'NODE_GRID TAKEOVER', code: ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right'] };
+const STRAT = { name: 'Null Grid TAKEOVER', code: ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right'] };
 const ARROWS = { arrowup: 'up', arrowdown: 'down', arrowleft: 'left', arrowright: 'right' };
 const GLYPH = { up: '\u25B2', down: '\u25BC', left: '\u25C0', right: '\u25B6' };
 let ctrlHeld = false, hudTimer = null, hud = null, entered = 0, locked = false;
@@ -590,8 +592,8 @@ async function takeover() {
   }
   const main = el('div', 'hack-main');
   const glyph = el('div', 'hack-glyph', '// //');
-  const title = el('div', 'hack-title', 'NODE_GRID COMPROMISED');
-  title.dataset.text = 'NODE_GRID COMPROMISED';
+  const title = el('div', 'hack-title', 'Null Grid COMPROMISED');
+  title.dataset.text = 'Null Grid COMPROMISED';
   const sub = el('div', 'hack-sub', 'we own your tabs now.');
   const log = el('pre', 'hack-log');
   main.append(glyph, title, sub, log);

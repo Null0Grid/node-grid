@@ -1,4 +1,4 @@
-// NODE_GRID crashed-tab page: a little robot sweeping up the pieces along the bottom.
+// Null Grid crashed-tab page: a little robot sweeping up the pieces along the bottom.
 // Pure canvas pixel art, original design. Only runs on the crash page.
 (() => {
   const cv = document.getElementById('sweeper');

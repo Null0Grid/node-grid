@@ -1,4 +1,4 @@
-// NODE_GRID // Neon Lab Doom runtime
+// Null Grid // Neon Lab Doom runtime
 // Loads doom.wasm (doomgeneric compiled for wasm32-wasi), provides a tiny
 // in-memory WASI filesystem holding the WADs, and pumps one engine tick per
 // Doom tic (35 Hz). Works in the browser and in Node (for headless tests).

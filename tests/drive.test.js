@@ -1,6 +1,6 @@
 'use strict';
 // Backend tests for null-drive.js against the three documented Null Drive
-// account states (see docs/handoffs/node-grid-v3.0-drive-vault.md). Plain
+// account states (see docs/handoffs/null-grid-v3.0-drive-vault.md). Plain
 // Node, no Electron — null-drive.js has no Electron dependency itself, so
 // this runs the same on Linux and Windows in CI.
 const assert = require('assert');

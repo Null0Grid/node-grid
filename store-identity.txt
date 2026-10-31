@@ -1,5 +1,5 @@
-# NODE_GRID :: Microsoft Store identity
-# Partner Center > Apps and games > NODE_GRID > Product identity (left menu)
+# Null Grid :: Microsoft Store identity
+# Partner Center > Apps and games > Null Grid > Product identity (left menu)
 # Copy the three values from that page and paste them after the = signs.
 # Keep this file in the same folder as "Build Store package.bat".
 
@@ -11,12 +11,12 @@ PUBLISHER_DISPLAY_NAME=NULLGRID
 # (Product management > Product identity / "Reserve another name").
 # The IDENTITY_NAME above stays NULLGRID.NullSearch: Partner Center fixes it
 # when the product is first created, and renaming the app does not change it.
-DISPLAY_NAME=Null Search
+DISPLAY_NAME=Null Grid
 
 # Parts that can cause trouble in Store review. Leave as "no" unless you
 # have dealt with the reason:
 #  - SIM game: its engine (doomgeneric) is GPL-2.0, so if you ship it you must
-#    also publish NODE_GRID's source code (e.g. a public GitHub repo).
+#    also publish Null Grid's source code (e.g. a public GitHub repo).
 #  - YouTube radio: since 5.1.1+ it plays in a visible 200x200 YouTube player
 #    in the radio panel and pauses whenever that player can't be seen, which is
 #    what YouTube's embed terms ask for, so it's on.

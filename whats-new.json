@@ -1,4 +1,15 @@
 {
+  "5.2.0": {
+    "title": "NODE_GRID is now Null Grid",
+    "new": [
+      "NODE_GRID is now called Null Grid. Same browser, new name: your settings, favorites, history, saved logins, Vault and sign-ins all came with it.",
+      "Ctrl+N opens a new window, with tabs of its own. Also in a tab's right-click menu, and by right-clicking NEW TAB.",
+      "Drag a tab out of the window to give it a window of its own, or drop it on another Null Grid window's tabs to move it there. Right-click a tab > Move to new window / Move to window does the same. The page keeps running while it moves.",
+      "Each window has its own tabs, panels, AI panel and radio. Settings, favorites, history, logins and downloads are shared by every window.",
+      "After an update restart, every window comes back with its own tabs."
+    ],
+    "fixed": []
+  },
   "5.1.7": {
     "title": "Tabs on top",
     "new": [
@@ -6,8 +17,8 @@
     ],
     "fixed": [
       "A YouTube video in the sidebar radio now fills its box, with no black bars above and below.",
-      "The NODE_GRID icon now fills its space on the taskbar like other apps: no black square around the blue frame.",
-      "Windows: a popped-out video no longer shows up as a second NODE_GRID button on the taskbar."
+      "The Null Grid icon now fills its space on the taskbar like other apps: no black square around the blue frame.",
+      "Windows: a popped-out video no longer shows up as a second Null Grid button on the taskbar."
     ]
   },
   "5.1.6": {
@@ -18,7 +29,7 @@
       "Settings > Start page: put your own dashboard (Homepage, Homarr...) on the start page as a button."
     ],
     "fixed": [
-      "A website could take over NODE_GRID's own toolbar and sidebar if you dragged a link onto them. Now nothing can navigate NODE_GRID's own pages.",
+      "A website could take over Null Grid's own toolbar and sidebar if you dragged a link onto them. Now nothing can navigate Null Grid's own pages.",
       "Passwords are now only saved and filled on secure (https) pages, only into fields you can see, and only the site (or its subdomains) they were saved for.",
       "Websites can no longer fake a sign-in to pop up the save prompt, and a saved password can't be changed while your logins are locked.",
       "Keep me signed in: all tabs now share one session, so sign-in pop-ups work; sites on a port (like Home Assistant :8123) stay signed in; the box starts unticked; signing out of one site no longer signs you out of others.",
@@ -33,10 +44,10 @@
     "new": [
       "Theme: Dark, Light, or Match my computer (Settings > Appearance).",
       "Sidebar size: Large and Extra large make tab icons and text bigger, easier to see.",
-      "Save logins as you sign in: NODE_GRID asks Save, Not now, or Never for this site, then fills the login in next time.",
-      "Stay signed in on sites you choose (WhatsApp, GitHub...): they keep their sign-in when NODE_GRID closes, every other site is still wiped. Right-click a page > Keep me signed in.",
+      "Save logins as you sign in: Null Grid asks Save, Not now, or Never for this site, then fills the login in next time.",
+      "Stay signed in on sites you choose (WhatsApp, GitHub...): they keep their sign-in when Null Grid closes, every other site is still wiped. Right-click a page > Keep me signed in.",
       "Pinned tabs remember Masking.",
-      "This What's new card after every update, and a walkthrough with Packet the first time you open NODE_GRID."
+      "This What's new card after every update, and a walkthrough with Packet the first time you open Null Grid."
     ],
     "fixed": [
       "A pinned tab with Masking on no longer gets stuck loading at startup."
@@ -53,7 +64,7 @@
   "5.1.3": {
     "title": "Updates install themselves",
     "new": [
-      "UPDATE downloads the new version, checks it against GitHub's checksum, and installs it when you restart or close NODE_GRID."
+      "UPDATE downloads the new version, checks it against GitHub's checksum, and installs it when you restart or close Null Grid."
     ],
     "fixed": [
       "25 fixes, including the Null Drive token being sent before its certificate was checked, burner tabs leaking into history from the right-click menu, and keyboard shortcuts sometimes not working until a click."

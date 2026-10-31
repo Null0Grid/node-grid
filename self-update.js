@@ -1,19 +1,19 @@
 'use strict';
-// NODE_GRID updating itself in place (main process).
+// Null Grid updating itself in place (main process).
 //
 // The update check (main.js) finds a newer GitHub release. For copies that can
 // replace their own files, this module downloads the release file that matches
-// how NODE_GRID was installed, checks it against the SHA-256 GitHub publishes
+// how Null Grid was installed, checks it against the SHA-256 GitHub publishes
 // for that file (and its size), unpacks it next to the user's data, and swaps
-// it in when NODE_GRID restarts or closes:
+// it in when Null Grid restarts or closes:
 //
 //   zip       Windows portable (.zip): a small PowerShell helper waits for
-//             NODE_GRID to exit, copies the new files over the old folder
+//             Null Grid to exit, copies the new files over the old folder
 //             (robocopy, retried while files are still locked) and starts it.
 //   tar       Linux .tar.gz in a folder you can write to: same, with /bin/sh.
 //   appimage  the .AppImage file itself is replaced (rename over it).
 //   deb, rpm  installed with dpkg / rpm through pkexec, which asks for your
-//             password, then NODE_GRID restarts.
+//             password, then Null Grid restarts.
 //
 // Anything else is updated by something else (Microsoft Store, Flatpak, Snap)
 // or can't be written to, and keeps the old behaviour: download the file /
@@ -29,10 +29,14 @@ const SELF = new Set(['zip', 'tar', 'appimage', 'deb', 'rpm']);
 // no-sandbox switch carry over (not a link it was opened with, nor debug flags).
 const relaunchArgs = () => process.argv.slice(1).filter((a) => /^--(user-data-dir=.+|no-sandbox)$/.test(a));
 const exeDir = () => path.dirname(process.execPath);
+// The program's file name from the release after 5.2.0 on (5.2.0 still uses the
+// old one, so copies older than 5.2.0 can update themselves to it). A download
+// may have either; the updater copies it in, removes the old one and starts it.
+const NEXT_EXE = process.platform === 'win32' ? 'Null Grid.exe' : 'null-grid';
 
 function writable(dir) {
   try {
-    const probe = path.join(dir, '.nodegrid-write-test-' + process.pid);
+    const probe = path.join(dir, '.nullgrid-write-test-' + process.pid);
     fs.writeFileSync(probe, ''); fs.unlinkSync(probe);
     return true;
   } catch { return false; }
@@ -73,7 +77,7 @@ async function download(net, asset, dir, onProgress) {
   fs.mkdirSync(dir, { recursive: true });
   const name = path.basename(asset.name).replace(/[^\w.+-]/g, '_');
   const file = path.join(dir, name), part = file + '.part';
-  const res = await net.fetch(asset.url, { headers: { 'User-Agent': 'NODE_GRID', Accept: 'application/octet-stream' } });
+  const res = await net.fetch(asset.url, { headers: { 'User-Agent': 'NullGrid', Accept: 'application/octet-stream' } });
   if (!res.ok || !res.body) throw new Error('the download failed (HTTP ' + res.status + ')');
   const total = asset.size || Number(res.headers.get('content-length')) || 0;
   const hash = crypto.createHash('sha256');
@@ -122,12 +126,12 @@ async function unpack(kind, file, dir) {
   }
   const top = fs.readdirSync(stage);
   const src = top.length === 1 && fs.statSync(path.join(stage, top[0])).isDirectory() ? path.join(stage, top[0]) : stage;
-  const exe = path.basename(process.execPath);
-  if (!fs.existsSync(path.join(src, exe)) || !fs.existsSync(path.join(src, 'resources', 'app.asar'))) {
+  const exe = [path.basename(process.execPath), NEXT_EXE].find((n) => fs.existsSync(path.join(src, n)));
+  if (!exe || !fs.existsSync(path.join(src, 'resources', 'app.asar'))) {
     rmrf(stage);
-    throw new Error("the download doesn't contain " + exe);
+    throw new Error("the download doesn't contain " + path.basename(process.execPath));
   }
-  return { stage, src };
+  return { stage, src, exe };
 }
 
 // Its settings come from a JSON file next to it: PowerShell would read a
@@ -135,12 +139,13 @@ async function unpack(kind, file, dir) {
 const PS_HELPER = `param($ConfigPath)
 $c = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
 $ProcId = [int]$c.pid; $Src = $c.src; $Dst = $c.dst; $Stage = $c.stage; $Log = $c.log; $Exe = $c.exe; $Relaunch = $c.relaunch; $ArgLine = $c.argLine
+$Next = $c.next; if (-not $Next) { $Next = $Exe }
 function Say($m) { Add-Content -LiteralPath $Log -Value $m }
 try {
   Set-Content -LiteralPath $Log -Value 'waiting'
   $p = Get-Process -Id $ProcId -ErrorAction SilentlyContinue
   if ($p) { $null = $p.WaitForExit(90000) }
-  # every NODE_GRID process from this folder (renderers, GPU, crash reporter) has to be gone too
+  # every Null Grid process from this folder (renderers, GPU, crash reporter) has to be gone too
   $exeName = [System.IO.Path]::GetFileNameWithoutExtension($Exe)
   for ($i = 0; $i -lt 60; $i++) {
     $left = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($Dst, [System.StringComparison]::OrdinalIgnoreCase) })
@@ -154,15 +159,20 @@ try {
     $code = $LASTEXITCODE
     if ($code -lt 8) { $ok = $true } else { Say ('robocopy ' + $code); Start-Sleep -Seconds 1 }
   }
-  if ($ok) { Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue; Set-Content -LiteralPath $Log -Value 'ok' }
+  if ($ok) {
+    Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
+    # the program file was renamed: the old one goes, the new one is started
+    if ($Next -ne $Exe -and (Test-Path -LiteralPath $Next)) { Remove-Item -LiteralPath $Exe -Force -ErrorAction SilentlyContinue; $Exe = $Next }
+    Set-Content -LiteralPath $Log -Value 'ok'
+  }
   else { Set-Content -LiteralPath $Log -Value ('copy failed (robocopy ' + $code + ')') }
 } catch { Say ('error: ' + $_) }
 if ($Relaunch -eq '1') { if ($ArgLine) { Start-Process -FilePath $Exe -ArgumentList $ArgLine } else { Start-Process -FilePath $Exe } }
 `;
 const SH_HELPER = `#!/bin/sh
-# NODE_GRID update helper: $1 pid  $2 new files  $3 program folder  $4 stage  $5 log  $6 program  $7 relaunch  $8... its arguments
-pid=$1; src=$2; dst=$3; stage=$4; log=$5; exe=$6; again=$7; shift 7
-# wait for NODE_GRID and every process still running from its folder (renderers, zygote...)
+# Null Grid update helper: $1 pid  $2 new files  $3 program folder  $4 stage  $5 log  $6 program  $7 relaunch  $8 new program  $9... its arguments
+pid=$1; src=$2; dst=$3; stage=$4; log=$5; exe=$6; again=$7; next=$8; shift 8
+# wait for Null Grid and every process still running from its folder (renderers, zygote...)
 busy() { for p in /proc/[0-9]*; do [ "$(readlink "$p/exe" 2>/dev/null)" = "$exe" ] && return 0; done; return 1; }
 i=0; while { kill -0 "$pid" 2>/dev/null || busy; } && [ $i -lt 300 ]; do sleep 0.3; i=$((i+1)); done
 sleep 0.5
@@ -171,7 +181,12 @@ while [ $n -lt 10 ]; do
   if cp -a "$src"/. "$dst"/; then ok=1; break; fi
   n=$((n+1)); sleep 1
 done
-if [ $ok = 1 ]; then rm -rf "$stage"; echo ok > "$log"; else echo "copy failed" > "$log"; fi
+if [ $ok = 1 ]; then
+  rm -rf "$stage"
+  # the program file was renamed: the old one goes, the new one is started
+  if [ -n "$next" ] && [ "$next" != "$exe" ] && [ -x "$next" ]; then rm -f "$exe"; exe=$next; fi
+  echo ok > "$log"
+else echo "copy failed" > "$log"; fi
 if [ "$again" = 1 ]; then setsid "$exe" "$@" >/dev/null 2>&1 < /dev/null & fi
 exit 0
 `;
@@ -187,10 +202,10 @@ function applyNow(kind, ready, { dir, relaunch }) {
     if (kind === 'zip') {
       const ps1 = path.join(dir, 'apply-update.ps1'), cfg = path.join(dir, 'apply-update.json');
       fs.writeFileSync(ps1, PS_HELPER);
-      fs.writeFileSync(cfg, JSON.stringify({ pid: process.pid, src: ready.src, dst, stage: ready.stage, log, exe, relaunch: relaunch ? '1' : '0',
+      fs.writeFileSync(cfg, JSON.stringify({ pid: process.pid, src: ready.src, dst, stage: ready.stage, log, exe, next: path.join(dst, ready.exe || path.basename(exe)), relaunch: relaunch ? '1' : '0',
         argLine: relaunchArgs().map((a) => '"' + a.replace(/"/g, '') + '"').join(' ') }));
       // Started through WMI (Win32_Process.Create), so the helper isn't a child of
-      // NODE_GRID and isn't closed along with it; a plain detached child as fallback.
+      // Null Grid and isn't closed along with it; a plain detached child as fallback.
       const cmd = `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "${ps1}" "${cfg}"`;
       try {
         execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
@@ -203,7 +218,7 @@ function applyNow(kind, ready, { dir, relaunch }) {
     } else {
       const sh = path.join(dir, 'apply-update.sh');
       fs.writeFileSync(sh, SH_HELPER, { mode: 0o755 });
-      spawn('/bin/sh', [sh, String(process.pid), ready.src, dst, ready.stage, log, exe, relaunch ? '1' : '0', ...relaunchArgs()], { detached: true, stdio: 'ignore' }).unref();
+      spawn('/bin/sh', [sh, String(process.pid), ready.src, dst, ready.stage, log, exe, relaunch ? '1' : '0', path.join(dst, ready.exe || path.basename(exe)), ...relaunchArgs()], { detached: true, stdio: 'ignore' }).unref();
     }
     return { ok: true, relaunchSelf: false };
   }

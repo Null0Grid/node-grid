@@ -58,7 +58,7 @@
     headline = 'This tab crashed';
     explain = (CRASH[desc] || 'Something on this page broke and its process stopped.') + ' Your other tabs are fine. Hit RELOAD to try again.';
     document.body.classList.add('crash');
-    document.querySelector('.tag').textContent = 'NODE_GRID :: TAB CRASHED';
+    document.querySelector('.tag').textContent = 'Null Grid :: TAB CRASHED';
     $0('retry').textContent = 'RELOAD';
     for (const el of document.querySelectorAll('.game, .game-hint')) el.remove();   // the robot is cleaning up instead
     $0('sweeper').hidden = false;
@@ -83,7 +83,7 @@
   $('status').textContent = kind === 'http' ? `HTTP ${code}${desc ? ' ' + desc : ''}`
     : kind === 'crash' ? `${(desc || 'crashed').toUpperCase()} (exit ${code})`
     : `${desc || 'NET_ERROR'} (${code})`;
-  document.title = `${headline} :: ${host || 'NODE_GRID'}`;
+  document.title = `${headline} :: ${host || 'Null Grid'}`;
 
   // Retry replaces this page with the original address, so Back never lands here again.
   if (safe(target) || /^file:\/\/.*\/home\/index\.html(\?|$)/i.test(target)) {
@@ -96,13 +96,13 @@
   if (safe(home) || isBundledHome) $('home').href = home; else $('home').hidden = true;
 
   // Certificate problem on a LOCAL device (homelab gear): offer "Proceed anyway".
-  if (q.get('trust') === '1' && window.nodegridCert) {
-    const info = window.nodegridCert.info();
+  if (q.get('trust') === '1' && window.nullgridCert) {
+    const info = window.nullgridCert.info();
     if (info) {
       $('trustbox').hidden = false;
       $('trustfp').textContent = `${info.host} :: issued by ${info.issuer || 'unknown'} :: fingerprint ${String(info.fingerprint || '').replace(/^sha256\//, '').slice(0, 23)}…`;
       $('explain').textContent = `The certificate for ${host || 'this device'} isn't from a public authority (${info.error || 'untrusted'}).`;
-      $('trust').addEventListener('click', (e) => { e.preventDefault(); window.nodegridCert.trust(); });
+      $('trust').addEventListener('click', (e) => { e.preventDefault(); window.nullgridCert.trust(); });
     }
   }
 

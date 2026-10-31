@@ -30,9 +30,9 @@ async function waitFor(fn, timeoutMs = 10000) {
   await new Promise((r) => site.listen(0, '127.0.0.1', r));
   const base = 'http://127.0.0.1:' + site.address().port;
   const app = await pw._electron.launch({
-    args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'node-grid-ci-pin-' + Date.now())],
+    args: [APP_DIR, '--user-data-dir=' + path.join(os.tmpdir(), 'null-grid-ci-pin-' + Date.now())],
     executablePath: electronPath,
-    env: { ...process.env, NODEGRID_TEST_PLAINTEXT_VAULT: '1', NODEGRID_UPDATE_URL: 'http://127.0.0.1:1/', NODEGRID_SKIP_INTRO: '1' },
+    env: { ...process.env, NULLGRID_TEST_PLAINTEXT_VAULT: '1', NULLGRID_UPDATE_URL: 'http://127.0.0.1:1/', NULLGRID_SKIP_INTRO: '1' },
   });
   let failed = false;
   const check = async (label, fn) => { try { await fn(); console.log('[pass] ' + label); } catch (e) { failed = true; console.log('[FAIL] ' + label + ': ' + e.message); } };
@@ -50,11 +50,11 @@ async function waitFor(fn, timeoutMs = 10000) {
       activePinned: !!document.querySelector('#pins .tab.active'),
     }));
 
-    // 1. pin "/pinme" (the 2nd tab) through its right-click menu: Pin tab is the 8th item
+    // 1. pin "/pinme" (the 2nd tab) through its right-click menu: Pin tab is the 10th item (after New tab, New window, Duplicate, Move to new window, ...)
     const tabEl = (await shell.$$('#tabs .tab'))[1];
     await tabEl.click({ button: 'right' });
     await wait(900);
-    for (let i = 0; i < 8; i++) { execFileSync('xdotool', ['key', 'Down']); await wait(80); }
+    for (let i = 0; i < 10; i++) { execFileSync('xdotool', ['key', 'Down']); await wait(80); }
     execFileSync('xdotool', ['key', 'Return']);
     await check('Pin tab moves it into the pinned row', async () => assert.ok(await waitFor(async () => (await state()).pins === 1, 4000), JSON.stringify(await state())));
 

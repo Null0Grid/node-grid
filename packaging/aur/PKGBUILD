@@ -1,4 +1,4 @@
-# Maintainer: NODE_GRID <support@nullgrid.dev>
+# Maintainer: Null Labs <support@nullgrid.dev>
 # This packages the prebuilt Linux release (the same .tar.gz built by
 # `npm run dist:linux` / the release workflow) rather than compiling from
 # source — Electron apps are conventionally distributed this way on the AUR.
@@ -6,9 +6,9 @@
 # checksums against the new release assets with `updpkgsums` (or
 # `makepkg -g >> PKGBUILD` and move the new sha256sums_* lines into place).
 pkgname=nullgrid-browser-bin
-pkgver=5.1.7
+pkgver=5.2.0
 pkgrel=1
-pkgdesc="NODE_GRID: vertical tab sidebar browser with ad blocking, hostname-only history, and a login vault (part of Null Grid)"
+pkgdesc="Null Grid: vertical tab sidebar browser with ad blocking, hostname-only history, and a login vault (part of the Null Suite)"
 arch=('x86_64' 'aarch64')
 url="https://search.nullgrid.dev"
 license=('unknown')
@@ -17,20 +17,20 @@ conflicts=('nullgrid-browser')
 depends=('gtk3' 'nss' 'libxss' 'libxtst' 'libnotify' 'at-spi2-core' 'libsecret' 'xdg-utils' 'libdrm' 'libxcomposite' 'libxdamage' 'libxrandr' 'libxkbcommon' 'mesa')
 options=('!strip')
 
-# dev.nullgrid.nodegrid.png ships alongside this PKGBUILD in the AUR repo
+# dev.nullgrid.nullgrid.png ships alongside this PKGBUILD in the AUR repo
 # (the app's own icon, copied from home/icon-512.png in the main repo) since
 # the real icon lives inside app.asar and isn't a loose file in the release
 # tarball to install from directly.
-source=('dev.nullgrid.nodegrid.png')
-source_x86_64=("${pkgname%-bin}-${pkgver}.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/${pkgver}/nullgrid-browser-${pkgver}.tar.gz")
-source_aarch64=("${pkgname%-bin}-${pkgver}-arm64.tar.gz::https://github.com/Null0Grid/node-grid/releases/download/${pkgver}/nullgrid-browser-${pkgver}-arm64.tar.gz")
+source=('dev.nullgrid.nullgrid.png')
+source_x86_64=("${pkgname%-bin}-${pkgver}.tar.gz::https://github.com/Null0Grid/null-grid/releases/download/${pkgver}/nullgrid-browser-${pkgver}.tar.gz")
+source_aarch64=("${pkgname%-bin}-${pkgver}-arm64.tar.gz::https://github.com/Null0Grid/null-grid/releases/download/${pkgver}/nullgrid-browser-${pkgver}-arm64.tar.gz")
 
 # Checksums: the icon file next to this PKGBUILD, and the two tarballs as
-# published on the 5.1.7 GitHub release. On the next release, run `updpkgsums`
+# published on the 5.2.0 GitHub release. On the next release, run `updpkgsums`
 # against the new release assets and regenerate .SRCINFO.
 sha256sums=('f304828ddc49b946dbc2f4c28329a8318f546ac423b92c649a4b0e489fcf38a8')
-sha256sums_x86_64=('d0e4c13a627858c47e30a786dd64bade0b0a802c0b878234b2dfa29f7de3a509')
-sha256sums_aarch64=('90e53173da7245c933fd04ea740be32769eb78e831d7d1ff8894010ce4adafcc')
+sha256sums_x86_64=('FILL_IN_FROM_THE_5.2.0_RELEASE_x86_64_TARBALL')
+sha256sums_aarch64=('FILL_IN_FROM_THE_5.2.0_RELEASE_arm64_TARBALL')
 
 package() {
   local _instdir="${pkgdir}/opt/${pkgname%-bin}"
@@ -49,17 +49,17 @@ package() {
   ln -s "/opt/${pkgname%-bin}/node-grid" "${pkgdir}/usr/bin/node-grid"
 
   install -dm755 "${pkgdir}/usr/share/applications"
-  install -m644 /dev/stdin "${pkgdir}/usr/share/applications/dev.nullgrid.nodegrid.desktop" <<EOF
+  install -m644 /dev/stdin "${pkgdir}/usr/share/applications/dev.nullgrid.nullgrid.desktop" <<EOF
 [Desktop Entry]
-Name=NODE_GRID
+Name=Null Grid
 Comment=${pkgdesc}
 Exec=node-grid %U
 Terminal=false
 Type=Application
-Icon=dev.nullgrid.nodegrid
+Icon=dev.nullgrid.nullgrid
 Categories=Network;WebBrowser;
 EOF
 
-  install -Dm644 "${srcdir}/dev.nullgrid.nodegrid.png" \
-    "${pkgdir}/usr/share/icons/hicolor/512x512/apps/dev.nullgrid.nodegrid.png"
+  install -Dm644 "${srcdir}/dev.nullgrid.nullgrid.png" \
+    "${pkgdir}/usr/share/icons/hicolor/512x512/apps/dev.nullgrid.nullgrid.png"
 }
