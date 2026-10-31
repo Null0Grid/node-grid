@@ -31,21 +31,28 @@ jobs:
       - name: Drive connection tests (null-drive.js, no Electron)
         run: npm test
       - name: Drive connection, live in the app (Electron + Playwright, under Xvfb)
-        run: xvfb-run -a npm run test:ui
+        if: ${{ !cancelled() }}
+        run: xvfb-run -a node tests/ci-run.js test:ui
       - name: Update checks, update bot, Settings > UPDATES, sidebar hover switch (live in the app)
-        run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:updates
+        if: ${{ !cancelled() }}
+        run: xvfb-run -a -s "-screen 0 1400x900x24" node tests/ci-run.js test:ui:updates
       - name: Picture-in-picture docking (live in the app)
-        run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:pipdock
+        if: ${{ !cancelled() }}
+        run: xvfb-run -a -s "-screen 0 1400x900x24" node tests/ci-run.js test:ui:pipdock
       - name: Not-secure warning for http sites (live in the app)
-        run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:insecure
+        if: ${{ !cancelled() }}
+        run: xvfb-run -a -s "-screen 0 1400x900x24" node tests/ci-run.js test:ui:insecure
       - name: Tabs across the top (live in the app)
-        run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:tabstop
+        if: ${{ !cancelled() }}
+        run: xvfb-run -a -s "-screen 0 1400x900x24" node tests/ci-run.js test:ui:tabstop
       - name: Several windows (live in the app)
-        run: xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:windows
+        if: ${{ !cancelled() }}
+        run: xvfb-run -a -s "-screen 0 1400x900x24" node tests/ci-run.js test:ui:windows
       - name: Renamed to Null Grid (no old name left; updating from before the rename keeps everything)
+        if: ${{ !cancelled() }}
         run: |
-          npm run test:rename
-          xvfb-run -a -s "-screen 0 1400x900x24" npm run test:ui:rename
+          node tests/ci-run.js test:rename
+          xvfb-run -a -s "-screen 0 1400x900x24" node tests/ci-run.js test:ui:rename
       - name: Self-update, end to end (old .tar.gz build updates itself to a new one)
         run: |
           npx electron-builder --linux dir --x64 --publish never -c.directories.output="$RUNNER_TEMP/old" > "$RUNNER_TEMP/b1.log" 2>&1 || { echo "::error title=build::$(tail -c 800 "$RUNNER_TEMP/b1.log" | tr '\n' ' ')"; exit 1; }
